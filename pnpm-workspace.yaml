@@ -1,0 +1,43 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  esbuild: true
+
+catalog:
+  # language & toolchain
+  typescript: 5.9.3
+  "@types/node": 24.19.2
+  vitest: 5.1.0
+  eslint: 10.14.0
+  typescript-eslint: 8.72.1
+  eslint-config-prettier: 10.1.8
+  eslint-plugin-react-hooks: 7.1.1
+  prettier: 3.9.10
+  concurrently: 10.0.6
+  tsx: 4.23.15
+  esbuild: 0.28.2
+  # web apps
+  vite: 8.3.6
+  "@vitejs/plugin-react": 6.2.1
+  react: 19.3.1
+  react-dom: 19.3.1
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
+  tailwindcss: 4.3.4
+  "@tailwindcss/vite": 4.3.4
+  zustand: 5.0.16
+  # game & server
+  phaser: 4.2.1
+  colyseus: 0.17.11
+  "@colyseus/core": 0.17.56
+  "@colyseus/schema": 4.0.31
+  "@colyseus/sdk": 0.17.43
+  "@colyseus/ws-transport": 0.17.9 # only needed if the classic Server fallback is used
+  express: 5.3.0
+  "@types/express": 5.0.6
+  pino: 10.4.0
+  pg: 8.23.1
+  "@types/pg": 8.23.1
+  zod: 4.6.7

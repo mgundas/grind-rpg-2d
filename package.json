@@ -1,0 +1,31 @@
+{
+  "name": "jade-throne",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "scripts": {
+    "dev": "pnpm dev:db && concurrently -n server,client,admin -c yellow,cyan,magenta \"pnpm --filter @jadethrone/server dev\" \"pnpm --filter @jadethrone/client dev\" \"pnpm --filter @jadethrone/admin dev\"",
+    "dev:db": "node --env-file-if-exists=.env scripts/dev-db.mjs",
+    "dev:server": "pnpm --filter @jadethrone/server dev",
+    "dev:client": "pnpm --filter @jadethrone/client dev",
+    "dev:admin": "pnpm --filter @jadethrone/admin dev",
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "concurrently": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-plugin-react-hooks": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "vitest": "catalog:"
+  }
+}
