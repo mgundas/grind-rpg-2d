@@ -23,8 +23,8 @@ const port = portFlag !== -1 ? Number(args[portFlag + 1]) : 2567;
 const useDist = args.includes("--dist");
 
 const command = useDist
-  ? "node apps/server/dist/index.cjs"
-  : "pnpm --filter @jadethrone/server exec tsx src/app.config.ts";
+  ? "node --env-file-if-exists=.env apps/server/dist/index.cjs"
+  : "pnpm --filter @jadethrone/server exec tsx --env-file-if-exists=../../.env src/app.config.ts";
 const targetUrl = `http://127.0.0.1:${port}/api/health`;
 
 console.log(`[smoke] booting: ${command}`);
@@ -45,7 +45,9 @@ async function waitForHealth(deadlineMs) {
   const start = Date.now();
   while (Date.now() - start < deadlineMs) {
     try {
-      const res = await fetch(targetUrl, { signal: AbortSignal.timeout(1500) });
+      // The server's own health deadline is 2s; give the probe headroom so a
+      // worst-case (deadline-hit) response is never aborted prematurely.
+      const res = await fetch(targetUrl, { signal: AbortSignal.timeout(4000) });
       if (res.ok) {
         return await res.json();
       }
@@ -72,7 +74,7 @@ try {
     if (res.ok) {
       roomsProbe = await res.json();
     } else {
-      roomsProbe = { error: `HTTP ${res.status}` };
+      roomsProbe = { error: `HTTP ${res.status}`, body: await res.text() };
     }
   } catch (error) {
     roomsProbe = { error: String(error) };

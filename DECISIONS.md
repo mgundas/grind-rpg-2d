@@ -34,4 +34,8 @@ Booting and killing a dev server process reliably on Windows requires killing th
 
 `esbuild --format=esm` broke at runtime: Colyseus's CJS dependencies do `require()` on Node builtins (`tty` via `debug`), which esbuild's ESM output does not allow without a `createRequire` banner. The bundle therefore now emits `dist/index.cjs` in CJS format. Consequence: no top-level await in the entrypoint — `server.listen(...)` is chained with `.then()/.catch()` instead.
 
-## D9+ — added as work continues
+## D9 — The /api/health DB probe needs a hard deadline and singleflight
+
+Two Windows-specific findings from verifying the endpoint against an unreachable `raspberrypi.local`: (1) pg's `connectionTimeoutMillis` (1.5 s) does not reliably cover a hanging DNS/LLMNR lookup — a dead-cached `.local` name can stall `Client.connect()` well beyond it — so the handler races the DB ping against a 2 s deadline (`db: "unavailable"` on timeout; late results are ignored and the client closes itself). (2) Health endpoints get polled aggressively once monitoring exists, so in-flight pings are singleflighted — one hung ping must not pile up a pg client per request. Also note for test harnesses: the probe client must allow more than the server's own 2 s health deadline, or worst-case responses get aborted client-side.
+
+## D10+ — added as work continues

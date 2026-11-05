@@ -1,0 +1,34 @@
+# Jade Throne — development database.
+#
+# Deploy on the Raspberry Pi (or any Docker host):
+#   cp .env.example .env     # then set POSTGRES_PASSWORD
+#   docker compose up -d     # .env next to this file is read automatically
+#
+# Image supports every Pi: arm/v6, arm/v7 (32-bit OS), arm64 (64-bit OS).
+# The game server needs no Docker - it reads POSTGRES_HOST / POSTGRES_PORT
+# from its own .env on the dev machine and connects over the LAN.
+
+name: jade-throne-dev
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-jade}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-jade_throne}
+    ports:
+      # <port published on the Pi, from .env> : <port inside the container>
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-jade} -d ${POSTGRES_DB:-jade_throne}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

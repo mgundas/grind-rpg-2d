@@ -1,5 +1,5 @@
 import process from "node:process";
-import { defineRoom, defineServer } from "@colyseus/core";
+import { matchMaker, defineRoom, defineServer } from "@colyseus/core";
 import { config } from "./config";
 import { logger } from "./logger";
 import { WorldRoom } from "./rooms/WorldRoom";
@@ -31,6 +31,7 @@ server
   .listen(config.port)
   .then(() => {
     logger.info(`Jade Throne game server listening on port ${config.port}`);
+    logger.info({ rooms: Object.keys(matchMaker.getAllHandlers()) }, "rooms registered");
   })
   .catch((error: unknown) => {
     logger.error({ error }, "Failed to start the game server");
