@@ -8,7 +8,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 2 — pnpm workspace + pinned toolchain catalog
 - [x] Task 3 — TypeScript strict base config, ESLint flat config, Prettier
 - [x] Task 4 — packages/shared: constants + seeded rng + first Vitest suite
-- [ ] Task 5 — packages/data skeleton
+- [x] Task 5 — packages/data skeleton
 - [ ] Task 6 — server: Colyseus 0.17 skeleton with Express health endpoint
 - [ ] Task 7 — server: minimal world room with schema state
 - [ ] Task 8 — docker-compose.yml (Pi deployment), .env.example, scripts/dev-db.mjs
