@@ -4,7 +4,7 @@ Current plan: `docs/plans/phase-0.md`
 
 ## Phase 0 — Foundation
 
-- [ ] Task 1 — Repo init and tracking docs (git init, .gitignore, README, DECISIONS seed)
+- [x] Task 1 — Repo init and tracking docs (git init, .gitignore, README, DECISIONS seed)
 - [ ] Task 2 — pnpm workspace + pinned toolchain catalog
 - [ ] Task 3 — TypeScript strict base config, ESLint flat config, Prettier
 - [ ] Task 4 — packages/shared: constants + seeded rng + first Vitest suite
