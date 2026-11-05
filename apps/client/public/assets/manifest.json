@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "assets": {
+    "tileset.village": {
+      "path": "tilesets/village.png",
+      "placeholder": {
+        "kind": "tileset",
+        "tiles": ["grass", "dirt", "stone", "water", "wall"]
+      }
+    },
+    "char.body.male": {
+      "path": "sprites/char/body-male.png",
+      "placeholder": {
+        "kind": "char",
+        "color": "#c89b6a"
+      }
+    },
+    "icon.item.sword_01": {
+      "path": "icons/sword-01.png",
+      "placeholder": {
+        "kind": "icon",
+        "rarity": "common",
+        "label": "Sw"
+      }
+    }
+  }
+}

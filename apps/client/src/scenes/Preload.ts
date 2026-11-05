@@ -1,12 +1,71 @@
 import Phaser from "phaser";
+import type { AssetManifest } from "../assets/manifest";
+import { createPlaceholder } from "../assets/placeholders";
 
-/** Asset pipeline lives in the manifest/placeholder task; stub for now. */
+/**
+ * Loads every manifest entry; files that exist win, files that 404 get a
+ * procedural placeholder under the same key (GAME_DESIGN.md §2.1). Offers a
+ * progress bar while loading.
+ */
 export class PreloadScene extends Phaser.Scene {
+  private progressBar: Phaser.GameObjects.Graphics | null = null;
+  private progressBox: Phaser.GameObjects.Graphics | null = null;
+
   constructor() {
     super({ key: "Preload" });
   }
 
-  create(): void {
-    this.scene.start("World");
+  preload(): void {
+    const manifest = this.game.registry.get("manifest") as AssetManifest | undefined;
+    if (!manifest) {
+      this.scene.start("Boot");
+      return;
+    }
+
+    this.buildProgressBar();
+
+    const failed = new Set<string>();
+    this.load.on("loaderror", (file: Phaser.Loader.File) => {
+      failed.add(file.key);
+    });
+
+    for (const [key, entry] of Object.entries(manifest.assets)) {
+      this.load.image(key, `/assets/${entry.path}`);
+    }
+
+    this.load.once("complete", () => {
+      this.destroyProgressBar();
+      let placeholderCount = 0;
+      for (const key of failed) {
+        const entry = manifest.assets[key];
+        if (entry && createPlaceholder(this, key, entry.placeholder)) {
+          placeholderCount++;
+        }
+      }
+      this.game.registry.set("placeholderCount", placeholderCount);
+      this.scene.start("World");
+    });
+  }
+
+  private buildProgressBar(): void {
+    const width = Math.min(320, this.scale.width - 48);
+    const x = (this.scale.width - width) / 2;
+    const y = this.scale.height / 2 - 14;
+    this.progressBox = this.add.graphics();
+    this.progressBox.fillStyle(0x101413, 0.85);
+    this.progressBox.fillRect(x - 4, y - 4, width + 8, 36);
+    this.progressBar = this.add.graphics();
+    this.load.on("progress", (value: number) => {
+      this.progressBar?.clear();
+      this.progressBar?.fillStyle(0x5da88f, 1);
+      this.progressBar?.fillRect(x, y, width * value, 28);
+    });
+  }
+
+  private destroyProgressBar(): void {
+    this.progressBar?.destroy();
+    this.progressBox?.destroy();
+    this.progressBar = null;
+    this.progressBox = null;
   }
 }
