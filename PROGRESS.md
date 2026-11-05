@@ -12,7 +12,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 6 — server: Colyseus 0.17 skeleton with Express health endpoint
 - [x] Task 7 — server: minimal world room with schema state
 - [x] Task 8 — docker-compose.yml (Pi deployment), .env.example, scripts/dev-db.mjs
-- [ ] Task 9 — client: Vite + React + Phaser shell with Boot scene
+- [x] Task 9 — client: Vite + React + Phaser shell with Boot scene
 - [ ] Task 10 — client: asset manifest with procedural placeholder fallback
 - [ ] Task 11 — client: demo world scene with placeholder character + server status overlay
 - [ ] Task 12 — admin: theme styled login page skeleton

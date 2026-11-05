@@ -1,0 +1,26 @@
+{
+  "name": "@jadethrone/client",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@colyseus/sdk": "catalog:",
+    "@jadethrone/shared": "workspace:*",
+    "phaser": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zustand": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

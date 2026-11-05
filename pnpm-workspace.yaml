@@ -43,3 +43,6 @@ catalog:
   pg: 8.23.1
   "@types/pg": 8.23.1
   zod: 4.6.7
+
+minimumReleaseAgeExclude:
+  - vite@8.3.6
