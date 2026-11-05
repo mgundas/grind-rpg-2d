@@ -1,0 +1,28 @@
+{
+  "name": "@jadethrone/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/app.config.ts",
+    "build": "esbuild src/app.config.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/index.cjs --external:pg --external:pino",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/index.cjs"
+  },
+  "dependencies": {
+    "@colyseus/core": "catalog:",
+    "@colyseus/schema": "catalog:",
+    "@colyseus/ws-transport": "catalog:",
+    "@jadethrone/shared": "workspace:*",
+    "express": "catalog:",
+    "pg": "catalog:",
+    "pino": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/pg": "catalog:",
+    "esbuild": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

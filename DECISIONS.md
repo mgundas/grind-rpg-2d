@@ -12,7 +12,7 @@ TypeScript 6.x/7.x exist (7.0.2 is the current npm `latest`), but `AGENTS.md` sp
 
 ## D3 — Versions single-sourced via pnpm catalogs + build-script allowlist
 
-Every dependency version is pinned once in the `catalog:` block of `pnpm-workspace.yaml`; each `package.json` references versions as `"catalog:"`, so no version can drift between apps. The `packageManager` field pins `pnpm@12.16.1`. pnpm 12 hard-blocks dependency build scripts and fails installation (`strictDepBuilds`) until each package is explicitly allowed — and the old `onlyBuiltDependencies` setting was removed in favor of an `allowBuilds` map in `pnpm-workspace.yaml`. esbuild (transitive dependency of tsx) is the only package with a build script so far and is the single approved entry; future packages with install scripts (e.g. native addons) must be reviewed and added there. Adjustment made during implementation: packages that contain tests (starting with `packages/shared`) also declare `vitest` in their own `devDependencies` so `tsc --noEmit` can resolve the import inside test files — pnpm does not hoist root dependencies into workspace packages.
+Every dependency version is pinned once in the `catalog:` block of `pnpm-workspace.yaml`; each `package.json` references versions as `"catalog:"`, so no version can drift between apps. The `packageManager` field pins `pnpm@12.16.1`. pnpm 12 hard-blocks dependency build scripts and fails installation (`strictDepBuilds`) until each package is explicitly allowed — and the old `onlyBuiltDependencies` setting was removed in favor of an `allowBuilds` map in `pnpm-workspace.yaml`. esbuild (transitive dependency of tsx, needed for our server build) is explicitly allowed; the optional native accelerator `msgpackr-extract` is explicitly denied — msgpackr falls back to pure JS, which avoids requiring a node-gyp/MSVC toolchain on dev machines and in CI. Adjustment made during implementation: packages that contain tests (starting with `packages/shared`) also declare `vitest` in their own `devDependencies` so `tsc --noEmit` can resolve the import inside test files — pnpm does not hoist root dependencies into workspace packages.
 
 ## D4 — Shared and data packages are consumed as TypeScript source
 
@@ -22,4 +22,16 @@ Every dependency version is pinned once in the `catalog:` block of `pnpm-workspa
 
 The current express major is 5, and `@colyseus/monitor@0.17` accepts `>=4.16.0`, so nothing in the 0.17 toolchain forces express 4. We do not mount the monitor until Phase 5; if compatibility problems appear there, dropping to express 4.22.3 is the recorded fallback.
 
-## D6+ — added during tasks 6–16
+## D6 — The server uses @colyseus/core directly, not the `colyseus` meta bundle
+
+pnpm 12's `blockExoticSubdeps` guard (a supply-chain protection kept enabled) failed installation of the `colyseus` meta bundle because its transitive tree resolves `uWebSockets.js` from a git repository. Reading the installed 0.17.56 typings confirmed the meta was not needed anyway: `defineServer`, `defineRoom`, `Server`, `Room` are all exported from `@colyseus/core`, the default WebSocket transport is auto-detected, and `.d.ts` files resolve cleanly through the package `exports`. We therefore depend on `@colyseus/core@0.17.56` + `@colyseus/schema@0.17-schema-4.0.31` + `@colyseus/ws-transport@0.17.13` directly and import from `@colyseus/core`. This is also a leaner tree: the meta drags in `@colyseus/playground`, redis packages and `@pm2/io` that we do not use. Agent-typing note: `defineServer` in 0.17 returns a non-Server stub only when Colyseus's opt-in devMode is enabled (`setDevMode`/`.devmode.json`) — never in our flow.
+
+## D7 — Verification smoke script
+
+Booting and killing a dev server process reliably on Windows requires killing the whole process tree (`taskkill /T`), which is awkward to script inline. `scripts/smoke-server.mjs` boots the server via tsx, polls `GET /api/health` until it answers, kills the process tree, and exits 0/1 — used to verify every server task headlessly and at the phase-end review.
+
+## D8 — Server production bundle is CJS
+
+`esbuild --format=esm` broke at runtime: Colyseus's CJS dependencies do `require()` on Node builtins (`tty` via `debug`), which esbuild's ESM output does not allow without a `createRequire` banner. The bundle therefore now emits `dist/index.cjs` in CJS format. Consequence: no top-level await in the entrypoint — `server.listen(...)` is chained with `.then()/.catch()` instead.
+
+## D9+ — added as work continues
