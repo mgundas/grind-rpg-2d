@@ -59,7 +59,25 @@ async function waitForHealth(deadlineMs) {
 
 try {
   const payload = await waitForHealth(20000);
-  console.log(JSON.stringify({ smoke: "ok", payload }));
+  let roomsProbe = null;
+  try {
+    // The 0.17 default router exposes matchmaking via POST joinOrCreate —
+    // this proves the room is registered and matchmakeable.
+    const res = await fetch(`http://127.0.0.1:${port}/matchmake/joinOrCreate/world`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "SmokeTester" }),
+      signal: AbortSignal.timeout(1500),
+    });
+    if (res.ok) {
+      roomsProbe = await res.json();
+    } else {
+      roomsProbe = { error: `HTTP ${res.status}` };
+    }
+  } catch (error) {
+    roomsProbe = { error: String(error) };
+  }
+  console.log(JSON.stringify({ smoke: "ok", payload, rooms: roomsProbe }));
 } catch (error) {
   console.error(`[smoke] FAILED: ${String(error)}`);
   process.exitCode = 1;

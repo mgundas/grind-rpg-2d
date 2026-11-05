@@ -1,7 +1,8 @@
 import process from "node:process";
-import { defineServer } from "@colyseus/core";
+import { defineRoom, defineServer } from "@colyseus/core";
 import { config } from "./config";
 import { logger } from "./logger";
+import { WorldRoom } from "./rooms/WorldRoom";
 import { healthHandler } from "./routes/health";
 
 /**
@@ -15,8 +16,7 @@ import { healthHandler } from "./routes/health";
  */
 const server = defineServer({
   rooms: {
-    // The world room is registered in the next task; matchmaking untested
-    // until then.
+    world: defineRoom(WorldRoom),
   },
   express: (app) => {
     app.get("/api/health", healthHandler);

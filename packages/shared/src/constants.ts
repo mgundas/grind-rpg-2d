@@ -36,3 +36,9 @@ export const RARITY_COLORS: Record<Rarity, string> = {
 
 /** Demo spawn point until real maps exist (Phase 1 uses map spawn objects). */
 export const SPAWN_POINT = { x: 400, y: 304 };
+
+/** Per-channel room cap (GAME_DESIGN.md §10.2: max 200 players per channel). */
+export const MAX_PLAYERS_PER_CHANNEL = 200;
+
+/** Per-client message rate limit in msgs/s (GAME_DESIGN.md §10.2). */
+export const MESSAGES_PER_SECOND_LIMIT = 30;

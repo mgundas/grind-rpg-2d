@@ -10,7 +10,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 4 — packages/shared: constants + seeded rng + first Vitest suite
 - [x] Task 5 — packages/data skeleton
 - [x] Task 6 — server: Colyseus 0.17 skeleton with Express health endpoint
-- [ ] Task 7 — server: minimal world room with schema state
+- [x] Task 7 — server: minimal world room with schema state
 - [ ] Task 8 — docker-compose.yml (Pi deployment), .env.example, scripts/dev-db.mjs
 - [ ] Task 9 — client: Vite + React + Phaser shell with Boot scene
 - [ ] Task 10 — client: asset manifest with procedural placeholder fallback
