@@ -23,15 +23,15 @@ pnpm dev        # DB reachability check + server :2567 + client :5173 + admin :5
 
 All commands must always work:
 
-| Command | Effect |
-| --- | --- |
-| `pnpm dev` | DB check + server + client + admin, with hot reload |
-| `pnpm dev:server` / `pnpm dev:client` / `pnpm dev:admin` / `pnpm dev:db` | individual processes |
-| `pnpm build` | client + admin vite builds, server esbuild bundle |
-| `pnpm test` | Vitest suites (root runner) |
-| `pnpm typecheck` | `tsc --noEmit` in every package |
-| `pnpm lint` | ESLint (flat config) |
-| `pnpm format` / `pnpm format:check` | Prettier write / check |
+| Command                                                                  | Effect                                              |
+| ------------------------------------------------------------------------ | --------------------------------------------------- |
+| `pnpm dev`                                                               | DB check + server + client + admin, with hot reload |
+| `pnpm dev:server` / `pnpm dev:client` / `pnpm dev:admin` / `pnpm dev:db` | individual processes                                |
+| `pnpm build`                                                             | client + admin vite builds, server esbuild bundle   |
+| `pnpm test`                                                              | Vitest suites (root runner)                         |
+| `pnpm typecheck`                                                         | `tsc --noEmit` in every package                     |
+| `pnpm lint`                                                              | ESLint (flat config)                                |
+| `pnpm format` / `pnpm format:check`                                      | Prettier write / check                              |
 
 ## Dev database (Raspberry Pi)
 

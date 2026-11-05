@@ -1,0 +1,8 @@
+node_modules
+dist
+pnpm-lock.yaml
+coverage
+.env
+.env.*
+AGENTS.md
+GAME_DESIGN.md

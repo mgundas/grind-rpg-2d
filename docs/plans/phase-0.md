@@ -24,7 +24,7 @@ Also required by AGENTS.md ("commands that must always work"): `pnpm build` and 
 
 - Windows, **pnpm 12.16.1**, **Node 24.11.1**, **git 2.52.0** — all present and sufficient.
 - The project directory is **not a git repo yet** → task 1 initializes it.
-- **Docker is NOT installed on this machine and will not be.** The dev Postgres runs on the user's **Raspberry Pi** via the root `docker-compose.yml` (§7.3). Nothing in Phase 0 blocks on the DB; it is first *required* in Phase 2.
+- **Docker is NOT installed on this machine and will not be.** The dev Postgres runs on the user's **Raspberry Pi** via the root `docker-compose.yml` (§7.3). Nothing in Phase 0 blocks on the DB; it is first _required_ in Phase 2.
 - `opencode.json` in the repo root is harness config — leave it as-is (commit it).
 - Repo currently contains only: `AGENTS.md`, `GAME_DESIGN.md`, `opencode.json`.
 
@@ -32,37 +32,37 @@ Also required by AGENTS.md ("commands that must always work"): `pnpm build` and 
 
 ### 3.1 Install now (Phase 0)
 
-| Package | Version | Where |
-|---|---|---|
-| `typescript` | 5.9.3 | root + every workspace package (catalog) |
-| `@types/node` | 24.19.2 | root |
-| `vitest` | 5.1.0 | root |
-| `eslint` | 10.14.0 | root |
-| `typescript-eslint` | 8.72.1 | root |
-| `eslint-config-prettier` | 10.1.8 | root |
-| `eslint-plugin-react-hooks` | 7.1.1 | root |
-| `prettier` | 3.9.10 | root |
-| `concurrently` | 10.0.6 | root |
-| `tsx` | 4.23.15 | root + apps/server |
-| `esbuild` | 0.28.2 | apps/server |
-| `vite` | 8.3.6 | apps/client, apps/admin |
-| `@vitejs/plugin-react` | 6.2.1 | apps/client, apps/admin |
-| `react` / `react-dom` | 19.3.1 | apps/client, apps/admin |
-| `@types/react` / `@types/react-dom` | 19.3.0 | apps/client, apps/admin |
-| `tailwindcss` / `@tailwindcss/vite` | 4.3.4 | apps/admin |
-| `zustand` | 5.0.16 | apps/client |
-| `phaser` | 4.2.1 | apps/client |
-| `@colyseus/sdk` | 0.17.43 | apps/client |
-| `colyseus` | 0.17.11 | apps/server |
-| `@colyseus/core` | 0.17.56 | apps/server |
-| `@colyseus/schema` | 4.0.31 | apps/server |
-| `express` | 5.3.0 | apps/server |
-| `@types/express` | 5.0.6 | apps/server |
-| `pino` | 10.4.0 | apps/server |
-| `pg` | 8.23.1 | apps/server (healthz ping only) |
-| `@types/pg` | 8.23.1 | apps/server |
-| `zod` | 4.6.7 | apps/server (env), packages/shared (message schemas from Phase 1) |
-| `@jadethrone/shared` | `workspace:*` | apps/client, apps/server |
+| Package                             | Version       | Where                                                             |
+| ----------------------------------- | ------------- | ----------------------------------------------------------------- |
+| `typescript`                        | 5.9.3         | root + every workspace package (catalog)                          |
+| `@types/node`                       | 24.19.2       | root                                                              |
+| `vitest`                            | 5.1.0         | root                                                              |
+| `eslint`                            | 10.14.0       | root                                                              |
+| `typescript-eslint`                 | 8.72.1        | root                                                              |
+| `eslint-config-prettier`            | 10.1.8        | root                                                              |
+| `eslint-plugin-react-hooks`         | 7.1.1         | root                                                              |
+| `prettier`                          | 3.9.10        | root                                                              |
+| `concurrently`                      | 10.0.6        | root                                                              |
+| `tsx`                               | 4.23.15       | root + apps/server                                                |
+| `esbuild`                           | 0.28.2        | apps/server                                                       |
+| `vite`                              | 8.3.6         | apps/client, apps/admin                                           |
+| `@vitejs/plugin-react`              | 6.2.1         | apps/client, apps/admin                                           |
+| `react` / `react-dom`               | 19.3.1        | apps/client, apps/admin                                           |
+| `@types/react` / `@types/react-dom` | 19.3.0        | apps/client, apps/admin                                           |
+| `tailwindcss` / `@tailwindcss/vite` | 4.3.4         | apps/admin                                                        |
+| `zustand`                           | 5.0.16        | apps/client                                                       |
+| `phaser`                            | 4.2.1         | apps/client                                                       |
+| `@colyseus/sdk`                     | 0.17.43       | apps/client                                                       |
+| `colyseus`                          | 0.17.11       | apps/server                                                       |
+| `@colyseus/core`                    | 0.17.56       | apps/server                                                       |
+| `@colyseus/schema`                  | 4.0.31        | apps/server                                                       |
+| `express`                           | 5.3.0         | apps/server                                                       |
+| `@types/express`                    | 5.0.6         | apps/server                                                       |
+| `pino`                              | 10.4.0        | apps/server                                                       |
+| `pg`                                | 8.23.1        | apps/server (healthz ping only)                                   |
+| `@types/pg`                         | 8.23.1        | apps/server                                                       |
+| `zod`                               | 4.6.7         | apps/server (env), packages/shared (message schemas from Phase 1) |
+| `@jadethrone/shared`                | `workspace:*` | apps/client, apps/server                                          |
 
 ### 3.2 Verified for later phases — do NOT install yet
 
@@ -217,7 +217,7 @@ catalog:
   "@colyseus/core": 0.17.56
   "@colyseus/schema": 4.0.31
   "@colyseus/sdk": 0.17.43
-  "@colyseus/ws-transport": 0.17.9   # only needed if the classic Server fallback is used
+  "@colyseus/ws-transport": 0.17.9 # only needed if the classic Server fallback is used
   express: 5.3.0
   "@types/express": 5.0.6
   pino: 10.4.0
@@ -357,7 +357,7 @@ One format works on both machines: compose ignores the game vars on the Pi; the 
 }
 ```
 
-All three files are missing on purpose — the placeholder fallback path is exactly what Phase 0 renders. Loader path convention: `this.load.image(key, \`/assets/${entry.path}\`)` (Vite serves `public/` at the root).
+All three files are missing on purpose — the placeholder fallback path is exactly what Phase 0 renders. Loader path convention: `this.load.image(key, \`/assets/${entry.path}\`)`(Vite serves`public/` at the root).
 
 ### 7.6 `.github/workflows/ci.yml`
 
@@ -369,7 +369,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4        # reads packageManager from package.json
+      - uses: pnpm/action-setup@v4 # reads packageManager from package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -391,7 +391,7 @@ The game must be fully playable before any real art exists (GAME_DESIGN §2.1). 
 1. **Boot** fetches `/assets/manifest.json`, validates it against a TypeScript type (bad manifest → clear on-screen error, never a silent black screen), stores it in `this.game.registry`, and logs `Jade Throne — Phaser ${Phaser.VERSION}` to the console (acceptance check: 4.2.1).
 2. **Preload** queues every manifest entry with `this.load.image(key, '/assets/' + entry.path)` while showing a progress bar; a `loaderror` handler records failed keys.
 3. After loading completes, `assets/placeholders.ts` generates a **CanvasTexture registered under the same key** for every failed key. From then on, game code only references texture keys — it never knows whether real art exists. Dropping a real file at the path later upgrades the game with zero code changes.
-   - *Implementation caution:* if Phaser 4's TextureManager refuses re-registering a failed key after `complete`, generate the placeholder inside the `loaderror` handler instead. Verify against the `loading-assets` skill + `node_modules/phaser/types`.
+   - _Implementation caution:_ if Phaser 4's TextureManager refuses re-registering a failed key after `complete`, generate the placeholder inside the `loaderror` handler instead. Verify against the `loading-assets` skill + `node_modules/phaser/types`.
 4. **Generators** (all deterministic — noise seeded via `seedFromString(key)` + `mulberry32` from `@jadethrone/shared`):
    - `tiles`: one canvas strip 32×32 per kind — grass, dirt, stone, water, wall — flat base color + subtle per-pixel value noise (looks good at zoom 2 with `pixelArt`).
    - `char`: 64×64 canvas — rounded capsule with darker outline. Runtime adds the soft elliptical shadow (Graphics, alpha ~0.3), a small facing-direction arrow (Graphics triangle; Phase 0 fixed facing "down"), and the squash-and-stretch idle bob (scaleY 1↔0.94 with slight scaleX compensation, yoyo tween ~700 ms).
@@ -402,34 +402,41 @@ The game must be fully playable before any real art exists (GAME_DESIGN §2.1). 
 ## 9. Task list
 
 ### Task 1 — Repo init and tracking docs
+
 - `git init`; check `git config user.name/user.email` (ask the user once if unset, set with `git config --local`).
 - Create `.gitignore` (§6), `README.md` (short quickstart: prerequisites, `pnpm install`, `pnpm dev`, ports), `PROGRESS.md` ("Phase 0 — Foundation" + this task list as checkboxes), `DECISIONS.md` (header rule + entries from §11 as they land; seed entries 1–5 now).
 - Commit: `chore: initialize repository with progress, decisions and readme` (includes the existing AGENTS.md/GAME_DESIGN.md/opencode.json).
 
 ### Task 2 — Workspace + toolchain
+
 - `package.json` (§7.2) and `pnpm-workspace.yaml` (§7.1). Run `pnpm install` (no apps exist yet — the globs simply match nothing) and confirm the lockfile is created.
 - Commit: `chore: pnpm workspace with pinned toolchain catalog`.
 
 ### Task 3 — TS / ESLint / Prettier configs
+
 - `tsconfig.base.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore` (§6). `pnpm lint` and `pnpm format:check` must run clean on what exists.
 - Commit: `build: typescript strict base, eslint flat config and prettier`.
 
 ### Task 4 — `packages/shared`
+
 - `package.json` (name `@jadethrone/shared`, `"type": "module"`, `exports`/`types` → `./src/index.ts`, dep `zod: catalog:`), `tsconfig.json` (extends base), `src/constants.ts` (`GAME_NAME`, `TILE_SIZE = 32`, `TICK_HZ = 20`, `TICK_MS = 50`, `DEFAULT_SERVER_PORT = 2567`, `KINGDOMS` with colors — Ember red `#d9453a`, Gale yellow `#e0b526`, Tide blue `#3e8fd9`, fine-tune freely, `RARITY_COLORS` common/fine/rare/legendary, `SPAWN_POINT`), `src/rng.ts` (`mulberry32(seed)` → `() => number` in `[0,1)`, `seedFromString(s)` via FNV-1a; pure, no `Math.random`), `src/index.ts` re-exports, `test/rng.test.ts` (same seed → same sequence; range bounds over ~10k draws; different seeds diverge; `seedFromString` stable and distinct).
 - Root `vitest.config.ts` (§6). **`pnpm test` and `pnpm typecheck` green for the first time.**
 - Commit: `feat(shared): constants and seeded rng with vitest suite`.
 
 ### Task 5 — `packages/data` skeleton
+
 - `package.json` (name `@jadethrone/data`, private, no deps, no scripts), `README.md` describing future contents (`monsters.json`, `items.json`, `dropTables.json`, `skills.json`, `shops.json`, `bonuses.json`, `maps/*.tmj`, JSON schemas, `scripts/validate-data.ts` in Phase 3+), `maps/.gitkeep`.
 - Commit: `chore(data): data package skeleton`.
 
 ### Task 6 — Server part 1: skeleton + HTTP
+
 - **First read the installed `.d.ts` files** (§3.3 hard rule) and decide `defineServer` vs the classic fallback; record the choice in DECISIONS.md.
 - `apps/server/package.json` (`"type": "module"`, deps per §3.1 incl. `@jadethrone/shared`, devDeps `esbuild`/`@types/*`/`tsx`/`typescript`; scripts per §5), `tsconfig.json` (§6 server variant), `src/config.ts` (zod env: `GAME_SERVER_PORT` default 2567, `LOG_LEVEL` default `info`, `POSTGRES_HOST/PORT/USER/PASSWORD/DB` with dev defaults — log a warning when a default password is used, optional `DATABASE_URL` override; derive `databaseUrl` as `DATABASE_URL ?? postgres://user:encodeURIComponent(password)@host:port/db`), `src/logger.ts` (pino), `src/routes/health.ts` (`GET /api/health` → `{ status: "ok", uptimeSeconds, db: "up" | "unavailable" }` via one pg `SELECT 1` with ~1.5 s connect timeout; must never throw), `src/app.config.ts` (`defineServer({ express: app => { app.get("/api/health", health) }, rooms: {} })` — rooms land in task 7 — then listen on `config.port` and log it; log the effective config at boot, which doubles as the env-loading verification).
 - Verify: `pnpm dev:server` → `curl http://localhost:2567/api/health` returns 200 JSON; `pnpm --filter @jadethrone/server typecheck`; `pnpm --filter @jadethrone/server build` then `node apps/server/dist/index.js` boots (smoke test the bundle; extend `--external` if it fails).
 - Commit: `feat(server): colyseus 0.17 skeleton with express health endpoint`.
 
 ### Task 7 — Server part 2: world room + schema state
+
 - `src/rooms/state/WorldState.ts` using **schema 4 decorators** (reference shape):
 
 ```ts
@@ -453,47 +460,56 @@ export class WorldState extends Schema {
 - Commit: `feat(server): minimal world room with schema state`.
 
 ### Task 8 — Docker, env, Pi deployment
+
 - Root `docker-compose.yml` (§7.3 verbatim), `.env.example` (§7.4 verbatim), create the local gitignored `.env` from it (set `POSTGRES_HOST` to the user's Pi host if known, else leave `raspberrypi.local`), `scripts/dev-db.mjs` (§5 behavior), root `dev`/`dev:db` scripts already in §7.2 — this task makes them real.
 - README: add a "Dev database (Raspberry Pi)" section — on the Pi: `cp .env.example .env`, set `POSTGRES_PASSWORD` (and `POSTGRES_PORT` if 5432 is taken), `docker compose up -d`, `docker compose ps` → healthy; on the dev machine: `POSTGRES_HOST` points at the Pi, `pnpm dev:db` checks reachability, `/api/health` reports `db: up`. Note: if Windows can't resolve `raspberrypi.local`, put the Pi's IP in `.env`.
 - Verify: `pnpm dev:db` prints a clear result for both outcomes (reachable ✓ / warning) and always exits 0. If the user's Pi is already deployed, also confirm healthz `db: "up"` — otherwise note it as a known issue.
 - Commit: `build: docker compose dev database with pi deployment and reachability check`.
 
 ### Task 9 — Client part 1: Vite + React + Phaser shell
+
 - **First read** `node_modules/phaser/skills/` (or the GitHub equivalent) — `game-setup-and-config`, `loading-assets`, `scenes` — and spot-check `node_modules/phaser/types/phaser.d.ts`.
 - `apps/client/package.json` (deps per §3.1; devDeps vite/plugin-react/typescript/@types), `vite.config.ts` (react plugin, port 5173 strictPort, `/api` proxy, `envDir: "../.."`), `tsconfig.json` (§6 client variant), `index.html` (`<div id="game-container"></div>` + `<div id="overlay"></div>`, title "Jade Throne"), `src/main.ts` (React 19 `createRoot` on `#overlay` rendering `<App/>` + `new Phaser.Game(gameConfig)`), `src/game.ts` (`type: Phaser.AUTO`, `pixelArt: true`, `scale: { mode: Phaser.Scale.RESIZE, parent: "game-container", width: "100%", height: "100%" }`, dark background color, `scene: [Boot, Preload, World]`, `title: GAME_NAME`), and trivial `Boot`/`Preload`/`World` scenes so the page runs (World can be a colored background + text for now).
 - Verify: `pnpm dev:client` opens http://localhost:5173, console logs `Phaser 4.2.1`, HMR updates on edit, typecheck green.
 - Commit: `feat(client): vite react phaser shell with boot scene`.
 
 ### Task 10 — Client part 2: manifest + placeholders
+
 - `public/assets/manifest.json` (§7.5 verbatim), `src/assets/manifest.ts` (types: `AssetKind = "char" | "mob" | "icon" | "tileset" | "portrait"`, `AssetEntry { path, placeholder }`, `AssetManifest { version, assets }`; `fetchAssetManifest()` with strict validation and a readable error), `src/assets/placeholders.ts` (§8 generators), real `scenes/Preload.ts` (progress bar; queue all entries; `loaderror` → failed set; generate placeholders for failed keys; then `scene.start("World")`).
 - Verify: network tab shows the three 404s, no crash, `this.textures.exists(key)` is true for every manifest key afterward.
 - Commit: `feat(client): asset manifest with procedural placeholder fallback`.
 
 ### Task 11 — Client part 3: demo world + status overlay
+
 - Real `scenes/World.ts` per §8.5 (tile ground from the placeholder tileset, character + shadow + facing arrow + idle bob, example icon, camera zoom 2 + smooth follow with lerp).
 - `src/network/http.ts` (`getHealth(): fetch("/api/health")` → parsed JSON or `null` on error), `src/ui/store.ts` (zustand: `serverOnline: boolean | null`), `src/ui/App.tsx` (absolute top-left badge, `pointer-events: none` on the overlay except the badge: `Jade Throne — server: online/offline/checking` in green/red/gray; poll every 5 s; import `GAME_NAME` from `@jadethrone/shared` — this proves the workspace source-import in the client too).
 - Verify: full manual check of acceptance criterion 1 (§10 row 1).
 - Commit: `feat(client): placeholder character on generated tile ground with server status overlay`.
 
 ### Task 12 — Admin login page
+
 - `apps/admin`: `package.json`, `vite.config.ts` (react + `@tailwindcss/vite` plugins, port 5174 strictPort, `envDir: "../.."`), `tsconfig.json`, `index.html`, `src/index.css` (`@import "tailwindcss";`), `src/main.tsx`, `src/App.tsx` — a centered login card in the game's theme (dark lacquered-wood background, jade-green accents, gold border), email + password fields, a Sign in button, and a small note that the panel itself arrives in Phase 5. Submit is non-functional (`preventDefault`).
 - Verify: http://localhost:5174 renders the themed login, no console errors, HMR works.
 - Commit: `feat(admin): login page skeleton`.
 
 ### Task 13 — Root orchestration
+
 - Wire the root scripts from §7.2 (dev chain, dev:*, build, test, typecheck, lint, format, format:check). Verify `pnpm dev` boots dev-db check + server + client + admin together, hot reload works in all three, and Ctrl+C cleanly kills everything (concurrently handles signal forwarding).
 - Then run the full set: `pnpm build`, `pnpm typecheck`, `pnpm lint`, `pnpm test` — all green.
 - Commit: `build: root dev orchestration and workspace scripts`.
 
 ### Task 14 — CI workflow
+
 - `.github/workflows/ci.yml` (§7.6). No remote exists yet — verify every step's command locally, note in the report that the workflow is untested against GitHub Actions until a remote is added.
 - Commit: `ci: github actions workflow`.
 
 ### Task 15 — ASSETS.md + credits skeleton
+
 - `ASSETS.md` per §8.6 (namespaces, LPC sheet spec, tilesets, icons, placeholder behavior, licensing note). `apps/client/public/assets/CREDITS.md` placeholder (sections for LPC art, generated icons, audio; all TODO).
 - Commit: `docs: asset manifest documentation and credits skeleton`.
 
 ### Task 16 — Final verification, review, report
+
 - Run the full acceptance matrix in §10 (including a clean-state `pnpm install`: delete `node_modules`, reinstall from the lockfile).
 - Run the **@reviewer** subagent once, fix what it finds.
 - Update `PROGRESS.md` to done, write the Phase 0 report: what was built, how to run, how to test each acceptance criterion manually, known issues (§12). Commit: `docs: phase 0 report and progress update`.
@@ -501,15 +517,15 @@ export class WorldState extends Schema {
 
 ## 10. Acceptance criteria — verification matrix
 
-| # | Criterion | Verification steps |
-|---|---|---|
-| 1 | `pnpm install && pnpm dev` opens a Phaser 4 page showing a placeholder character on generated tile ground | Clean-state `pnpm install` (exit 0). `pnpm dev` → open **http://localhost:5173**: full-window canvas; 32 px grass/dirt/stone/water placeholder tiles crisp at camera zoom 2; capsule character with dark outline, facing arrow, soft shadow, idle squash-and-stretch bob; one example item icon; badge `Jade Throne — server: online`. Console shows `Phaser 4.2.1` (Boot logs `Phaser.VERSION`). HMR: edit `World.ts` → hot update. |
-| 2 | The Colyseus server answers on its port | `curl http://localhost:2567/api/health` → HTTP 200 `{ status: "ok", uptimeSeconds, db: … }`; server log shows listening + `world` room registered. |
-| 3 | The admin app shows a login page | **http://localhost:5174** renders the themed login form, no console errors. |
-| 4 | `pnpm test` passes | `vitest run` executes the shared rng suite, exit 0. |
-| 5 | `pnpm typecheck` passes | `pnpm -r typecheck` green across shared + client + server + admin. |
-| 6 | `pnpm build` / `pnpm lint` (AGENTS.md "must always work") | Both exit 0; `pnpm format:check` clean; server bundle smoke-tested with `node apps/server/dist/index.js`. |
-| 7 | Postgres via Docker Compose | User deploys `docker-compose.yml` on the Pi → `docker compose ps` healthy. On the dev machine: `pnpm dev:db` prints `Postgres at <host>:<port> reachable ✓` and `/api/health` reports `db: "up"`. If the Pi is not up yet, dev-db warns and everything else still works (DB first required in Phase 2) — report as known issue. |
+| #   | Criterion                                                                                                 | Verification steps                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| --- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `pnpm install && pnpm dev` opens a Phaser 4 page showing a placeholder character on generated tile ground | Clean-state `pnpm install` (exit 0). `pnpm dev` → open **http://localhost:5173**: full-window canvas; 32 px grass/dirt/stone/water placeholder tiles crisp at camera zoom 2; capsule character with dark outline, facing arrow, soft shadow, idle squash-and-stretch bob; one example item icon; badge `Jade Throne — server: online`. Console shows `Phaser 4.2.1` (Boot logs `Phaser.VERSION`). HMR: edit `World.ts` → hot update. |
+| 2   | The Colyseus server answers on its port                                                                   | `curl http://localhost:2567/api/health` → HTTP 200 `{ status: "ok", uptimeSeconds, db: … }`; server log shows listening + `world` room registered.                                                                                                                                                                                                                                                                                   |
+| 3   | The admin app shows a login page                                                                          | **http://localhost:5174** renders the themed login form, no console errors.                                                                                                                                                                                                                                                                                                                                                          |
+| 4   | `pnpm test` passes                                                                                        | `vitest run` executes the shared rng suite, exit 0.                                                                                                                                                                                                                                                                                                                                                                                  |
+| 5   | `pnpm typecheck` passes                                                                                   | `pnpm -r typecheck` green across shared + client + server + admin.                                                                                                                                                                                                                                                                                                                                                                   |
+| 6   | `pnpm build` / `pnpm lint` (AGENTS.md "must always work")                                                 | Both exit 0; `pnpm format:check` clean; server bundle smoke-tested with `node apps/server/dist/index.js`.                                                                                                                                                                                                                                                                                                                            |
+| 7   | Postgres via Docker Compose                                                                               | User deploys `docker-compose.yml` on the Pi → `docker compose ps` healthy. On the dev machine: `pnpm dev:db` prints `Postgres at <host>:<port> reachable ✓` and `/api/health` reports `db: "up"`. If the Pi is not up yet, dev-db warns and everything else still works (DB first required in Phase 2) — report as known issue.                                                                                                      |
 
 ## 11. DECISIONS.md entries (write during the tasks)
 
@@ -538,4 +554,4 @@ export class WorldState extends Schema {
 
 ---
 
-*End of Phase 0 plan. Produced in plan mode; hand to the builder as-is.*
+_End of Phase 0 plan. Produced in plan mode; hand to the builder as-is._
