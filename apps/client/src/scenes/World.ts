@@ -374,7 +374,7 @@ export class WorldScene extends Phaser.Scene {
       this.time.now - this.pointerDownAt >= HOLD_TO_STEER_MS &&
       this.predictor
     ) {
-      const steer = dir8Towards(this.predictor.visualPosition, this.pointerWorld);
+      const steer = dir8Towards(this.predictor.position, this.pointerWorld);
       if (steer !== null) {
         this.pathTarget = null;
         this.facing = steer;
@@ -414,7 +414,7 @@ export class WorldScene extends Phaser.Scene {
       if (this.pointerHeld && heldMs <= CLICK_MAX_MS) {
         this.pathTarget = { x: pointer.worldX, y: pointer.worldY };
         if (this.predictor) {
-          const facing = dir8Towards(this.predictor.visualPosition, this.pathTarget);
+          const facing = dir8Towards(this.predictor.position, this.pathTarget);
           if (facing !== null) {
             this.facing = facing;
           }

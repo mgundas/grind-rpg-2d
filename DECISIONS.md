@@ -77,3 +77,7 @@ A failed seat reservation restores the player **and** sets the normal 2 s warp c
 ## D19 — Tall decor is rendered as y-sorted images, not a tile layer
 
 Ground and `above` stay as tilemap layers (depth 0 and 100000), but every non-empty `decor` tile becomes an individual image anchored at the bottom of its cell with `depth = (row + 1) * TILE_SIZE`. This makes trees and fences sort against the player by their base row — standing north of a tree draws behind it, south draws in front — which a single tile layer cannot express. Tileset textures get one Phaser frame per 32 px column in `Preload` so the images can address the same tiles the tilemap uses.
+
+## D20 — Local prediction uses render-only interpolation
+
+The local simulation remains fixed at 20 Hz, but `visualPosition` lerps the previous and latest predicted positions by the fixed-step accumulator fraction. This adds at most one tick of presentation delay and deliberately avoids extrapolation, which could overshoot collision or path endpoints. Reconciliation replays the penultimate as well as the latest position so the active interpolation segment survives a patch; small corrections remain continuous offsets from that segment, while large snaps reset both positions. Interpolation never feeds back into input history, shared movement, or the authoritative simulation.

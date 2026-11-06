@@ -15,11 +15,15 @@ Built against `docs/plans/phase-1.md`. This report covers the second phase gate:
 - **Interest management was a no-op on the wire**: the installed `@colyseus/schema` ignores `view: true` inside `@type()`; the collection now uses the separate `@view()` decorator, and the view is created before the player is added. New wire-level tests assert `client.state.players`, not only `serverClient.view`.
 - **Remote interpolation dropped burst samples**: patches sharing one receipt timestamp now replace the latest sample instead of being discarded; added a burst test.
 - **Predictor false snaps**: reconciliation now measures error against the prediction, not the still-decaying visual offset; added a two-correction regression test.
-- **A* hostile-client budget**: repeated unreachable goals are cached for 1 s and retargets are limited to one per 100 ms, without changing the per-tick recompute that keeps client replay exact.
+- _*A* hostile-client budget_*: repeated unreachable goals are cached for 1 s and retargets are limited to one per 100 ms, without changing the per-tick recompute that keeps client replay exact.
 - **Grace ticks**: the dead `SERVER_TICK_GRACE_TICKS` is now implemented (3 ticks); an explicit `none` still stops immediately.
 - **Y-sorting**: tall `decor` tiles are rendered as individual images with `depth = (row + 1) * tileSize`, so players draw behind/in front of trees by row; `ground` and `above` remain tile layers.
 - **150 ms latency crash**: `server.simulateLatency()` was called before `listen()`, when the transport is undefined. It now runs in the `listen()` callback; the 150 ms run boots and passes.
 - **Test gaps**: added protocol schema tests, A* corner/unreachable tests, a one-tile-door movement test, warp-token lifecycle tests, input-queue drop and path-budget tests, chat cooldown boundary, and wire-level interest tests. The e2e now consumes the warp reservation and verifies the arrival map/spawn.
+
+## Follow-up: local-player smoothness
+
+After the phase report, the human reported that remote players moved smoothly but the locally controlled player “staggered”. Root cause: the local sprite was rendered directly from the fixed 20 Hz prediction position, so it jumped ~10 px every 50 ms, while remotes were interpolated every render frame. `LocalPredictor.visualPosition` now lerps between the previous and latest fixed-tick positions by the accumulator fraction (render-only; no extrapolation, no collision overshoot). Reconciliation reconstructs the penultimate replay position so the active interpolation segment survives a patch; large snaps reset both endpoints. Hold-to-steer and click-facing use the simulation position, not the delayed render position. Tests cover fractional-tick movement, continuity through reconciliation and zero prediction error under two-tick ACK lag. See `DECISIONS.md` D20.
 
 ## Verification
 
@@ -29,7 +33,7 @@ Green on the final tree:
 pnpm typecheck
 pnpm lint
 pnpm format:check
-pnpm test        # 155 tests, 14 files
+pnpm test        # 157 tests, 14 files
 pnpm build
 ```
 

@@ -42,6 +42,7 @@ Current plan: `docs/plans/phase-1.md` (Phase 1 complete and re-verified after a 
 - [x] Task 16 — client: chat, bubbles, F3 overlay
 - [x] Task 17 — client: warp UX
 - [x] Task 18 — phase gate: verification, reviewer, report
+- [x] Follow-up — local-player render interpolation (20 Hz prediction now looks smooth at display rate)
 - [x] Phase report: `docs/reports/phase-1.md`
 
 ### Phase 1 — Known issues (minor, deferred)
@@ -63,7 +64,7 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 - `MAX_PENDING_INPUTS` drops are counted but not logged; invalid input/chat logging is not rate-limited and can be flooded at 30 msgs/s.
 - The chat send loop calls `otherClient.send(...)` without a try/catch; a client leaving mid-iteration can throw.
 - All normal joins use the exact map spawn, so two tabs overlap until Phase 2 persistence/character positions.
-- Browser look-and-feel checks (smooth remote motion, bubbles, y-sorting, fade, 150 ms feel) remain a human pass; automated checks cover state/netcode only.
+- Browser look-and-feel checks (smooth remote motion, local interpolation feel, bubbles, y-sorting, fade, 150 ms feel) remain a human pass; automated checks cover state/netcode only.
 
 ## Later phases (from GAME_DESIGN.md §12)
 

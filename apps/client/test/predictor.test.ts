@@ -65,6 +65,61 @@ function apply(
 }
 
 describe("LocalPredictor", () => {
+  it("interpolates the render position between fixed simulation ticks", () => {
+    const grid = openGrid();
+    const server = createVirtualServer(grid, { x: 100, y: 100 });
+    const predictor = new LocalPredictor(grid, { x: 100, y: 100 }, (m) => server.send(m));
+    const input: DesiredInput = { kind: "dir", dir: 0 };
+
+    predictor.update(TICK_MS, input);
+    expect(predictor.position.x).toBe(110);
+    expect(predictor.visualPosition.x).toBeCloseTo(100, 6);
+
+    const rendered = [predictor.visualPosition.x];
+    for (let i = 0; i < 4; i++) {
+      predictor.update(10, input);
+      rendered.push(predictor.visualPosition.x);
+      expect(predictor.position.x).toBe(110);
+    }
+    rendered.forEach((x, index) => expect(x).toBeCloseTo(100 + index * 2, 6));
+    for (let i = 1; i < rendered.length; i++) {
+      expect(rendered[i]!).toBeGreaterThan(rendered[i - 1]!);
+    }
+
+    predictor.update(9, input);
+    expect(predictor.visualPosition.x).toBeCloseTo(109.8, 6);
+    expect(server.sent).toHaveLength(1);
+    predictor.update(1, input);
+    expect(predictor.position.x).toBe(120);
+    expect(predictor.visualPosition.x).toBeCloseTo(110, 6);
+    expect(server.sent).toHaveLength(2);
+  });
+
+  it("keeps fractional-tick rendering continuous through reconciliation", () => {
+    const grid = openGrid();
+    const server = createVirtualServer(grid, { x: 100, y: 100 });
+    const predictor = new LocalPredictor(grid, { x: 100, y: 100 }, (m) => server.send(m));
+    const input: DesiredInput = { kind: "dir", dir: 0 };
+
+    predictor.update(TICK_MS, input);
+    predictor.update(TICK_MS, input);
+    predictor.update(TICK_MS / 2, input);
+    expect(predictor.visualPosition.x).toBeCloseTo(115, 6);
+
+    const before = predictor.visualPosition;
+    const authoritative = server.applyUntil(1);
+    const result = predictor.reconcile(authoritative.x + 4, authoritative.y, 1);
+
+    expect(result.snapped).toBe(false);
+    expect(predictor.position.x).toBe(124);
+    expect(predictor.visualPosition.x).toBeCloseTo(before.x, 6);
+    expect(predictor.visualPosition.y).toBeCloseTo(before.y, 6);
+
+    predictor.update(10, input);
+    expect(predictor.visualPosition.x).toBeGreaterThan(before.x);
+    expect(predictor.visualPosition.x).toBeLessThan(predictor.position.x);
+  });
+
   it("stays in sync under a 2-tick ack lag (no false snaps)", () => {
     const grid = openGrid();
     const server = createVirtualServer(grid, { x: 100, y: 100 });
@@ -87,6 +142,7 @@ describe("LocalPredictor", () => {
       const ack = Math.max(1, server.sent.length - 2);
       const authoritative = server.applyUntil(ack);
       const result = predictor.reconcile(authoritative.x, authoritative.y, ack);
+      expect(result.errorPx).toBeCloseTo(0, 6);
       if (result.snapped) {
         snaps++;
       }

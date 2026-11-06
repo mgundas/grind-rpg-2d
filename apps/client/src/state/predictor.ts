@@ -36,10 +36,12 @@ export interface ReconcileResult {
  * Each patch carries the authoritative `(x, y, lastSeq)`; reconciliation
  * replays the still-unacknowledged intents from that position, then either
  * snaps (>64 px) or keeps the current visual position and decays the offset
- * over 100 ms.
+ * over 100 ms. Rendering interpolates between the last two simulation
+ * positions, so the 20 Hz simulation still appears smooth at display rate.
  */
 export class LocalPredictor {
   private mover: MoverState;
+  private previousPosition: Vec2;
   private history: HistoryEntry[] = [];
   private seq = 0;
   private lastAck = 0;
@@ -55,6 +57,7 @@ export class LocalPredictor {
     private readonly send: (message: InputMessage) => void,
   ) {
     this.mover = createMover(spawn);
+    this.previousPosition = { x: spawn.x, y: spawn.y };
   }
 
   /** Authoritative local simulation position. */
@@ -62,11 +65,21 @@ export class LocalPredictor {
     return { x: this.mover.pos.x, y: this.mover.pos.y };
   }
 
-  /** Position to render (simulation + decaying correction offset). */
+  /** Position to render (interpolated simulation + decaying correction offset). */
   get visualPosition(): Vec2 {
+    const interpolated = this.interpolatedPosition();
     return {
-      x: this.mover.pos.x + this.visualOffset.x,
-      y: this.mover.pos.y + this.visualOffset.y,
+      x: interpolated.x + this.visualOffset.x,
+      y: interpolated.y + this.visualOffset.y,
+    };
+  }
+
+  /** Render-only interpolation; never feeds back into simulation or replay. */
+  private interpolatedPosition(): Vec2 {
+    const alpha = this.accumulatorMs / TICK_MS;
+    return {
+      x: this.previousPosition.x + (this.mover.pos.x - this.previousPosition.x) * alpha,
+      y: this.previousPosition.y + (this.mover.pos.y - this.previousPosition.y) * alpha,
     };
   }
 
@@ -124,24 +137,32 @@ export class LocalPredictor {
     this.history = this.history.filter((entry) => entry.seq > ackSeq);
 
     let mover = createMover({ x: serverX, y: serverY });
+    let previousPosition = { x: this.previousPosition.x, y: this.previousPosition.y };
     for (const entry of this.history) {
+      // Rebuild the penultimate state too, so reconciliation preserves the
+      // current interpolation segment instead of collapsing it to one point.
+      previousPosition = { x: mover.pos.x, y: mover.pos.y };
       mover = this.applyIntent(mover, entry.intent);
     }
     this.mover = mover;
+    this.previousPosition = previousPosition;
 
     const errorX = previousPredicted.x - mover.pos.x;
     const errorY = previousPredicted.y - mover.pos.y;
     const errorPx = Math.hypot(errorX, errorY);
     if (errorPx > SNAP_THRESHOLD_PX) {
+      this.previousPosition = { x: mover.pos.x, y: mover.pos.y };
       this.visualOffset = { x: 0, y: 0 };
       this.correctionMs = 0;
       this.snapCount++;
       return { snapped: true, errorPx };
     }
-    // Keep the sprite where it is and let the offset decay over 100 ms.
+    // Keep the sprite where it is and let the offset decay over 100 ms. The
+    // offset is relative to the interpolated point, not the latest tick.
+    const interpolated = this.interpolatedPosition();
     this.visualOffset = {
-      x: previousVisual.x - mover.pos.x,
-      y: previousVisual.y - mover.pos.y,
+      x: previousVisual.x - interpolated.x,
+      y: previousVisual.y - interpolated.y,
     };
     this.correctionMs = ERROR_SMOOTH_MS;
     return { snapped: false, errorPx };
@@ -160,6 +181,7 @@ export class LocalPredictor {
       }
       this.lastSentKind = input.kind;
     }
+    this.previousPosition = { x: this.mover.pos.x, y: this.mover.pos.y };
     this.mover = this.applyIntent(this.mover, input);
   }
 
