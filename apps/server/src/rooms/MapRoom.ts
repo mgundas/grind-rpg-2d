@@ -36,6 +36,7 @@ import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
+import { progressionFromCharacter } from "../characters/progression";
 import type { JoinIdentity } from "../auth/joinAuth";
 
 /** Max queued input messages per player; older inputs are dropped. */
@@ -164,13 +165,21 @@ export class MapRoom extends Room {
     // to the character's saved position for a normal join.
     const requested = auth.warpSpawn ?? { x: auth.character.x, y: auth.character.y };
     const spawn = this.resolveSpawn(requested.x, requested.y);
+    const progression = progressionFromCharacter(auth.character);
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
       characterId: auth.character.id,
       tokenVersion: auth.account.tokenVersion,
+      progression,
     });
     runtime.dirty =
-      Math.abs(spawn.x - auth.character.x) > 0.01 || Math.abs(spawn.y - auth.character.y) > 0.01;
+      Math.abs(spawn.x - auth.character.x) > 0.01 ||
+      Math.abs(spawn.y - auth.character.y) > 0.01 ||
+      progression.level !== auth.character.level ||
+      progression.xp !== auth.character.xp ||
+      progression.hp !== auth.character.hp ||
+      progression.mp !== auth.character.mp ||
+      progression.statPoints !== auth.character.statPoints;
     if (auth.warpSpawn) {
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
     }
@@ -183,12 +192,17 @@ export class MapRoom extends Room {
     player.gender = auth.character.gender;
     player.hairStyle = auth.character.hairStyle;
     player.hairColor = auth.character.hairColor;
-    player.level = auth.character.level;
+    player.level = progression.level;
     player.x = runtime.mover.pos.x;
     player.y = runtime.mover.pos.y;
     player.facing = facing4Index("down");
     player.moving = false;
     player.lastSeq = 0;
+    player.hp = progression.hp;
+    player.maxHp = progression.maxHp;
+    player.mp = progression.mp;
+    player.maxMp = progression.maxMp;
+    player.dead = false;
 
     // The view must exist before the player is added, so the very first
     // encoded state is already filtered for this client.

@@ -1,6 +1,11 @@
 import express from "express";
 import { defineRoom, defineServer } from "@colyseus/core";
-import { ROOM_NAME_FIELDS, ROOM_NAME_VILLAGE, type MapId } from "@jadethrone/shared";
+import {
+  ROOM_NAME_FIELDS,
+  ROOM_NAME_VILLAGE,
+  type MapId,
+  type RandomSource,
+} from "@jadethrone/shared";
 import { config } from "./config";
 import { authenticateJoin, type JoinAuthenticator } from "./auth/joinAuth";
 import { getAccountById, type AuthDeps } from "./auth/accountService";
@@ -20,7 +25,8 @@ import type { RateLimitSettings } from "./http/rateLimit";
 import { createAuthRouter } from "./routes/auth";
 import { createCharactersRouter } from "./routes/characters";
 import { healthHandler } from "./routes/health";
-import { setServerServices } from "./services";
+import { setServerServices, type CombatTuning } from "./services";
+import { createCryptoRandomSource } from "./util/random";
 
 /**
  * Builds the server without listening, so tests can boot it on an ephemeral
@@ -37,6 +43,8 @@ export interface ServerDeps {
   joinAuthenticator?: JoinAuthenticator;
   savePosition?: (characterId: string, save: PositionSave) => Promise<boolean>;
   savePositions?: (saves: ReadonlyArray<BulkPositionSave>) => Promise<void>;
+  createRandomSource?: () => RandomSource;
+  combatTuning?: CombatTuning;
   rateLimits?: {
     register?: RateLimitSettings;
     login?: RateLimitSettings;
@@ -85,6 +93,8 @@ export function createGameServer(deps: ServerDeps = {}) {
     sessionRegistry,
     savePosition,
     savePositions,
+    createRandomSource: deps.createRandomSource ?? createCryptoRandomSource,
+    combatTuning: deps.combatTuning ?? {},
   });
 
   return defineServer({

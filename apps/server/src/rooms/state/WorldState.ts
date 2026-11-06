@@ -27,6 +27,29 @@ export class PlayerState extends Schema {
   @type("boolean") moving!: boolean;
   /** Highest input sequence the server has applied for this player. */
   @type("uint32") lastSeq!: number;
+  /** Public health/mana (target/party frames); XP and stats stay private. */
+  @type("uint16") hp!: number;
+  @type("uint16") maxHp!: number;
+  @type("uint16") mp!: number;
+  @type("uint16") maxMp!: number;
+  @type("boolean") dead!: boolean;
+}
+
+/**
+ * Client-visible monster. Only fields needed to render, target and interpolate;
+ * AI state, home point, group and cooldowns stay in `MonsterRuntime`.
+ */
+export class MonsterState extends Schema {
+  @type("string") typeId!: string;
+  @type("string") name!: string;
+  @type("uint8") level!: number;
+  @type("float32") x!: number;
+  @type("float32") y!: number;
+  @type("uint8") facing!: number;
+  @type("uint16") hp!: number;
+  @type("uint16") maxHp!: number;
+  @type("boolean") moving!: boolean;
+  @type("boolean") isBoss!: boolean;
 }
 
 export class WorldState extends Schema {
@@ -35,4 +58,8 @@ export class WorldState extends Schema {
   @view()
   @type({ map: PlayerState })
   players = new MapSchema<PlayerState>();
+
+  @view()
+  @type({ map: MonsterState })
+  monsters = new MapSchema<MonsterState>();
 }

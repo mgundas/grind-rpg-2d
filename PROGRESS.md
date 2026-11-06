@@ -108,7 +108,7 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 2 — Shared: combat protocol messages and arc geometry
 - [x] Task 3 — Data: monsters, spawn groups and class attack profiles
 - [x] Task 4 — Shared/map: typed mob zones and assets
-- [ ] Task 5 — Server: schema (monsters, HP/MP/dead), runtime fields and RNG seam
+- [x] Task 5 — Server: schema (monsters, HP/MP/dead), runtime fields and RNG seam
 - [ ] Task 6 — Server: monster AI state machine
 - [ ] Task 7 — Server: spawn manager and deterministic placement
 - [ ] Task 8 — Server: wire monsters into MapRoom and interest

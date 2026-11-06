@@ -145,3 +145,7 @@ HP, MP, positions and monster HP stay in schema patches. Transient facts that st
 ## D36 — `mob_zone` is parsed in shared; the fields map gains a dedicated boss clearing
 
 `extractMapObjects` now returns typed `MobZone` rectangles with a required `spawnGroupId` string, and `MapAssets` carries them to the server. The fields generator gained a fifth clearing at (138,129) and a fourth `mob_zone` (`field_boss`, 12×10 tiles) so the Wolf King has its own leash area instead of overlapping the bandit camp. Generation stays deterministic; the committed fields map changes only around the new clearing.
+
+## D37 — Progression is derived once on join; public HP/MP and private XP/stats are split
+
+`PlayerRuntime.progression` is the authoritative HP/MP/XP/level/stats bundle, derived by `progressionFromCharacter` from the persisted character using the same class data and formulas as creation. It clamps HP/MP to the derived maxima, revives `hp <= 0` rows at full HP, and levels up over-full XP rows in memory (granting their stat points) while marking the runtime dirty. Only HP/MP are mirrored into `PlayerState` because target/party frames need them publicly; XP, stat points and raw stats travel to the owner in `selfStats`. The server RNG seam is `ServerServices.createRandomSource`: production installs `createCryptoRandomSource` (`node:crypto.randomInt`), tests inject `seededRandomSource`, and `combatTuning` carries short respawn timings for room tests.
