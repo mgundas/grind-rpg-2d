@@ -6,3 +6,4 @@ coverage
 .env.*
 AGENTS.md
 GAME_DESIGN.md
+packages/data/maps

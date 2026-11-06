@@ -1,5 +1,23 @@
 {
   "name": "@jadethrone/data",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./maps/*": "./maps/*"
+  },
+  "types": "./src/index.ts",
+  "scripts": {
+    "generate": "tsx src/generate-maps.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@jadethrone/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }
