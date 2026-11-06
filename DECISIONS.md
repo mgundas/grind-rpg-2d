@@ -41,3 +41,7 @@ Two Windows-specific findings from verifying the endpoint against an unreachable
 ## D10 — Server dev: `node --watch --import tsx` instead of `tsx watch`
 
 `tsx watch` (4.23.15) hangs at boot under `concurrently` 10's default (non-prefixed, non-raw) stdio wrapping — the process never evaluates the entrypoint and prints nothing after its command line; standalone and under `concurrently --raw` it boots fine, so the trigger is the pipe wrapping. The plan's documented fallback (`node --env-file-if-exists --import tsx --watch`) has no supervisor of its own and mounts the tsx loader inside plain `node --watch` — which boots reliably under concurrently with color prefixes intact and hot-reloads on edit. Adopted for the server `dev` script.
+
+## D11 — Map files are Tiled JSON with a `.json` extension
+
+Maps are Tiled JSON (same format the spec calls `.tmj`) but named `*.json` so Vitest/Vite/tsx/esbuild all import them as typed JSON modules without extra loaders or runtime path resolution. Tiled opens `.json` maps normally. `resolveJsonModule` is enabled in `tsconfig.base.json`; both client and server parse the exact same bytes through `parseTiledMap`, which is what guarantees identical collision grids.

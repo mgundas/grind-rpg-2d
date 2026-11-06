@@ -10,6 +10,7 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
+    "resolveJsonModule": true,
     "isolatedModules": true,
     "skipLibCheck": true,
     "noEmit": true

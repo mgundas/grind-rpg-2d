@@ -1,0 +1,161 @@
+{
+  "compressionlevel": -1,
+  "height": 8,
+  "infinite": false,
+  "layers": [
+    {
+      "data": [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        1, 1
+      ],
+      "height": 8,
+      "id": 1,
+      "name": "ground",
+      "opacity": 1,
+      "type": "tilelayer",
+      "visible": true,
+      "width": 8,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "data": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0
+      ],
+      "height": 8,
+      "id": 2,
+      "name": "decor",
+      "opacity": 1,
+      "type": "tilelayer",
+      "visible": true,
+      "width": 8,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "data": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0
+      ],
+      "height": 8,
+      "id": 3,
+      "name": "above",
+      "opacity": 1,
+      "type": "tilelayer",
+      "visible": true,
+      "width": 8,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "data": [
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0,
+        1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,
+        1, 1
+      ],
+      "height": 8,
+      "id": 4,
+      "name": "collision",
+      "opacity": 1,
+      "type": "tilelayer",
+      "visible": false,
+      "width": 8,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "draworder": "topdown",
+      "id": 5,
+      "name": "objects",
+      "objects": [
+        {
+          "height": 0,
+          "id": 1,
+          "name": "spawn_player",
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "width": 0,
+          "x": 48,
+          "y": 48
+        },
+        {
+          "height": 32,
+          "id": 2,
+          "name": "warp",
+          "properties": [
+            { "name": "targetMap", "type": "string", "value": "map_ember_fields" },
+            { "name": "targetX", "type": "int", "value": 100 },
+            { "name": "targetY", "type": "int", "value": 100 }
+          ],
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "width": 32,
+          "x": 192,
+          "y": 0
+        },
+        {
+          "height": 0,
+          "id": 3,
+          "name": "npc",
+          "point": true,
+          "properties": [{ "name": "npcId", "type": "string", "value": "blacksmith" }],
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "width": 0,
+          "x": 80,
+          "y": 80
+        },
+        {
+          "height": 96,
+          "id": 4,
+          "name": "mob_zone",
+          "properties": [{ "name": "spawnGroupId", "type": "string", "value": "wolves" }],
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "width": 96,
+          "x": 96,
+          "y": 160
+        }
+      ],
+      "opacity": 1,
+      "type": "objectgroup",
+      "visible": true,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "nextlayerid": 6,
+  "nextobjectid": 5,
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "tiledversion": "1.10.2",
+  "tileheight": 32,
+  "tilesets": [
+    {
+      "columns": 5,
+      "firstgid": 1,
+      "image": "tilesets/village.png",
+      "imageheight": 32,
+      "imagewidth": 160,
+      "margin": 0,
+      "name": "village",
+      "spacing": 0,
+      "tilecount": 5,
+      "tileheight": 32,
+      "tilewidth": 32
+    }
+  ],
+  "tilewidth": 32,
+  "type": "map",
+  "version": "1.10",
+  "width": 8
+}
