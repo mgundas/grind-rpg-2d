@@ -165,7 +165,7 @@ Plan: `docs/plans/phase-4.md`.
 Plan: `docs/plans/phase-5.md`.
 
 - [x] Task 1 — Shared admin contracts, protocol and error codes
-- [ ] Task 2 — Database schema + migration
+- [x] Task 2 — Database schema + migration
 - [ ] Task 3 — Role guard and monitor cookie auth
 - [ ] Task 4 — Admin read service
 - [ ] Task 5 — Pure admin item planners

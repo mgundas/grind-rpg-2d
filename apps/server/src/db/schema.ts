@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import type { ItemBonus } from "@jadethrone/shared";
 import {
   bigint,
+  boolean,
   index,
   integer,
   jsonb,
@@ -199,6 +200,62 @@ export const goldLog = pgTable(
   (table) => [index("gold_log_character_idx").on(table.characterId, table.createdAt)],
 );
 
+/** Every GM/admin action, including in-game commands (GAME_DESIGN.md §10.5). */
+export const adminLog = pgTable(
+  "admin_log",
+  {
+    id: uuid("id").primaryKey(),
+    actorAccountId: uuid("actor_account_id").notNull(),
+    action: text("action").notNull(),
+    targetAccountId: uuid("target_account_id"),
+    targetCharacterId: uuid("target_character_id"),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    ip: text("ip"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("admin_log_actor_idx").on(table.actorAccountId, table.createdAt),
+    index("admin_log_target_idx").on(table.targetCharacterId, table.createdAt),
+  ],
+);
+
+/** Immediate, recurring and shutdown announcements. */
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").primaryKey(),
+    message: text("message").notNull(),
+    /** immediate | recurring | shutdown */
+    kind: text("kind").notNull(),
+    intervalMs: integer("interval_ms"),
+    active: boolean("active").notNull().default(true),
+    createdBy: uuid("created_by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [index("announcements_active_idx").on(table.active, table.lastSentAt)],
+);
+
+/** Chat history for the admin log viewer (local chat is still range-filtered). */
+export const chatLog = pgTable(
+  "chat_log",
+  {
+    id: uuid("id").primaryKey(),
+    characterId: uuid("character_id"),
+    name: text("name").notNull(),
+    kingdom: text("kingdom").notNull(),
+    mapId: text("map_id").notNull(),
+    /** Column name `text` is explicit; the property avoids shadowing. */
+    chatText: text("text").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("chat_log_created_idx").on(table.createdAt),
+    index("chat_log_character_idx").on(table.characterId, table.createdAt),
+  ],
+);
+
 export type AccountRow = typeof accounts.$inferSelect;
 export type CharacterRow = typeof characters.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
@@ -206,3 +263,6 @@ export type ItemRow = typeof items.$inferSelect;
 export type NewItemRow = typeof items.$inferInsert;
 export type ItemLogRow = typeof itemLog.$inferSelect;
 export type GoldLogRow = typeof goldLog.$inferSelect;
+export type AdminLogRow = typeof adminLog.$inferSelect;
+export type AnnouncementRow = typeof announcements.$inferSelect;
+export type ChatLogRow = typeof chatLog.$inferSelect;
