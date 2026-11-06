@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-3.md` (Phase 2 complete — see `docs/reports/phase-2.md`).
+Current plan: `docs/plans/phase-3.md` (Phase 3 complete — see `docs/reports/phase-3.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -121,7 +121,9 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 15 — Client: targeting, attack input and server-driven auto-walk
 - [x] Task 16 — Client: HUD, target frame, character window and death screen
 - [x] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
-- [ ] Task 18 — Phase gate: verification, reviewer, report
+- [x] Task 18 — Phase gate: verification, reviewer, report
+
+Phase report: `docs/reports/phase-3.md`.
 
 **Temporary gap (closed by Task 13):** town respawn and disconnect-while-dead now persist full HP/MP/XP through `CharacterSave`; the DB roundtrip test covers the full payload (run against the test database when `TEST_DATABASE_URL` is set).
 
