@@ -125,6 +125,8 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 
 Phase report: `docs/reports/phase-3.md`.
 
+**Gate verification (2026-11-06):** `pnpm typecheck`, `pnpm lint`, `pnpm build` pass; full suite 38 files / 361 tests pass (28 skipped without a test DB); the 22 real-Postgres persistence tests pass against `jade_throne_test`; `node scripts/smoke-server.mjs` boots the real `tsx` server with both map rooms and `db: "up"`; `pnpm verify:phase3-grind` passes (3-hit level-1 kill, ≈19.8 s level-10 pack, ≈59 min to level 10).
+
 **Temporary gap (closed by Task 13):** town respawn and disconnect-while-dead now persist full HP/MP/XP through `CharacterSave`; the DB roundtrip test covers the full payload (run against the test database when `TEST_DATABASE_URL` is set).
 
 ## Later phases (from GAME_DESIGN.md §12)

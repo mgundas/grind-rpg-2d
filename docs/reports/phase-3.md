@@ -59,7 +59,8 @@ Results at the phase gate:
 
 - `pnpm typecheck` — pass (all packages).
 - `pnpm lint` — pass.
-- `pnpm test --reporter=dot` — 38 files, 361 passed, 28 skipped (DB tests need `TEST_DATABASE_URL`).
+- `pnpm test --reporter=dot` — 38 files, 361 passed, 28 skipped without a test database. Re-running `apps/server/test/db/persistence.test.ts` with `TEST_DATABASE_URL` pointed at `jade_throne_test` passed all 22 real-Postgres tests, including the full `CharacterSave` roundtrip and clamping.
+- `node scripts/smoke-server.mjs` — real `tsx` entrypoint boots, registers both map rooms, applies migrations, answers `/api/health` with `db: "up"`.
 - `pnpm build` — pass (client/server/admin).
 - Grind script — pass: level-1 Warrior kills a level-1 monster in 3 hits; a level-10 Warrior clears five same-level monsters in ≈19.8 s; solo level 1→10 ≈59 min / 262 kills.
 - Reviewer pass — seven IMPORTANT findings were fixed: stale HUD vitals, auto-walk giving up while in range, client auto-walk cancellation, duplicate-join rollback, monster damage not marking dirty, death XP test coverage, and stat allocation during a warp.
@@ -86,4 +87,4 @@ Results at the phase gate:
 - §11 gaps: no cursor change over monsters, no centre-screen level-up banner (world text only), no shake-disable setting, hit-stop freezes monsters but not the attacker, and the “hurt animation” is a tint.
 - `saveCharacters` (bulk) is implemented and tested but production autosave still uses the per-player chain.
 - Audio is intentionally deferred to Phase 10.
-- The real-Postgres persistence suite was skipped in this environment because `TEST_DATABASE_URL` is not set; it should be run in CI or against `jade_throne_test` before Phase 4.
+- The real-Postgres persistence suite was verified against `jade_throne_test` (22/22) during the gate; CI still needs the same `TEST_DATABASE_URL` wiring.
