@@ -117,3 +117,11 @@ The Express app is shared with Colyseus's matchmaking/WebSocket routes, so JSON 
 ## D29 — `jsonwebtoken` is imported through its default export
 
 `jsonwebtoken` is CommonJS with named exports assigned dynamically, so `import { TokenExpiredError } from "jsonwebtoken"` passes TypeScript and Vitest's Vite interop but crashes the real `tsx`/node ESM loader at boot. We import the default object and classify expiry by `error.name === "TokenExpiredError"`. This is also why every server task is smoke-tested through the tsx entrypoint, not only through Vitest.
+
+## D30 — Rooms trust only `client.auth`; room tests inject fakes for auth and saves
+
+`MapRoom.onJoin` takes no join options at all: names, kingdom, class, appearance, level and spawn come from the object returned by the static authenticator (which travelled with the seat reservation). Saved positions are accepted only when walkable on this room's grid; otherwise the map spawn is used and the correction is marked dirty. Player state now carries `characterId`, `classId`, `gender`, `hairStyle`, `hairColor` and `level` for remotes. Room tests inject a fake `JoinAuthenticator` and fake `savePosition`/`savePositions` through `createGameServer`, so the 34 movement/chat/interest/warp tests run without a database while the real auth/HTTP paths are covered by dedicated DB tests.
+
+## D31 — Persistence save points and warp ordering
+
+The authoritative position is saved on leave (if dirty), immediately before a warp reservation, and every 60 s for dirty non-warping players (one `UPDATE … FROM (VALUES …)` for the whole room). A successful save clears `dirty`; the kick registry calls the room's save first, so the following `onLeave` cannot overwrite a newer session. A warp saves the destination **before** reserving a target seat (the target's `onAuth` loads that row), then reserves with the bound warp token; on reservation failure the player is restored, the source position is written back best-effort, and the normal 2 s cooldown applies. Saving the destination and then restoring is deliberate: it lets the target authenticate from the database rather than trusting the client.

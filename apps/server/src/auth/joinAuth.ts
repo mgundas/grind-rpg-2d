@@ -40,9 +40,9 @@ export interface JoinAuthDeps {
     accountId: string,
     characterId: string,
   ) => Promise<CharacterRecord | null>;
-  checkWarpToken: (token: string, map: MapId) => WarpTokenPayload | null;
+  /** Single-use: burns a valid token and returns its account/character binding. */
+  consumeWarpToken: (token: string, map: MapId) => WarpTokenPayload | null;
 }
-
 const joinOptionsSchema = z.object({
   characterId: z.uuid(),
   map: z.enum(MAP_IDS),
@@ -71,7 +71,7 @@ export async function authenticateJoin(
   }
 
   if (parsed.warpToken) {
-    const warp = deps.checkWarpToken(parsed.warpToken, parsed.map);
+    const warp = deps.consumeWarpToken(parsed.warpToken, parsed.map);
     if (!warp?.accountId || !warp.characterId || warp.characterId !== parsed.characterId) {
       return reject("bad_warp_token", context.ip);
     }

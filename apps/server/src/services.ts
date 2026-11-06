@@ -1,6 +1,7 @@
 import type { AuthDeps } from "./auth/accountService";
 import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
+import type { BulkPositionSave, PositionSave } from "./characters/characterService";
 import type { Db } from "./db/client";
 
 /**
@@ -14,6 +15,8 @@ export interface ServerServices {
   authDeps: AuthDeps;
   joinAuthenticator: JoinAuthenticator;
   sessionRegistry: SessionRegistry;
+  savePosition: (characterId: string, save: PositionSave) => Promise<boolean>;
+  savePositions: (saves: ReadonlyArray<BulkPositionSave>) => Promise<void>;
 }
 
 let current: ServerServices | null = null;

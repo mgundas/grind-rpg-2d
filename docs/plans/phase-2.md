@@ -93,7 +93,7 @@ These dictated the design:
 
 - Save only the server-authoritative position/map: on leave, immediately before a warp reservation, and every 60 s for dirty players.
 - `runtime.dirty` is set when a tick changes position; a successful save clears it.
-- On join, the saved position is validated with `nearestWalkable` against the room's collision grid; invalid positions fall back to the map spawn and are marked dirty.
+- On join, the saved position is validated against the room's collision grid; an invalid position falls back to the map spawn and is marked dirty.
 - Warp: save destination position/map **first**, then reserve; if the reservation fails, restore the player in the room and re-save the source position best-effort.
 - A kicked session is saved before the socket is closed and its `dirty` flag is cleared, so the subsequent `onLeave` does not overwrite a newer session with stale data.
 - DB errors never crash the room tick: log, keep `dirty`, retry on the next save.

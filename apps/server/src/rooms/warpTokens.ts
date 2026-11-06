@@ -88,6 +88,23 @@ export function checkWarpToken(
 }
 
 /**
+ * Consume a token and return its full payload (including the account/character
+ * binding). Used by matchmaking auth, which runs before `onJoin`.
+ */
+export function consumeWarpTokenPayload(
+  token: string,
+  map: MapId,
+  now = Date.now(),
+): WarpTokenPayload | null {
+  const checked = checkWarpToken(token, map, now);
+  if (!checked) {
+    return null;
+  }
+  tokens.delete(token);
+  return checked;
+}
+
+/**
  * Consume a token for the given map; returns null when invalid/expired. A
  * token presented to the wrong map is rejected but not burned, so the correct
  * room can still use it.
@@ -97,12 +114,8 @@ export function consumeWarpToken(
   map: MapId,
   now = Date.now(),
 ): { x: number; y: number } | null {
-  const checked = checkWarpToken(token, map, now);
-  if (!checked) {
-    return null;
-  }
-  tokens.delete(token);
-  return { x: checked.x, y: checked.y };
+  const checked = consumeWarpTokenPayload(token, map, now);
+  return checked ? { x: checked.x, y: checked.y } : null;
 }
 
 /** Test-only visibility into the token store size. */

@@ -23,6 +23,7 @@ import { toCharacterRecord, toCharacterSummary, type CharacterRecord } from "./c
 import { defaultSpawn, type PositionSave } from "./spawn";
 
 export type CharacterInsert = typeof characters.$inferInsert;
+export type { PositionSave } from "./spawn";
 
 const MAX_POSITION = 65_535;
 

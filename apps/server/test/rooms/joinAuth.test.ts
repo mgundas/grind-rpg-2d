@@ -59,7 +59,7 @@ function deps(overrides: Partial<JoinAuthDeps> = {}): JoinAuthDeps {
     accessSecret: SECRET,
     getAccountById: vi.fn(async () => account()),
     getCharacterForAccount: vi.fn(async () => character()),
-    checkWarpToken: vi.fn(() => null),
+    consumeWarpToken: vi.fn(() => null),
     ...overrides,
   };
 }
@@ -142,7 +142,7 @@ describe("authenticateJoin (warp token)", () => {
   it("accepts a bound warp token without a JWT and exposes the spawn", async () => {
     const identity = await authenticateJoin(
       deps({
-        checkWarpToken: vi.fn(() => warp),
+        consumeWarpToken: vi.fn(() => warp),
         getCharacterForAccount: vi.fn(async () => character({ map: ROOM_NAME_FIELDS })),
       }),
       undefined,
@@ -153,7 +153,7 @@ describe("authenticateJoin (warp token)", () => {
 
   it("rejects a warp token bound to another character", async () => {
     const identity = await authenticateJoin(
-      deps({ checkWarpToken: vi.fn(() => warp) }),
+      deps({ consumeWarpToken: vi.fn(() => warp) }),
       undefined,
       {
         characterId: "11111111-1111-4111-8111-111111111111",
@@ -167,7 +167,7 @@ describe("authenticateJoin (warp token)", () => {
   it("rejects an invalid or wrong-map warp token", async () => {
     const map: MapId = ROOM_NAME_FIELDS;
     expect(
-      await authenticateJoin(deps({ checkWarpToken: vi.fn(() => null) }), undefined, {
+      await authenticateJoin(deps({ consumeWarpToken: vi.fn(() => null) }), undefined, {
         characterId: CHARACTER_ID,
         map,
         warpToken: "nope",
@@ -180,7 +180,7 @@ describe("authenticateJoin (warp token)", () => {
     expect(
       await authenticateJoin(
         deps({
-          checkWarpToken: vi.fn(() => warp),
+          consumeWarpToken: vi.fn(() => warp),
           getAccountById: vi.fn(async () => banned),
           getCharacterForAccount: vi.fn(async () => character({ map: ROOM_NAME_FIELDS })),
         }),

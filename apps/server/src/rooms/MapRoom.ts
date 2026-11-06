@@ -1,6 +1,5 @@
-import { matchMaker, type Client, Room } from "@colyseus/core";
+import { matchMaker, type AuthContext, type Client, Room } from "@colyseus/core";
 import { StateView } from "@colyseus/schema";
-import { z } from "zod";
 import {
   CHAT_COOLDOWN_MS,
   INTEREST_ADD_RADIUS_PX,
@@ -22,7 +21,6 @@ import {
   findPath,
   inputMessageSchema,
   isWalkableAt,
-  nearestWalkable,
   stepMover,
   type ChatMsgPayload,
   type Dir8,
@@ -36,17 +34,9 @@ import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
-import { consumeWarpToken, issueWarpToken } from "./warpTokens";
-
-const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
-
-/** Client-controlled join options are validated with Zod, never trusted. */
-const joinOptionsSchema = z.looseObject({
-  name: z.string().optional().catch(undefined),
-  kingdom: z.enum(KINGDOM_IDS).optional().catch(undefined),
-  /** Single-use token issued by the server for a warp; proves the spawn. */
-  warpToken: z.string().optional().catch(undefined),
-});
+import { issueWarpToken } from "./warpTokens";
+import { getServerServices } from "../services";
+import type { JoinIdentity } from "../auth/joinAuth";
 
 /** Max queued input messages per player; older inputs are dropped. */
 const MAX_PENDING_INPUTS = 8;
@@ -57,9 +47,13 @@ const PATH_FAILURE_CACHE_MS = 1000;
 /** A client that never leaves after a warp is disconnected after this delay. */
 const WARP_CLIENT_LEAVE_TIMEOUT_MS = 2000;
 
+/** Dirty position autosave cadence (GAME_DESIGN.md §10.2). */
+const AUTOSAVE_INTERVAL_MS = 60_000;
+
 /**
- * One room instance per map (GAME_DESIGN.md §10.2). Phase 1 handles guest
- * join, movement, chat (task 9), interest management (task 10) and warps.
+ * One room instance per map (GAME_DESIGN.md §10.2). Authentication happens at
+ * matchmaking (`static onAuth`); the room only trusts `client.auth`, the
+ * server-issued spawn and the DB-backed persistence services.
  */
 export class MapRoom extends Room {
   maxClients = MAX_PLAYERS_PER_CHANNEL;
@@ -71,6 +65,18 @@ export class MapRoom extends Room {
   private mapId!: MapId;
   private assets!: MapAssets;
   private runtimes = new Map<string, PlayerRuntime>();
+
+  /**
+   * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
+   * reserved; its return value becomes `client.auth` in `onJoin`.
+   */
+  static async onAuth(
+    token: string | undefined,
+    options: unknown,
+    context: AuthContext,
+  ): Promise<JoinIdentity | null> {
+    return getServerServices().joinAuthenticator(token, options, { ip: context.ip });
+  }
 
   onCreate(): void {
     if (!isMapId(this.roomName)) {
@@ -144,48 +150,151 @@ export class MapRoom extends Room {
     this.setSimulationInterval(() => this.tick(), TICK_MS);
     // Interest management runs at 4 Hz, not every tick (GAME_DESIGN.md §5.1).
     this.clock.setInterval(() => this.updateInterest(), INTEREST_INTERVAL_MS);
+    this.clock.setInterval(() => void this.autosave(), AUTOSAVE_INTERVAL_MS);
     logger.info({ roomId: this.roomId, mapId: this.mapId }, "map room created");
   }
 
-  onJoin(client: Client, options: unknown): void {
-    const parsed = joinOptionsSchema.safeParse(options ?? {});
-    const join = parsed.success ? parsed.data : {};
-    const warpSpawn = join.warpToken ? consumeWarpToken(join.warpToken, this.mapId) : null;
-    const spawn = this.resolveSpawn(warpSpawn?.x, warpSpawn?.y);
-    const runtime = createPlayerRuntime(spawn);
-    if (warpSpawn) {
+  async onJoin(client: Client): Promise<void> {
+    const auth = client.auth as JoinIdentity | undefined;
+    if (!auth) {
+      throw new Error("authenticated join without client.auth");
+    }
+
+    // The warp token was consumed and validated during matchmaking. Fall back
+    // to the character's saved position for a normal join.
+    const requested = auth.warpSpawn ?? { x: auth.character.x, y: auth.character.y };
+    const spawn = this.resolveSpawn(requested.x, requested.y);
+    const runtime = createPlayerRuntime(spawn, {
+      accountId: auth.account.id,
+      characterId: auth.character.id,
+    });
+    runtime.dirty =
+      Math.abs(spawn.x - auth.character.x) > 0.01 || Math.abs(spawn.y - auth.character.y) > 0.01;
+    if (auth.warpSpawn) {
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
     }
 
     const player = new PlayerState();
-    player.name = sanitizeDisplayName(join.name);
-    player.kingdom = join.kingdom ?? "ember";
+    player.characterId = auth.character.id;
+    player.name = auth.character.name;
+    player.kingdom = auth.account.kingdom;
+    player.classId = auth.character.classId;
+    player.gender = auth.character.gender;
+    player.hairStyle = auth.character.hairStyle;
+    player.hairColor = auth.character.hairColor;
+    player.level = auth.character.level;
     player.x = runtime.mover.pos.x;
     player.y = runtime.mover.pos.y;
     player.facing = facing4Index("down");
     player.moving = false;
     player.lastSeq = 0;
+
     // The view must exist before the player is added, so the very first
     // encoded state is already filtered for this client.
     client.view = new StateView();
     this.state.players.set(client.sessionId, player);
     this.runtimes.set(client.sessionId, runtime);
-
-    // Immediate pass so joiners see everyone relevant without waiting for the
-    // next 250 ms interval. Hysteresis inside updateInterest() prevents
-    // boundary flicker.
     this.updateInterest();
 
+    // Replacing a session saves and closes the previous one first (duplicate
+    // join or a login that did not go through the HTTP kick path).
+    await getServerServices().sessionRegistry.register({
+      accountId: auth.account.id,
+      characterId: auth.character.id,
+      sessionId: client.sessionId,
+      saveForKick: () => this.savePlayerNow(client.sessionId),
+      send: (type, payload) => client.send(type, payload),
+      leave: (code) => client.leave(code),
+    });
+
     logger.info(
-      { roomId: this.roomId, mapId: this.mapId, session: client.sessionId, name: player.name },
+      {
+        roomId: this.roomId,
+        mapId: this.mapId,
+        session: client.sessionId,
+        characterId: player.characterId,
+        name: player.name,
+      },
       "player joined",
     );
   }
 
-  onLeave(client: Client, code: number): void {
+  async onLeave(client: Client, code: number): Promise<void> {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
+
+    if (runtime) {
+      getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
+      // A kick already saved and cleared `dirty`; a warp already persisted
+      // the destination and removed the runtime.
+      if (runtime.dirty && player) {
+        try {
+          await getServerServices().savePosition(runtime.characterId, {
+            mapId: this.mapId,
+            x: player.x,
+            y: player.y,
+          });
+          runtime.dirty = false;
+        } catch (error) {
+          logger.error(
+            { roomId: this.roomId, session: client.sessionId, error },
+            "failed to save character on leave",
+          );
+        }
+      }
+    }
+
     logger.info({ roomId: this.roomId, session: client.sessionId, closeCode: code }, "player left");
+  }
+
+  /** Save one player before a session is replaced (kick path). */
+  private async savePlayerNow(sessionId: string): Promise<void> {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player || !runtime.dirty) {
+      return;
+    }
+    await getServerServices().savePosition(runtime.characterId, {
+      mapId: this.mapId,
+      x: player.x,
+      y: player.y,
+    });
+    runtime.dirty = false;
+  }
+
+  /** Periodic dirty-position flush; one statement for every moved player. */
+  private async autosave(): Promise<void> {
+    const saves: Array<{ characterId: string; mapId: MapId; x: number; y: number }> = [];
+    const runtimes: PlayerRuntime[] = [];
+    for (const [sessionId, runtime] of this.runtimes) {
+      if (!runtime.dirty || runtime.warping) {
+        continue;
+      }
+      const player = this.state.players.get(sessionId);
+      if (!player) {
+        continue;
+      }
+      saves.push({
+        characterId: runtime.characterId,
+        mapId: this.mapId,
+        x: player.x,
+        y: player.y,
+      });
+      runtimes.push(runtime);
+    }
+    if (saves.length === 0) {
+      return;
+    }
+    try {
+      await getServerServices().savePositions(saves);
+      for (const runtime of runtimes) {
+        runtime.dirty = false;
+      }
+    } catch (error) {
+      logger.error({ roomId: this.roomId, error }, "autosave failed");
+    }
   }
 
   /**
@@ -263,10 +372,10 @@ export class MapRoom extends Room {
   }
 
   /**
-   * Reserve a seat in the target map room, send it to the client, and remove
-   * the player from this room. The client leaves and consumes the reservation
-   * (Phase 1 has no character persistence, so name/kingdom/position travel in
-   * the join options).
+   * Persist the destination first, then reserve a seat authenticated by a
+   * server-issued warp token. The target room's `onAuth` consumes the token
+   * and loads the saved destination, so an expired access JWT cannot break a
+   * map change.
    */
   private async startWarp(client: Client, warp: WarpZone): Promise<void> {
     const runtime = this.runtimes.get(client.sessionId);
@@ -275,16 +384,40 @@ export class MapRoom extends Room {
       return;
     }
     runtime.warping = true;
-    const name = player.name;
-    const kingdom = player.kingdom;
+    const services = getServerServices();
+
+    try {
+      const saved = await services.savePosition(runtime.characterId, {
+        mapId: warp.targetMap,
+        x: warp.targetX,
+        y: warp.targetY,
+      });
+      if (!saved) {
+        throw new Error("character row missing");
+      }
+      runtime.dirty = false;
+    } catch (error) {
+      runtime.warping = false;
+      runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
+      logger.error(
+        { roomId: this.roomId, session: client.sessionId, error },
+        "warp destination save failed",
+      );
+      return;
+    }
+
+    const source = { mapId: this.mapId, x: player.x, y: player.y };
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
 
     try {
-      const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY);
+      const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY, {
+        accountId: runtime.accountId,
+        characterId: runtime.characterId,
+      });
       const reservation = await this.reserveSeat(warp.targetMap, {
-        name,
-        kingdom,
+        characterId: runtime.characterId,
+        map: warp.targetMap,
         warpToken: token,
       });
       if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
@@ -331,6 +464,21 @@ export class MapRoom extends Room {
         runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
         this.state.players.set(client.sessionId, player);
         this.runtimes.set(client.sessionId, runtime);
+        // The destination write succeeded; put the source position back.
+        runtime.dirty = true;
+        void services
+          .savePosition(runtime.characterId, source)
+          .then((ok) => {
+            if (ok) {
+              runtime.dirty = false;
+            }
+          })
+          .catch((saveError: unknown) =>
+            logger.error(
+              { roomId: this.roomId, session: client.sessionId, error: saveError },
+              "failed to restore source position after failed warp",
+            ),
+          );
         this.updateInterest();
       }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
@@ -343,9 +491,12 @@ export class MapRoom extends Room {
    */
   reserveSeat(
     map: MapId,
-    options: { name: string; kingdom: string; warpToken: string },
+    options: { characterId: string; map: MapId; warpToken: string },
   ): ReturnType<typeof matchMaker.joinOrCreate> {
-    return matchMaker.joinOrCreate(map, options);
+    return matchMaker.joinOrCreate(map, options, {
+      headers: new Headers(),
+      ip: "in-process",
+    });
   }
 
   private stepPlayer(runtime: PlayerRuntime, player: PlayerState): void {
@@ -386,6 +537,7 @@ export class MapRoom extends Room {
     const moved = dx !== 0 || dy !== 0;
 
     if (moved) {
+      runtime.dirty = true;
       player.x = to.x;
       player.y = to.y;
       player.facing = facing4Index(facing4FromDelta(dx, dy, facing4FromIndex(player.facing)));
@@ -473,7 +625,7 @@ export class MapRoom extends Room {
     }
   }
 
-  /** Reservation position when valid, otherwise the map spawn; always walkable. */
+  /** Saved/reservation position when walkable, otherwise the map spawn. */
   private resolveSpawn(x: number | undefined, y: number | undefined): Vec2 {
     const requested = {
       x: Math.min(Math.max(x ?? this.assets.spawn.x, 0), this.assets.widthPx),
@@ -482,23 +634,6 @@ export class MapRoom extends Room {
     if (isWalkableAt(this.assets.grid, requested.x, requested.y)) {
       return requested;
     }
-    return nearestWalkable(this.assets.grid, requested.x, requested.y, 10) ?? this.assets.spawn;
+    return this.assets.spawn;
   }
-}
-
-/**
- * The server is authoritative from day one: names from clients are sanitized
- * before entering state. Full character-creation rules (3-16 chars, letters
- * and numbers, uniqueness) arrive in Phase 2.
- */
-function sanitizeDisplayName(value: unknown): string {
-  if (typeof value !== "string") {
-    return "Guest";
-  }
-  const cleaned = value
-    .normalize("NFKC")
-    .replace(/[^\p{L}\p{N} _-]/gu, "")
-    .trim()
-    .slice(0, 16);
-  return cleaned.length >= 3 ? cleaned : "Guest";
 }

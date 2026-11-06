@@ -5,9 +5,15 @@ import { config } from "./config";
 import { authenticateJoin, type JoinAuthenticator } from "./auth/joinAuth";
 import { getAccountById, type AuthDeps } from "./auth/accountService";
 import { SessionRegistry } from "./auth/sessionRegistry";
-import { getCharacterForAccount } from "./characters/characterService";
+import {
+  getCharacterForAccount,
+  saveCharacterPosition,
+  saveCharacterPositions,
+  type BulkPositionSave,
+  type PositionSave,
+} from "./characters/characterService";
 import { getDb, type Db } from "./db/client";
-import { checkWarpToken } from "./rooms/warpTokens";
+import { consumeWarpTokenPayload } from "./rooms/warpTokens";
 import { MapRoom } from "./rooms/MapRoom";
 import { errorHandler, notFoundHandler } from "./http/errors";
 import type { RateLimitSettings } from "./http/rateLimit";
@@ -29,6 +35,8 @@ export interface ServerDeps {
   authDeps?: AuthDeps;
   sessionRegistry?: SessionRegistry;
   joinAuthenticator?: JoinAuthenticator;
+  savePosition?: (characterId: string, save: PositionSave) => Promise<boolean>;
+  savePositions?: (saves: ReadonlyArray<BulkPositionSave>) => Promise<void>;
   rateLimits?: {
     register?: RateLimitSettings;
     login?: RateLimitSettings;
@@ -44,7 +52,7 @@ function defaultJoinAuthenticator(db: Db, accessSecret: string): JoinAuthenticat
         getAccountById: (accountId) => getAccountById(db, accountId),
         getCharacterForAccount: (accountId, characterId) =>
           getCharacterForAccount(db, accountId, characterId),
-        checkWarpToken: (warpToken, map: MapId) => checkWarpToken(warpToken, map),
+        consumeWarpToken: (warpToken, map: MapId) => consumeWarpTokenPayload(warpToken, map),
       },
       token,
       options,
@@ -66,8 +74,18 @@ export function createGameServer(deps: ServerDeps = {}) {
   const sessionRegistry = deps.sessionRegistry ?? new SessionRegistry();
   const joinAuthenticator =
     deps.joinAuthenticator ?? defaultJoinAuthenticator(db, authDeps.accessSecret);
+  const savePosition =
+    deps.savePosition ?? ((characterId, save) => saveCharacterPosition(db, characterId, save));
+  const savePositions = deps.savePositions ?? ((saves) => saveCharacterPositions(db, saves));
 
-  setServerServices({ db, authDeps, joinAuthenticator, sessionRegistry });
+  setServerServices({
+    db,
+    authDeps,
+    joinAuthenticator,
+    sessionRegistry,
+    savePosition,
+    savePositions,
+  });
 
   return defineServer({
     rooms: {

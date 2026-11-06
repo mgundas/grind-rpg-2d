@@ -16,8 +16,10 @@ import { createGameServer } from "../../src/server";
 import { loadMapAssets } from "../../src/maps/mapRegistry";
 import { issueWarpToken } from "../../src/rooms/warpTokens";
 import { MapRoom } from "../../src/rooms/MapRoom";
+import { createFakeServices, type FakeServices } from "./fakes";
 
 let colyseus: ColyseusTestServer;
+let fake: FakeServices;
 
 async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
   const start = Date.now();
@@ -62,11 +64,19 @@ function runtimeOf(room: MapRoom, sessionId: string): RuntimeProbe {
 }
 
 beforeAll(async () => {
-  colyseus = await boot(createGameServer());
+  fake = createFakeServices();
+  colyseus = await boot(
+    createGameServer({
+      joinAuthenticator: fake.joinAuthenticator,
+      savePosition: fake.savePosition,
+      savePositions: fake.savePositions,
+    }),
+  );
 }, 30_000);
 
 afterEach(async () => {
   await colyseus.cleanup();
+  fake.reset();
 });
 
 afterAll(async () => {
@@ -74,15 +84,21 @@ afterAll(async () => {
 });
 
 describe("MapRoom join", () => {
-  it("spawns a guest at the village spawn with synced state", async () => {
+  it("spawns at the authenticated character's village position", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const client = await colyseus.connectTo(room, { name: "Alice" });
     await room.waitForNextPatch();
 
     const player = room.state.players.get(client.sessionId);
     expect(player).toBeDefined();
+    expect(player!.characterId.length).toBeGreaterThan(0);
     expect(player!.name).toBe("Alice");
     expect(player!.kingdom).toBe("ember");
+    expect(player!.classId).toBe("warrior");
+    expect(player!.gender).toBe("male");
+    expect(player!.hairStyle).toBe(0);
+    expect(player!.hairColor).toBe(0);
+    expect(player!.level).toBe(1);
     expect(player!.x).toBeCloseTo(VILLAGE_SPAWN.x, 5);
     expect(player!.y).toBeCloseTo(VILLAGE_SPAWN.y, 5);
     expect(player!.facing).toBe(0); // down
@@ -121,7 +137,10 @@ describe("MapRoom join", () => {
 
   it("spawns on the fields at their own spawn point", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const client = await colyseus.connectTo(room, { name: "Scout" });
+    const client = await colyseus.connectTo(room, {
+      name: "Scout",
+      map: ROOM_NAME_FIELDS,
+    });
     await room.waitForNextPatch();
 
     const player = room.state.players.get(client.sessionId)!;
@@ -143,28 +162,59 @@ describe("MapRoom join", () => {
     expect(player.y).toBeCloseTo(VILLAGE_SPAWN.y, 5);
   });
 
-  it("sanitizes display names", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const client = await colyseus.connectTo(room, { name: "  Bad\nName!!  " });
-    await room.waitForNextPatch();
-    expect(room.state.players.get(client.sessionId)!.name).toBe("BadName");
-
-    const second = await colyseus.connectTo(room, { name: "a" });
-    await room.waitForNextPatch();
-    expect(room.state.players.get(second.sessionId)!.name).toBe("Guest");
-  });
-
-  it("falls back on invalid option types without discarding the whole message", async () => {
+  it("uses the authenticated name, kingdom and appearance", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const client = await colyseus.connectTo(room, {
-      name: "KeptName",
-      kingdom: "not-a-kingdom",
+      name: "Yuna",
+      kingdom: "tide",
+      classId: "assassin",
+      gender: "female",
+      hairStyle: 1,
+      hairColor: 2,
+      level: 7,
     });
     await room.waitForNextPatch();
 
     const player = room.state.players.get(client.sessionId)!;
-    expect(player.name).toBe("KeptName");
-    expect(player.kingdom).toBe("ember");
+    expect(player.name).toBe("Yuna");
+    expect(player.kingdom).toBe("tide");
+    expect(player.classId).toBe("assassin");
+    expect(player.gender).toBe("female");
+    expect(player.hairStyle).toBe(1);
+    expect(player.hairColor).toBe(2);
+    expect(player.level).toBe(7);
+  });
+
+  it("spawns at the saved position and falls back when it is not walkable", async () => {
+    const assets = loadMapAssets(ROOM_NAME_VILLAGE);
+    let savedX = VILLAGE_SPAWN.x;
+    for (let offset = 32; offset <= 160; offset += 32) {
+      if (isWalkableAt(assets.grid, VILLAGE_SPAWN.x + offset, VILLAGE_SPAWN.y)) {
+        savedX = VILLAGE_SPAWN.x + offset;
+        break;
+      }
+    }
+    const saved = fake.prepare({ name: "Saved", spawnX: savedX, spawnY: VILLAGE_SPAWN.y });
+
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, {
+      characterId: saved.character.id,
+      name: "Saved",
+    });
+    await room.waitForNextPatch();
+    const player = room.state.players.get(client.sessionId)!;
+    expect(player.x).toBeCloseTo(savedX, 1);
+    expect(player.y).toBeCloseTo(VILLAGE_SPAWN.y, 1);
+
+    const invalid = fake.prepare({ name: "Stuck", spawnX: 1, spawnY: 1 });
+    const second = await colyseus.connectTo(room, {
+      characterId: invalid.character.id,
+      name: "Stuck",
+    });
+    await room.waitForNextPatch();
+    const stuck = room.state.players.get(second.sessionId)!;
+    expect(stuck.x).toBeCloseTo(VILLAGE_SPAWN.x, 1);
+    expect(stuck.y).toBeCloseTo(VILLAGE_SPAWN.y, 1);
   });
 
   it("removes the player from state on leave", async () => {
@@ -177,6 +227,82 @@ describe("MapRoom join", () => {
     // No clients remain, so no patch is broadcast — poll the authoritative
     // server state instead of waiting for a patch.
     await waitUntil(() => room.state.players.size === 0);
+    expect(room.state.players.size).toBe(0);
+  });
+
+  it("saves the authoritative position when a moved player leaves", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Saver" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const characterId = room.state.players.get(sessionId)!.characterId;
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    sendInput(client, { seq: 2, kind: "none" });
+    await waitUntil(() => room.state.players.get(sessionId)!.moving === false);
+    const before = {
+      x: room.state.players.get(sessionId)!.x,
+      y: room.state.players.get(sessionId)!.y,
+    };
+
+    await client.leave();
+    await waitUntil(() => fake.saved.length > 0, 3000);
+
+    const last = fake.saved.at(-1)!;
+    expect(last.characterId).toBe(characterId);
+    expect(last.mapId).toBe(ROOM_NAME_VILLAGE);
+    expect(last.x).toBeCloseTo(before.x, 1);
+    expect(last.y).toBeCloseTo(before.y, 1);
+  });
+
+  it("autosaves dirty players in one batch", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const bob = await colyseus.connectTo(room, { name: "Bob" });
+    await room.waitForNextPatch();
+
+    sendInput(alice, { seq: 1, kind: "dir", dir: 0 });
+    sendInput(bob, { seq: 1, kind: "dir", dir: 2 });
+    await waitUntil(() => room.state.players.get(alice.sessionId)!.lastSeq === 1);
+    await waitUntil(() => room.state.players.get(bob.sessionId)!.lastSeq === 1);
+
+    const autosave = (room as unknown as { autosave: () => Promise<void> }).autosave;
+    await autosave.call(room);
+
+    expect(fake.savePositions).toHaveBeenCalledOnce();
+    const savedIds = fake.saved.map((save) => save.characterId);
+    expect(savedIds).toContain(room.state.players.get(alice.sessionId)!.characterId);
+    expect(savedIds).toContain(room.state.players.get(bob.sessionId)!.characterId);
+  });
+
+  it("kicks the previous session when the same character joins again", async () => {
+    const identity = fake.prepare({ name: "Twin" });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const first = await colyseus.connectTo(room, {
+      characterId: identity.character.id,
+      name: "Twin",
+    });
+    await room.waitForNextPatch();
+
+    const left = new Promise<number>((resolve) => {
+      first.onLeave((code) => resolve(code));
+    });
+    const second = await colyseus.connectTo(room, {
+      characterId: identity.character.id,
+      name: "Twin",
+    });
+    await room.waitForNextPatch();
+
+    const code = await Promise.race([left, sleep(3000).then(() => -1)]);
+    expect(code).toBe(4100);
+    expect(room.state.players.has(second.sessionId)).toBe(true);
+    expect(room.state.players.has(first.sessionId)).toBe(false);
+  });
+
+  it("rejects a join whose authentication fails", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    await expect(colyseus.connectTo(room, { name: "__reject__" })).rejects.toBeTruthy();
     expect(room.state.players.size).toBe(0);
   });
 });
@@ -540,7 +666,10 @@ describe("MapRoom interest management", () => {
 describe("MapRoom warp", () => {
   it("reserves a seat in the target map and removes the player here", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const client = await colyseus.connectTo(room, { name: "Traveller" });
+    const client = await colyseus.connectTo(room, {
+      name: "Traveller",
+      map: ROOM_NAME_FIELDS,
+    });
     await room.waitForNextPatch();
     const sessionId = client.sessionId;
 
@@ -568,7 +697,11 @@ describe("MapRoom warp", () => {
       fieldsWarp.x + fieldsWarp.w / 2,
       fieldsWarp.y + fieldsWarp.h / 2,
     );
-    const client = await colyseus.connectTo(room, { name: "Arrival", warpToken: token });
+    const client = await colyseus.connectTo(room, {
+      name: "Arrival",
+      map: ROOM_NAME_FIELDS,
+      warpToken: token,
+    });
     await room.waitForNextPatch();
 
     await sleep(300);
@@ -577,7 +710,7 @@ describe("MapRoom warp", () => {
 
   it("cools down after a failed reservation instead of retrying every tick", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const client = await colyseus.connectTo(room, { name: "Unlucky" });
+    const client = await colyseus.connectTo(room, { name: "Unlucky", map: ROOM_NAME_FIELDS });
     await room.waitForNextPatch();
     const sessionId = client.sessionId;
 
@@ -600,7 +733,7 @@ describe("MapRoom warp", () => {
 
   it("disconnects a client that ignores the warp message", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const client = await colyseus.connectTo(room, { name: "Ghost" });
+    const client = await colyseus.connectTo(room, { name: "Ghost", map: ROOM_NAME_FIELDS });
     await room.waitForNextPatch();
 
     const leavePromise = new Promise<number>((resolve) => {

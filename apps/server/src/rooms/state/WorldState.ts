@@ -10,8 +10,15 @@ import { MapSchema, Schema, type, view } from "@colyseus/schema";
  * `view.add/remove` surfaces client-side as `onAdd`/`onRemove`.
  */
 export class PlayerState extends Schema {
+  @type("string") characterId!: string;
   @type("string") name!: string;
   @type("string") kingdom!: string;
+  /** Persisted class id (warrior / assassin / hexblade / mystic). */
+  @type("string") classId!: string;
+  @type("string") gender!: string;
+  @type("uint8") hairStyle!: number;
+  @type("uint8") hairColor!: number;
+  @type("uint8") level!: number;
   /** float32: exact enough (<< 0.01px) for smooth interpolation at map scale. */
   @type("float32") x!: number;
   @type("float32") y!: number;

@@ -11,6 +11,9 @@ import {
  * derived from `mover.pos` after each tick.
  */
 export interface PlayerRuntime {
+  /** Authenticated account/character this session belongs to. */
+  accountId: string;
+  characterId: string;
   mover: MoverState;
   /** Inputs received since the last tick, applied in seq order. */
   pending: InputMessage[];
@@ -36,10 +39,19 @@ export interface PlayerRuntime {
   pathComputations: number;
   /** Inputs dropped because the pending queue was full (debug/test counter). */
   droppedInputs: number;
+  /** True when the authoritative position has changed since the last save. */
+  dirty: boolean;
 }
 
-export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
+export interface PlayerIdentity {
+  accountId: string;
+  characterId: string;
+}
+
+export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): PlayerRuntime {
   return {
+    accountId: identity.accountId,
+    characterId: identity.characterId,
     mover: createMover(spawn),
     pending: [],
     lastSeq: 0,
@@ -53,5 +65,6 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     failedPathUntilMs: new Map(),
     pathComputations: 0,
     droppedInputs: 0,
+    dirty: false,
   };
 }
