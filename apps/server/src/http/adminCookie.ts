@@ -56,6 +56,31 @@ export function clearAdminCookie(res: Response): void {
   res.clearCookie(ADMIN_COOKIE_NAME, { path: "/" });
 }
 
+/** Non-throwing check used by the admin UI before showing the monitor iframe. */
+export function adminCookieStatus(
+  req: { headers: { cookie?: string } },
+  authDeps: AuthDeps,
+  account: AccountAuthRecord,
+): { ok: boolean; expiresAtMs: number | null } {
+  const token = readCookie(req.headers.cookie, ADMIN_COOKIE_NAME);
+  if (!token) {
+    return { ok: false, expiresAtMs: null };
+  }
+  const verified = verifyAccessToken(token, authDeps.accessSecret);
+  if (!verified.ok) {
+    return { ok: false, expiresAtMs: null };
+  }
+  const claims = verified.claims;
+  if (
+    claims.sub !== account.id ||
+    claims.tv !== account.tokenVersion ||
+    !isAdminRole(account.role)
+  ) {
+    return { ok: false, expiresAtMs: null };
+  }
+  return { ok: true, expiresAtMs: claims.exp * 1000 };
+}
+
 export interface AdminCookieDeps {
   authDeps: AuthDeps;
   /** Test seam; production reads the account from the database. */

@@ -23,6 +23,7 @@ import { consumeWarpTokenPayload } from "./rooms/warpTokens";
 import { MapRoom } from "./rooms/MapRoom";
 import { errorHandler, notFoundHandler } from "./http/errors";
 import type { RateLimitSettings } from "./http/rateLimit";
+import { createAdminRouter } from "./routes/admin";
 import { createAuthRouter } from "./routes/auth";
 import { createCharactersRouter } from "./routes/characters";
 import { healthHandler } from "./routes/health";
@@ -157,6 +158,16 @@ export function createGameServer(deps: ServerDeps = {}) {
         createAuthRouter({ authDeps, db, sessionRegistry, rateLimits: deps.rateLimits }),
       );
       app.use("/api/characters", createCharactersRouter({ authDeps, db, sessionRegistry }));
+      app.use(
+        "/api/admin",
+        createAdminRouter({
+          db,
+          authDeps,
+          sessionRegistry,
+          adminBus,
+          adminRuntime,
+        }),
+      );
       app.use("/api", notFoundHandler);
       app.use(errorHandler);
     },

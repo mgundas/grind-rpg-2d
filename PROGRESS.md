@@ -174,8 +174,8 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 8 — MapRoom registration and live admin actions
 - [x] Task 9 — GM commands and chat logging
 - [x] Task 10 — Admin runtime: rates, metrics, announcements, shutdown
-- [ ] Task 11 — Admin read routes
-- [ ] Task 12 — Admin mutation routes
+- [x] Task 11 — Admin read routes
+- [x] Task 12 — Admin mutation routes
 - [ ] Task 13 — Admin announcement/control routes
 - [ ] Task 14 — Colyseus monitor mount
 - [ ] Task 15 — Client announcement banner and kick reasons
