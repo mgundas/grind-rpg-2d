@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: Phase 0 complete → next plan needed for Phase 1 (start it with a single @architect consult on client prediction/reconciliation/interpolation).
+Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/phase-0.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -22,9 +22,29 @@ Current plan: Phase 0 complete → next plan needed for Phase 1 (start it with a
 - [x] Task 16 — final verification, @reviewer pass, phase report
 - [x] Phase report: `docs/reports/phase-0.md`
 
+## Phase 1 — Walk together
+
+- [x] Task 1 — shared: direction + movement constants
+- [ ] Task 2 — shared: Tiled parser + collision grid
+- [ ] Task 3 — shared: deterministic movement step
+- [ ] Task 4 — shared: A* pathfinding
+- [ ] Task 5 — map generator: Ember Village
+- [ ] Task 6 — map generator: Ember Fields + invariants
+- [ ] Task 7 — server: map registry, schema v2, join
+- [ ] Task 8 — server: tick loop + authoritative movement
+- [ ] Task 9 — server: messages, chat, latency flag
+- [ ] Task 10 — server: StateView interest
+- [ ] Task 11 — server: warp between maps
+- [ ] Task 12 — client: session + guest join
+- [ ] Task 13 — client: real map rendering
+- [ ] Task 14 — client: input + prediction
+- [ ] Task 15 — client: remote interpolation
+- [ ] Task 16 — client: chat, bubbles, F3 overlay
+- [ ] Task 17 — client: warp UX
+- [ ] Task 18 — phase gate: verification, reviewer, report
+
 ## Later phases (from GAME_DESIGN.md §12)
 
-- [ ] Phase 1 — Walk together
 - [ ] Phase 2 — Accounts and characters
 - [ ] Phase 3 — Combat and monsters
 - [ ] Phase 4 — Items and economy
