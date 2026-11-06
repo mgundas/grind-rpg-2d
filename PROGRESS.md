@@ -170,7 +170,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 4 — Admin read service
 - [x] Task 5 — Pure admin item planners
 - [x] Task 6 — Admin mutation service
-- [ ] Task 7 — Live admin bus + service wiring
+- [x] Task 7 — Live admin bus + service wiring
 - [ ] Task 8 — MapRoom registration and live admin actions
 - [ ] Task 9 — GM commands and chat logging
 - [ ] Task 10 — Admin runtime: rates, metrics, announcements, shutdown

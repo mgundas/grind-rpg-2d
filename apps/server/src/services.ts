@@ -3,6 +3,7 @@ import type { AuthDeps } from "./auth/accountService";
 import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
 import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
+import type { AdminBus } from "./admin/liveBus";
 import type { CharacterRecord } from "./characters/characterMappers";
 import type { Db } from "./db/client";
 import type { ItemService } from "./items/service";
@@ -30,6 +31,8 @@ export interface ServerServices {
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   /** Inventory/economy persistence; room tests inject an in-memory fake. */
   items: ItemService;
+  /** In-process registry of live players/rooms for the admin panel. */
+  adminBus: AdminBus;
   /** Fresh per-room RNG stream: crypto in production, seeded in tests. */
   createRandomSource: () => RandomSource;
   combatTuning: CombatTuning;

@@ -14,6 +14,7 @@ import {
   type WarehouseState,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
+import { createAdminBus, type AdminBus } from "../../src/admin/liveBus";
 import type { AccountAuthRecord } from "../../src/auth/accountService";
 import type { JoinAuthenticator, JoinIdentity } from "../../src/auth/joinAuth";
 import type { BulkCharacterSave, CharacterSave } from "../../src/characters/characterService";
@@ -54,6 +55,7 @@ export interface FakeServices {
   saveCharacters: Mock<(saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>>;
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   items: ItemService;
+  adminBus: AdminBus;
   /** Seed an item row directly (room tests start with a clean inventory). */
   giveItem: (row: {
     id: string;
@@ -240,6 +242,7 @@ export function createFakeServices(): FakeServices {
   }
   const itemRows = new Map<string, FakeItemRow>();
   const goldByCharacter = new Map<string, number>();
+  const adminBus = createAdminBus();
 
   function inventoryFromRows(characterId: string): InventoryState {
     const state = emptyInventory();
@@ -398,6 +401,7 @@ export function createFakeServices(): FakeServices {
     saveCharacters,
     loadCharacter,
     items: itemsService,
+    adminBus,
     giveItem,
     setGold(characterId, gold) {
       goldByCharacter.set(characterId, gold);
@@ -409,6 +413,7 @@ export function createFakeServices(): FakeServices {
       identities.clear();
       itemRows.clear();
       goldByCharacter.clear();
+      adminBus.clear();
       saved.length = 0;
       vi.clearAllMocks();
     },
