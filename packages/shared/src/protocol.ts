@@ -16,6 +16,7 @@ export const MSG = {
   setTarget: "setTarget",
   respawn: "respawn",
   allocStat: "allocStat",
+  requestStats: "requestStats",
   combat: "combat",
   monsterDied: "monsterDied",
   levelUp: "levelUp",
@@ -116,10 +117,13 @@ export const allocStatMessageSchema = z.object({
 });
 export type AllocStatMessage = z.infer<typeof allocStatMessageSchema>;
 
+/** Client → server: ask for a fresh owner-only progression snapshot. */
+export const requestStatsMessageSchema = z.object({});
+export type RequestStatsMessage = z.infer<typeof requestStatsMessageSchema>;
+
 /** Identifies a combatant in a combat event. */
 export type CombatEntityRef =
-  | { kind: "player"; sessionId: string }
-  | { kind: "monster"; monsterId: string };
+  { kind: "player"; sessionId: string } | { kind: "monster"; monsterId: string };
 
 export interface CombatHit {
   target: CombatEntityRef;

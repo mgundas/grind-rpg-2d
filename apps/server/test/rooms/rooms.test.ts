@@ -12,6 +12,7 @@ import {
   type CombatEventPayload,
   type InputMessage,
   type MonsterDiedPayload,
+  type SelfStatsPayload,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
@@ -72,6 +73,14 @@ function sendAttack(client: unknown, dir?: number): void {
   );
 }
 
+function sendRespawn(client: unknown, option: "here" | "town"): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(MSG.respawn, { option });
+}
+
+function sendAllocStat(client: unknown, stat: "vit" | "int" | "str" | "dex"): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(MSG.allocStat, { stat });
+}
+
 function captureMessages(client: unknown, type: string): unknown[] {
   const messages: unknown[] = [];
   (client as { onMessage: (type: string, callback: (payload: unknown) => void) => void }).onMessage(
@@ -90,6 +99,27 @@ interface MonsterRuntimeProbe {
 
 function monsterRuntimes(room: MapRoom): Map<string, MonsterRuntimeProbe> {
   return (room as unknown as { monsterRuntimes: Map<string, MonsterRuntimeProbe> }).monsterRuntimes;
+}
+
+interface PlayerRuntimeProbe {
+  dead: boolean;
+  diedAtMs: number;
+  progression: {
+    hp: number;
+    maxHp: number;
+    mp: number;
+    maxMp: number;
+    level: number;
+    xp: number;
+    statPoints: number;
+    stats: { vit: number; int: number; str: number; dex: number };
+  };
+}
+
+function playerRuntimeOf(room: MapRoom, sessionId: string): PlayerRuntimeProbe {
+  return (room as unknown as { runtimes: Map<string, PlayerRuntimeProbe> }).runtimes.get(
+    sessionId,
+  )!;
 }
 
 function nearestMonsterId(room: MapRoom, sessionId: string): string {
@@ -136,6 +166,7 @@ beforeAll(async () => {
         let index = 0;
         return { next: () => values[index++ % values.length]! };
       },
+      combatTuning: { respawnHereDelayMs: 300, respawnHereHpFraction: 0.3 },
     }),
   );
 }, 30_000);
@@ -949,9 +980,12 @@ describe("player attack", () => {
     sendAttack(client, dir);
     await waitUntil(() => events.length > 0);
 
-    const event = events[0] as CombatEventPayload;
+    const event = events.find(
+      (candidate) => (candidate as CombatEventPayload).attacker.kind === "player",
+    ) as CombatEventPayload;
+    expect(event).toBeDefined();
     expect(event.attacker).toEqual({ kind: "player", sessionId: client.sessionId });
-    expect(event.eventSeq).toBe(1);
+    expect(event.eventSeq).toBeGreaterThanOrEqual(1);
     const hit = event.hits.find(
       (candidate) => candidate.target.kind === "monster" && candidate.target.monsterId === targetId,
     );
@@ -967,18 +1001,21 @@ describe("player attack", () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
     const { client, events } = await joinAtWolfCamp(room, "Spammer");
 
+    const playerEvents = () =>
+      events.filter((event) => (event as CombatEventPayload).attacker.kind === "player");
+
     sendAttack(client, 0);
-    await waitUntil(() => events.length === 1, 2000);
+    await waitUntil(() => playerEvents().length === 1, 2000);
 
     sendAttack(client, 0);
     sendAttack(client, 0);
     await sleep(200);
-    expect(events.length).toBe(1);
+    expect(playerEvents().length).toBe(1);
 
     await sleep(800);
     sendAttack(client, 0);
-    await waitUntil(() => events.length === 2, 2000);
-    expect(events.length).toBe(2);
+    await waitUntil(() => playerEvents().length === 2, 2000);
+    expect(playerEvents().length).toBe(2);
   });
 
   it("removes a killed monster and broadcasts monsterDied", async () => {
@@ -1031,5 +1068,132 @@ describe("player attack", () => {
     await waitUntil(() => events.length > 0);
 
     expect((events[0] as CombatEventPayload).hits).toEqual([]);
+  });
+});
+
+describe("player damage, death and respawn", () => {
+  async function joinAtWolfCamp(room: MapRoom, name: string) {
+    const client = await colyseus.connectTo(room, {
+      name,
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+    return client;
+  }
+
+  it("monsters damage the player", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await joinAtWolfCamp(room, "Victim");
+    const player = room.state.players.get(client.sessionId)!;
+
+    await waitUntil(() => player.hp < player.maxHp, 4000);
+    expect(player.hp).toBeGreaterThanOrEqual(0);
+    expect(player.dead).toBe(false);
+  });
+
+  it("kills the player, sends death, and respawns here after the tuned delay", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await joinAtWolfCamp(room, "Doomed");
+    const deaths = captureMessages(client, MSG.death);
+    const player = room.state.players.get(client.sessionId)!;
+    const runtime = playerRuntimeOf(room, client.sessionId);
+    runtime.progression.hp = 1;
+    player.hp = 1;
+
+    await waitUntil(() => deaths.length > 0, 4000);
+    expect(player.dead).toBe(true);
+    expect(player.hp).toBe(0);
+    expect(deaths[0]).toMatchObject({ respawnHereAtMs: expect.any(Number) });
+
+    sendRespawn(client, "here");
+    await sleep(100);
+    expect(player.dead).toBe(true);
+    expect(deaths.length).toBeGreaterThan(1); // early request is rejected with a fresh timer
+
+    await sleep(250);
+    sendRespawn(client, "here");
+    await waitUntil(() => !player.dead, 2000);
+    expect(player.hp).toBe(Math.round(player.maxHp * 0.3));
+    expect(runtime.dead).toBe(false);
+  });
+
+  it("respawns in town through a warp reservation", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await joinAtWolfCamp(room, "Townsfolk");
+    const player = room.state.players.get(client.sessionId)!;
+    const runtime = playerRuntimeOf(room, client.sessionId);
+    runtime.dead = true;
+    runtime.diedAtMs = Date.now();
+    runtime.progression.hp = 0;
+    player.dead = true;
+    player.hp = 0;
+
+    const warpMessage = client.waitForMessage(MSG.warp, 5000);
+    sendRespawn(client, "town");
+    const payload = (await warpMessage) as WarpPayload;
+
+    expect(payload.map).toBe(ROOM_NAME_VILLAGE);
+    expect(payload.x).toBe(VILLAGE_SPAWN.x);
+    expect(payload.y).toBe(VILLAGE_SPAWN.y);
+    const lastSave = fake.saved[fake.saved.length - 1]!;
+    expect(lastSave.mapId).toBe(ROOM_NAME_VILLAGE);
+    expect(lastSave.x).toBe(VILLAGE_SPAWN.x);
+  });
+});
+
+describe("progression and stat allocation", () => {
+  it("awards kill XP and levels up with a full heal and stat points", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Grinder",
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+    const player = room.state.players.get(client.sessionId)!;
+    const runtime = playerRuntimeOf(room, client.sessionId);
+    runtime.progression.xp = 119; // one XP short of level 2
+    const stats = captureMessages(client, MSG.selfStats);
+
+    const targetId = nearestMonsterId(room, client.sessionId);
+    const monsterRuntime = monsterRuntimes(room).get(targetId)!;
+    monsterRuntime.hp = 1;
+    const monster = room.state.monsters.get(targetId)!;
+    monster.hp = 1;
+    const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
+    sendAttack(client, dir);
+
+    await waitUntil(() => stats.some((message) => (message as SelfStatsPayload).level === 2), 2000);
+    const snapshot = stats[stats.length - 1] as SelfStatsPayload;
+    expect(snapshot.xp).toBeGreaterThanOrEqual(0);
+    expect(snapshot.xp).toBeLessThan(570); // level-2 requirement
+    expect(snapshot.statPoints).toBe(3);
+    expect(player.level).toBe(2);
+    expect(player.hp).toBe(player.maxHp);
+  });
+
+  it("spends a stat point and recomputes max HP", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Builder" });
+    await room.waitForNextPatch();
+    const player = room.state.players.get(client.sessionId)!;
+    const runtime = playerRuntimeOf(room, client.sessionId);
+    runtime.progression.statPoints = 1;
+    const before = runtime.progression.stats.vit;
+    const stats = captureMessages(client, MSG.selfStats);
+
+    sendAllocStat(client, "vit");
+    await waitUntil(
+      () => stats.some((message) => (message as SelfStatsPayload).statPoints === 0),
+      2000,
+    );
+
+    const snapshot = stats[stats.length - 1] as SelfStatsPayload;
+    expect(snapshot.stats.vit).toBe(before + 1);
+    expect(snapshot.maxHp).toBe(356); // warrior base 120 + (vit 5)*40 + level*36
+    expect(player.maxHp).toBe(356);
   });
 });

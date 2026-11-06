@@ -11,29 +11,43 @@ import {
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
   PATH_RETARGET_MIN_MS,
+  RESPAWN_HERE_DELAY_MS,
+  RESPAWN_HERE_HP_FRACTION,
   SERVER_TICK_GRACE_TICKS,
+  STAT_POINT_CAP,
   TICK_MS,
   TILE_SIZE,
   WARP_COOLDOWN_MS,
+  allocStatMessageSchema,
+  applyXpGain,
   attackMessageSchema,
   chatMessageSchema,
   chatRecipients,
+  deathXpLoss,
   facing4FromDelta,
   facing4FromIndex,
   facing4Index,
   findPath,
   inputMessageSchema,
+  isClassId,
   isWalkableAt,
+  monsterXpGain,
+  requestStatsMessageSchema,
+  respawnMessageSchema,
   seededRandomSource,
   seedFromString,
   stepMover,
   type ChatMsgPayload,
   type CombatEventPayload,
+  type CombatHit,
+  type DeathPayload,
   type Dir8,
   type InputMessage,
+  type LevelUpPayload,
   type MapId,
   type MonsterDiedPayload,
   type RandomSource,
+  type StatKey,
   type Vec2,
   type WarpPayload,
   type WarpZone,
@@ -45,8 +59,16 @@ import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
-import { progressionFromCharacter } from "../characters/progression";
-import { resolvePlayerSwing, type SwingOutcome } from "./combat";
+import { buildSelfStats } from "../characters/selfStats";
+import { progressionFromCharacter, recomputeMaxima } from "../characters/progression";
+import { defaultSpawn } from "../characters/spawn";
+import {
+  resolveMonsterAttack,
+  resolvePlayerSwing,
+  type KilledMonster,
+  type SwingOutcome,
+} from "./combat";
+import { applyRegenTick } from "./regen";
 import { stepMonsterAi, type AiPlayerSnapshot } from "./monsterAi";
 import type { MonsterRuntime } from "./monsterRuntime";
 import {
@@ -91,6 +113,9 @@ export class MapRoom extends Room {
   private rng!: RandomSource;
   /** Monotonic id for combat events, so clients can ignore stale arrivals. */
   private eventSeq = 0;
+  /** Reused intent buffer: no per-tick allocation in the steady state. */
+  private attackIntents: Array<{ monsterId: string; targetSessionId: string }> = [];
+  private attackIntentCount = 0;
 
   /**
    * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
@@ -201,6 +226,34 @@ export class MapRoom extends Room {
       };
     });
 
+    this.onMessage(MSG.respawn, (client, raw) => {
+      const parsed = respawnMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid respawn message");
+        return;
+      }
+      const runtime = this.runtimes.get(client.sessionId);
+      if (runtime) {
+        runtime.pendingRespawn = parsed.data.option;
+      }
+    });
+
+    this.onMessage(MSG.allocStat, (client, raw) => {
+      const parsed = allocStatMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid stat allocation");
+        return;
+      }
+      this.allocateStat(client.sessionId, parsed.data.stat);
+    });
+
+    this.onMessage(MSG.requestStats, (client, raw) => {
+      if (!requestStatsMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.sendSelfStats(client.sessionId);
+    });
+
     this.setSimulationInterval(() => this.tick(), TICK_MS);
     // Interest management runs at 4 Hz, not every tick (GAME_DESIGN.md §5.1).
     this.clock.setInterval(() => this.updateInterest(), INTEREST_INTERVAL_MS);
@@ -283,6 +336,8 @@ export class MapRoom extends Room {
       this.updateInterest();
       return;
     }
+
+    this.sendSelfStats(client.sessionId);
 
     logger.info(
       {
@@ -448,17 +503,22 @@ export class MapRoom extends Room {
     for (const client of this.clients) {
       const runtime = this.runtimes.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
-      if (!runtime || !player) {
+      if (!runtime || !player || runtime.dead) {
+        if (player && runtime?.dead) {
+          player.moving = false;
+        }
         continue;
       }
       this.stepPlayer(runtime, player);
     }
     this.stepMonsters(now, players);
     this.runCombatPhase(now);
+    this.applyRegen(now);
+    this.processRespawns(now);
     const spawned = tickSpawns(
       this.spawns,
       now,
-      players.map((player) => player.pos),
+      players.filter((player) => !player.dead).map((player) => player.pos),
     );
     if (spawned > 0) {
       this.updateInterest();
@@ -466,29 +526,40 @@ export class MapRoom extends Room {
     this.checkWarps();
   }
 
-  /** Resolve queued swings; players act before monster intents (Task 10). */
+  /** Resolve queued player swings, then monster intents from the AI phase. */
   private runCombatPhase(now: number): void {
+    const context = {
+      now,
+      rng: this.rng,
+      state: this.state,
+      runtimes: this.runtimes,
+      monsterRuntimes: this.monsterRuntimes,
+    };
+
     for (const [sessionId, runtime] of this.runtimes) {
       const pending = runtime.pendingAttack;
       if (!pending) {
         continue;
       }
       runtime.pendingAttack = null;
-      const outcome = resolvePlayerSwing(
-        {
-          now,
-          rng: this.rng,
-          state: this.state,
-          runtimes: this.runtimes,
-          monsterRuntimes: this.monsterRuntimes,
-        },
-        sessionId,
-        pending.dir,
-      );
+      const outcome = resolvePlayerSwing(context, sessionId, pending.dir);
       if (outcome) {
         this.emitSwing(sessionId, outcome, now);
       }
     }
+
+    for (let index = 0; index < this.attackIntentCount; index++) {
+      const intent = this.attackIntents[index]!;
+      const outcome = resolveMonsterAttack(context, intent.monsterId, intent.targetSessionId);
+      if (!outcome) {
+        continue;
+      }
+      this.emitMonsterAttack(intent.monsterId, outcome.hit);
+      if (outcome.victimDead) {
+        this.handlePlayerDeath(intent.targetSessionId, now);
+      }
+    }
+    this.attackIntentCount = 0;
   }
 
   private emitSwing(sessionId: string, outcome: SwingOutcome, now: number): void {
@@ -531,7 +602,248 @@ export class MapRoom extends Room {
       for (const client of recipients) {
         this.safeSend(client, MSG.monsterDied, died);
       }
+      this.awardKillXp(sessionId, killed);
     }
+  }
+
+  private emitMonsterAttack(monsterId: string, hit: CombatHit): void {
+    const monsterRuntime = this.monsterRuntimes.get(monsterId);
+    if (!monsterRuntime) {
+      return;
+    }
+    const origin = monsterRuntime.mover.pos;
+    const radiusSquared = COMBAT_EVENT_RADIUS_PX * COMBAT_EVENT_RADIUS_PX;
+    const recipients = this.clients.filter((client) => {
+      const runtime = this.runtimes.get(client.sessionId);
+      if (!runtime) {
+        return false;
+      }
+      const dx = runtime.mover.pos.x - origin.x;
+      const dy = runtime.mover.pos.y - origin.y;
+      return dx * dx + dy * dy <= radiusSquared;
+    });
+    const payload: CombatEventPayload = {
+      eventSeq: ++this.eventSeq,
+      attacker: { kind: "monster", monsterId },
+      hits: [hit],
+    };
+    for (const client of recipients) {
+      this.safeSend(client, MSG.combat, payload);
+    }
+  }
+
+  private handlePlayerDeath(sessionId: string, now: number): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player || runtime.dead) {
+      return;
+    }
+
+    runtime.dead = true;
+    runtime.diedAtMs = now;
+    runtime.pending.length = 0;
+    runtime.pendingAttack = null;
+    runtime.lastIntent = { kind: "none" };
+    runtime.mover.path = [];
+    runtime.graceTicksRemaining = 0;
+    runtime.targetMonsterId = null;
+    runtime.nextChaseRepathAtMs = 0;
+    runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
+    runtime.noProgressSinceMs = 0;
+    runtime.emptyChasePaths = 0;
+    runtime.progression.hp = 0;
+    player.dead = true;
+    player.hp = 0;
+    player.moving = false;
+
+    runtime.progression.xp = Math.max(
+      0,
+      runtime.progression.xp - deathXpLoss(runtime.progression.level, runtime.progression.xp),
+    );
+    runtime.dirty = true;
+    this.clearPlayerFromMonsters(sessionId);
+
+    const delay = getServerServices().combatTuning.respawnHereDelayMs ?? RESPAWN_HERE_DELAY_MS;
+    const payload: DeathPayload = { respawnHereAtMs: now + delay };
+    const client = this.clients.find((candidate) => candidate.sessionId === sessionId);
+    if (client) {
+      this.safeSend(client, MSG.death, payload);
+    }
+    this.sendSelfStats(sessionId);
+  }
+
+  private sendSelfStats(sessionId: string): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    const client = this.clients.find((candidate) => candidate.sessionId === sessionId);
+    if (!runtime || !player || !client) {
+      return;
+    }
+    this.safeSend(client, MSG.selfStats, buildSelfStats(runtime, player));
+  }
+
+  private applyRegen(now: number): void {
+    for (const [sessionId, runtime] of this.runtimes) {
+      const player = this.state.players.get(sessionId);
+      if (player) {
+        applyRegenTick(runtime, player, now);
+      }
+    }
+  }
+
+  private processRespawns(now: number): void {
+    for (const client of [...this.clients]) {
+      const runtime = this.runtimes.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!runtime || !player) {
+        continue;
+      }
+      const choice = runtime.pendingRespawn;
+      if (!choice) {
+        continue;
+      }
+      runtime.pendingRespawn = null;
+      if (!runtime.dead) {
+        continue;
+      }
+
+      if (choice === "town") {
+        void this.respawnInTown(client);
+        continue;
+      }
+
+      const delay = getServerServices().combatTuning.respawnHereDelayMs ?? RESPAWN_HERE_DELAY_MS;
+      if (now < runtime.diedAtMs + delay) {
+        this.safeSend(client, MSG.death, { respawnHereAtMs: runtime.diedAtMs + delay });
+        continue;
+      }
+
+      const fraction =
+        getServerServices().combatTuning.respawnHereHpFraction ?? RESPAWN_HERE_HP_FRACTION;
+      const hp = Math.max(1, Math.round(runtime.progression.maxHp * fraction));
+      runtime.progression.hp = hp;
+      runtime.dead = false;
+      runtime.diedAtMs = 0;
+      runtime.regenAccumMs = 0;
+      player.dead = false;
+      player.hp = hp;
+      player.moving = false;
+      const spawn = this.resolveSpawn(player.x, player.y);
+      runtime.mover.pos.x = spawn.x;
+      runtime.mover.pos.y = spawn.y;
+      runtime.mover.path = [];
+      runtime.lastIntent = { kind: "none" };
+      player.x = spawn.x;
+      player.y = spawn.y;
+      runtime.dirty = true;
+      this.updateInterest();
+      this.sendSelfStats(client.sessionId);
+    }
+  }
+
+  private async respawnInTown(client: Client): Promise<void> {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player || !runtime.dead || runtime.warping) {
+      return;
+    }
+
+    runtime.progression.hp = runtime.progression.maxHp;
+    runtime.progression.mp = runtime.progression.maxMp;
+    player.hp = runtime.progression.hp;
+    player.mp = runtime.progression.mp;
+
+    const village = defaultSpawn();
+    const accepted = await this.beginWarp(client, village);
+    if (!accepted) {
+      const delay = getServerServices().combatTuning.respawnHereDelayMs ?? RESPAWN_HERE_DELAY_MS;
+      this.safeSend(client, MSG.death, { respawnHereAtMs: runtime.diedAtMs + delay });
+    }
+  }
+
+  /** Award kill XP to the player who landed the killing blow (party XP is Phase 6). */
+  private awardKillXp(sessionId: string, killed: KilledMonster): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player || runtime.dead) {
+      return;
+    }
+    const spec = getMonster(killed.typeId);
+    const gain = monsterXpGain(spec.xp, spec.level, runtime.progression.level);
+    const result = applyXpGain(runtime.progression.level, runtime.progression.xp, gain);
+    runtime.progression.level = result.level;
+    runtime.progression.xp = result.xp;
+    runtime.progression.statPoints += result.statPointsGained;
+
+    if (result.levelsGained > 0 && isClassId(player.classId)) {
+      recomputeMaxima(runtime.progression, player.classId);
+      runtime.progression.hp = runtime.progression.maxHp;
+      runtime.progression.mp = runtime.progression.maxMp;
+      player.level = runtime.progression.level;
+      player.maxHp = runtime.progression.maxHp;
+      player.maxMp = runtime.progression.maxMp;
+      player.hp = runtime.progression.hp;
+      player.mp = runtime.progression.mp;
+
+      const levelUp: LevelUpPayload = {
+        sessionId,
+        name: player.name,
+        level: runtime.progression.level,
+        x: runtime.mover.pos.x,
+        y: runtime.mover.pos.y,
+      };
+      const radiusSquared = COMBAT_EVENT_RADIUS_PX * COMBAT_EVENT_RADIUS_PX;
+      for (const client of this.clients) {
+        const other = this.runtimes.get(client.sessionId);
+        if (!other) {
+          continue;
+        }
+        const dx = other.mover.pos.x - runtime.mover.pos.x;
+        const dy = other.mover.pos.y - runtime.mover.pos.y;
+        if (dx * dx + dy * dy <= radiusSquared) {
+          this.safeSend(client, MSG.levelUp, levelUp);
+        }
+      }
+    }
+
+    runtime.dirty = true;
+    this.sendSelfStats(sessionId);
+    void this.enqueueSave(runtime, {
+      mapId: this.mapId,
+      x: runtime.mover.pos.x,
+      y: runtime.mover.pos.y,
+    });
+  }
+
+  private allocateStat(sessionId: string, stat: StatKey): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    if (runtime.progression.statPoints <= 0) {
+      return;
+    }
+    if (runtime.progression.stats[stat] >= STAT_POINT_CAP) {
+      return;
+    }
+    runtime.progression.stats[stat]++;
+    runtime.progression.statPoints--;
+
+    if (isClassId(player.classId)) {
+      recomputeMaxima(runtime.progression, player.classId);
+    }
+    player.maxHp = runtime.progression.maxHp;
+    player.maxMp = runtime.progression.maxMp;
+    player.hp = runtime.progression.hp;
+    player.mp = runtime.progression.mp;
+    runtime.dirty = true;
+    this.sendSelfStats(sessionId);
+    void this.enqueueSave(runtime, {
+      mapId: this.mapId,
+      x: runtime.mover.pos.x,
+      y: runtime.mover.pos.y,
+    });
   }
 
   private safeSend(client: Client, type: string, payload: unknown): void {
@@ -568,6 +880,7 @@ export class MapRoom extends Room {
       budget--;
       return true;
     };
+    this.attackIntentCount = 0;
 
     for (const [monsterId, runtime] of this.monsterRuntimes) {
       if (runtime.hp <= 0) {
@@ -577,7 +890,7 @@ export class MapRoom extends Room {
       if (!monster) {
         continue;
       }
-      stepMonsterAi(
+      const result = stepMonsterAi(
         {
           grid: this.assets.grid,
           now,
@@ -589,6 +902,16 @@ export class MapRoom extends Room {
         monster,
         getMonster(runtime.typeId),
       );
+      if (!result.attackTargetId) {
+        continue;
+      }
+      const slot = (this.attackIntents[this.attackIntentCount] ??= {
+        monsterId: "",
+        targetSessionId: "",
+      });
+      slot.monsterId = monsterId;
+      slot.targetSessionId = result.attackTargetId;
+      this.attackIntentCount++;
     }
   }
 
@@ -614,7 +937,13 @@ export class MapRoom extends Room {
     for (const client of [...this.clients]) {
       const runtime = this.runtimes.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
-      if (!runtime || !player || runtime.warping || now < runtime.warpCooldownUntilMs) {
+      if (
+        !runtime ||
+        !player ||
+        runtime.warping ||
+        runtime.dead ||
+        now < runtime.warpCooldownUntilMs
+      ) {
         continue;
       }
       const warp = this.assets.warps.find(
@@ -637,20 +966,36 @@ export class MapRoom extends Room {
    * map change.
    */
   private async startWarp(client: Client, warp: WarpZone): Promise<void> {
+    await this.beginWarp(client, { mapId: warp.targetMap, x: warp.targetX, y: warp.targetY });
+  }
+
+  /**
+   * Persist the destination first, then reserve a seat authenticated by a
+   * server-issued warp token. The target room's `onAuth` consumes the token
+   * and loads the saved destination, so an expired access JWT cannot break a
+   * map change.
+   *
+   * Returns false when the destination could not be saved or the reservation
+   * failed; a connected player has then been restored and can retry.
+   */
+  private async beginWarp(
+    client: Client,
+    destination: { mapId: MapId; x: number; y: number },
+  ): Promise<boolean> {
     const runtime = this.runtimes.get(client.sessionId);
     const player = this.state.players.get(client.sessionId);
-    if (!runtime || !player) {
-      return;
+    if (!runtime || !player || runtime.warping) {
+      return false;
     }
     runtime.warping = true;
     const services = getServerServices();
-    const source = { mapId: this.mapId, x: player.x, y: player.y };
+    const source = {
+      mapId: this.mapId,
+      x: runtime.mover.pos.x,
+      y: runtime.mover.pos.y,
+    };
 
-    const saved = await this.enqueueSave(runtime, {
-      mapId: warp.targetMap,
-      x: warp.targetX,
-      y: warp.targetY,
-    });
+    const saved = await this.enqueueSave(runtime, destination);
     if (!saved) {
       runtime.warping = false;
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
@@ -658,7 +1003,7 @@ export class MapRoom extends Room {
         { roomId: this.roomId, session: client.sessionId },
         "warp destination save failed",
       );
-      return;
+      return false;
     }
 
     this.state.players.delete(client.sessionId);
@@ -668,26 +1013,26 @@ export class MapRoom extends Room {
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
 
     try {
-      const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY, {
+      const token = issueWarpToken(destination.mapId, destination.x, destination.y, {
         accountId: runtime.accountId,
         characterId: runtime.characterId,
         tokenVersion: runtime.tokenVersion,
       });
-      const reservation = await this.reserveSeat(warp.targetMap, {
+      const reservation = await this.reserveSeat(destination.mapId, {
         characterId: runtime.characterId,
-        map: warp.targetMap,
+        map: destination.mapId,
         warpToken: token,
       });
       if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
         // Client left before receiving the reservation; undo the destination
         // write so the next login does not spawn on a map it never reached.
         void this.enqueueSave(runtime, source);
-        return;
+        return false;
       }
       const payload: WarpPayload = {
-        map: warp.targetMap,
-        x: warp.targetX,
-        y: warp.targetY,
+        map: destination.mapId,
+        x: destination.x,
+        y: destination.y,
         reservation,
       };
       client.send(MSG.warp, payload);
@@ -711,10 +1056,11 @@ export class MapRoom extends Room {
           roomId: this.roomId,
           session: client.sessionId,
           from: this.mapId,
-          to: warp.targetMap,
+          to: destination.mapId,
         },
         "player warped",
       );
+      return true;
     } catch (error) {
       // Restore the player only if the client is still connected here.
       if (this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
@@ -744,6 +1090,7 @@ export class MapRoom extends Room {
         this.updateInterest();
       }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
+      return false;
     }
   }
 

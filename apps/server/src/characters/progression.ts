@@ -1,4 +1,4 @@
-import { applyXpGain, clamp, maxHp, maxMp, type Stats } from "@jadethrone/shared";
+import { applyXpGain, clamp, maxHp, maxMp, type ClassId, type Stats } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import type { CharacterRecord } from "./characterMappers";
 
@@ -45,4 +45,21 @@ export function progressionFromCharacter(character: CharacterRecord): PlayerProg
     stats,
     statPoints: character.statPoints + levelled.statPointsGained,
   };
+}
+
+/** Recompute max HP/MP after a level-up or stat allocation, clamping current. */
+export function recomputeMaxima(progression: PlayerProgression, classId: ClassId): void {
+  const info = getClass(classId);
+  progression.maxHp = maxHp({
+    baseHp: info.baseHp,
+    vit: progression.stats.vit,
+    level: progression.level,
+  });
+  progression.maxMp = maxMp({
+    baseMp: info.baseMp,
+    int: progression.stats.int,
+    level: progression.level,
+  });
+  progression.hp = clamp(progression.hp, 0, progression.maxHp);
+  progression.mp = clamp(progression.mp, 0, progression.maxMp);
 }

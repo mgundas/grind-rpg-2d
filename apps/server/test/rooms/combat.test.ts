@@ -4,7 +4,11 @@ import { getMonster } from "@jadethrone/data/monsters";
 import { MonsterState, PlayerState, WorldState } from "../../src/rooms/state/WorldState";
 import { createPlayerRuntime, type PlayerRuntime } from "../../src/rooms/playerRuntime";
 import { createMonsterRuntime, type MonsterRuntime } from "../../src/rooms/monsterRuntime";
-import { resolvePlayerSwing, type CombatContext } from "../../src/rooms/combat";
+import {
+  resolvePlayerSwing,
+  resolveMonsterAttack,
+  type CombatContext,
+} from "../../src/rooms/combat";
 
 const PLAYER_POS: Vec2 = { x: 200, y: 200 };
 
@@ -248,5 +252,100 @@ describe("resolvePlayerSwing", () => {
     resolvePlayerSwing(context(state, runtimes, monsters, [0], 0), "s1", 6);
 
     expect(state.players.get("s1")!.facing).toBe(3); // up
+  });
+});
+
+describe("resolveMonsterAttack", () => {
+  function setup(runtimeOverrides: Partial<MonsterRuntime> = {}) {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const playerRuntime = makePlayer(state);
+    runtimes.set("s1", playerRuntime);
+    const monsterRuntime = addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+    Object.assign(monsterRuntime, runtimeOverrides);
+    return { state, runtimes, monsters, playerRuntime, monsterRuntime };
+  }
+
+  it("damages the player with VIT defense and sets combat time", () => {
+    const { state, runtimes, monsters, playerRuntime } = setup();
+    const outcome = resolveMonsterAttack(
+      context(state, runtimes, monsters, [0, 0.5, 0.9], 1000),
+      "m1",
+      "s1",
+    );
+
+    expect(outcome).not.toBeNull();
+    expect(outcome!.hit).toMatchObject({ miss: false, crit: false, damage: 9 });
+    expect(playerRuntime.progression.hp).toBe(307);
+    expect(state.players.get("s1")!.hp).toBe(307);
+    expect(playerRuntime.lastCombatAtMs).toBe(1000);
+    expect(outcome!.victimDead).toBe(false);
+  });
+
+  it("records a miss and doubles crit damage", () => {
+    const miss = setup();
+    const missed = resolveMonsterAttack(
+      context(miss.state, miss.runtimes, miss.monsters, [0.99]),
+      "m1",
+      "s1",
+    );
+    expect(missed!.hit.miss).toBe(true);
+    expect(miss.playerRuntime.progression.hp).toBe(316);
+
+    const crit = setup();
+    const critical = resolveMonsterAttack(
+      context(crit.state, crit.runtimes, crit.monsters, [0, 0.5, 0]),
+      "m1",
+      "s1",
+    );
+    expect(critical!.hit).toMatchObject({ crit: true, damage: 18 });
+  });
+
+  it("reports a killing blow and clamps HP at zero", () => {
+    const { state, runtimes, monsters, playerRuntime } = setup();
+    playerRuntime.progression.hp = 5;
+    state.players.get("s1")!.hp = 5;
+
+    const outcome = resolveMonsterAttack(
+      context(state, runtimes, monsters, [0, 0.5, 0.9]),
+      "m1",
+      "s1",
+    );
+
+    expect(outcome!.victimDead).toBe(true);
+    expect(playerRuntime.progression.hp).toBe(0);
+    expect(state.players.get("s1")!.hp).toBe(0);
+  });
+
+  it("rejects dead, warping, returning and removed combatants", () => {
+    const dead = setup();
+    dead.playerRuntime.dead = true;
+    expect(
+      resolveMonsterAttack(context(dead.state, dead.runtimes, dead.monsters, [0]), "m1", "s1"),
+    ).toBeNull();
+
+    const warping = setup();
+    warping.playerRuntime.warping = true;
+    expect(
+      resolveMonsterAttack(
+        context(warping.state, warping.runtimes, warping.monsters, [0]),
+        "m1",
+        "s1",
+      ),
+    ).toBeNull();
+
+    const returning = setup({ ai: "return" });
+    expect(
+      resolveMonsterAttack(
+        context(returning.state, returning.runtimes, returning.monsters, [0]),
+        "m1",
+        "s1",
+      ),
+    ).toBeNull();
+
+    expect(
+      resolveMonsterAttack(context(dead.state, dead.runtimes, dead.monsters, [0]), "nope", "s1"),
+    ).toBeNull();
   });
 });

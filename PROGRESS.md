@@ -113,15 +113,17 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 7 — Server: spawn manager and deterministic placement
 - [x] Task 8 — Server: wire monsters into MapRoom and interest
 - [x] Task 9 — Server: player arc attack and combat events
-- [ ] Task 10 — Server: monster attacks and player death
-- [ ] Task 11 — Server: regen and respawn options
-- [ ] Task 12 — Server: XP, level-up and stat allocation
+- [x] Task 10 — Server: monster attacks and player death
+- [x] Task 11 — Server: regen and respawn options
+- [x] Task 12 — Server: XP, level-up and stat allocation
 - [ ] Task 13 — Server: full character-state persistence
 - [ ] Task 14 — Client: monster rendering and interpolation
 - [ ] Task 15 — Client: targeting, attack input and server-driven auto-walk
 - [ ] Task 16 — Client: HUD, target frame, character window and death screen
 - [ ] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
 - [ ] Task 18 — Phase gate: verification, reviewer, report
+
+**Temporary gap (closed by Task 13):** town respawn and disconnect-while-dead currently persist only position/level-map. Full HP/MP/XP persistence lands with the `CharacterSave` extension in Task 13; until then the "town = full HP" acceptance is only proven in-room, not across relogin.
 
 ## Later phases (from GAME_DESIGN.md §12)
 

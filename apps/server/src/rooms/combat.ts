@@ -1,6 +1,7 @@
 import {
   critChance,
   critDamage,
+  defenseOf,
   facing4FromDir8,
   facing4FromIndex,
   facing4Index,
@@ -152,4 +153,71 @@ export function resolvePlayerSwing(
   }
 
   return { hits, killed, damagedMonsterIds };
+}
+
+export interface MonsterAttackOutcome {
+  hit: CombatHit;
+  victimDead: boolean;
+}
+
+/**
+ * Monster basic attack. The AI only decides that a swing happens and consumes
+ * its cooldown; the hit/damage/crit rolls and HP application live here so both
+ * sides use the same formulas. Null means the target or monster is no longer
+ * valid (dead, warping, returning, removed mid-tick).
+ */
+export function resolveMonsterAttack(
+  ctx: CombatContext,
+  monsterId: string,
+  targetSessionId: string,
+): MonsterAttackOutcome | null {
+  const monsterRuntime = ctx.monsterRuntimes.get(monsterId);
+  const monster = ctx.state.monsters.get(monsterId);
+  const runtime = ctx.runtimes.get(targetSessionId);
+  const player = ctx.state.players.get(targetSessionId);
+  if (
+    !monsterRuntime ||
+    !monster ||
+    monsterRuntime.hp <= 0 ||
+    monsterRuntime.ai === "return" ||
+    !runtime ||
+    !player ||
+    runtime.dead ||
+    runtime.warping ||
+    runtime.progression.hp <= 0
+  ) {
+    return null;
+  }
+
+  const spec = getMonster(monsterRuntime.typeId);
+  const stats = runtime.progression.stats;
+  const victim = { kind: "player" as const, sessionId: targetSessionId };
+  const x = runtime.mover.pos.x;
+  const y = runtime.mover.pos.y;
+
+  const chance = hitChance({
+    attackerDex: spec.dex,
+    defenderDex: stats.dex,
+    attackerLevel: spec.level,
+    defenderLevel: runtime.progression.level,
+  });
+  if (!rollHit(ctx.rng, chance)) {
+    return {
+      hit: { target: victim, x, y, miss: true, crit: false, damage: 0 },
+      victimDead: false,
+    };
+  }
+
+  const base = resolveDamage(ctx.rng, spec.attack, defenseOf(stats.vit));
+  const crit = rollCrit(ctx.rng, critChance(spec.dex));
+  const damage = crit ? critDamage(base) : base;
+
+  runtime.progression.hp = Math.max(0, runtime.progression.hp - damage);
+  player.hp = runtime.progression.hp;
+  runtime.lastCombatAtMs = ctx.now;
+
+  return {
+    hit: { target: victim, x, y, miss: false, crit, damage },
+    victimDead: runtime.progression.hp === 0,
+  };
 }

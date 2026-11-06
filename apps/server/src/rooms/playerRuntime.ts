@@ -64,6 +64,8 @@ export interface PlayerRuntime {
   /** PvE death state: no movement, no attacks, ignored by monsters. */
   dead: boolean;
   diedAtMs: number;
+  /** Respawn choice queued by the client, resolved on the next tick. */
+  pendingRespawn: "here" | "town" | null;
   /** Monster this player clicked and is walking to / auto-attacking. */
   targetMonsterId: string | null;
   /** Epoch ms before the next auto-walk repath. */
@@ -125,6 +127,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     regenAccumMs: 0,
     dead: false,
     diedAtMs: 0,
+    pendingRespawn: null,
     targetMonsterId: null,
     nextChaseRepathAtMs: now,
     bestTargetDistSq: Number.POSITIVE_INFINITY,
