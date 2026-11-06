@@ -1,14 +1,9 @@
+import { isHealthPayload, type HealthPayload } from "@jadethrone/shared";
+
 /**
  * HTTP helpers for the client overlay. Phase 0 only exposes the health
  * probe; the game socket (Colyseus room join) arrives in Phase 1.
  */
-
-/** Mirrors the server payload (`apps/server/src/routes/health.ts`). */
-export interface HealthPayload {
-  status: "ok";
-  uptimeSeconds: number;
-  db: "up" | "unavailable";
-}
 
 /**
  * GET /api/health through the Vite dev proxy. Resolves null on any failure
@@ -22,19 +17,8 @@ export async function getHealth(): Promise<HealthPayload | null> {
       return null;
     }
     const body: unknown = await res.json();
-    if (isHealthPayload(body)) {
-      return body;
-    }
-    return null;
+    return isHealthPayload(body) ? body : null;
   } catch {
     return null;
   }
-}
-
-function isHealthPayload(value: unknown): value is HealthPayload {
-  if (typeof value !== "object" || value === null) {
-    return false;
-  }
-  const body = value as Record<string, unknown>;
-  return body.status === "ok" && typeof body.uptimeSeconds === "number";
 }

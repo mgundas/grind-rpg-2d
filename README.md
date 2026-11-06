@@ -50,4 +50,4 @@ On the dev machine, copy `.env.example` to `.env` and set `POSTGRES_HOST` to the
 - `PROGRESS.md` — phase and task checklist
 - `DECISIONS.md` — technical decision log
 - `docs/plans/phase-0.md` — the current phase plan
-- `ASSETS.md` — asset conventions (added later in Phase 0)
+- `ASSETS.md` — asset conventions (key namespaces, LPC sheet spec, placeholder behavior)

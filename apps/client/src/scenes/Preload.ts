@@ -10,6 +10,7 @@ import { createPlaceholder } from "../assets/placeholders";
 export class PreloadScene extends Phaser.Scene {
   private progressBar: Phaser.GameObjects.Graphics | null = null;
   private progressBox: Phaser.GameObjects.Graphics | null = null;
+  private progressHandler: ((value: number) => void) | null = null;
 
   constructor() {
     super({ key: "Preload" });
@@ -25,15 +26,19 @@ export class PreloadScene extends Phaser.Scene {
     this.buildProgressBar();
 
     const failed = new Set<string>();
-    this.load.on("loaderror", (file: Phaser.Loader.File) => {
+    const onLoadError = (file: Phaser.Loader.File) => {
       failed.add(file.key);
-    });
+    };
+    this.load.on("loaderror", onLoadError);
 
     for (const [key, entry] of Object.entries(manifest.assets)) {
       this.load.image(key, `/assets/${entry.path}`);
     }
 
     this.load.once("complete", () => {
+      // The loader's listeners survive scene restarts; drop the one this
+      // scene installed so a re-run can never accumulate duplicates.
+      this.load.off("loaderror", onLoadError);
       this.destroyProgressBar();
       let placeholderCount = 0;
       for (const key of failed) {
@@ -55,16 +60,21 @@ export class PreloadScene extends Phaser.Scene {
     this.progressBox.fillStyle(0x101413, 0.85);
     this.progressBox.fillRect(x - 4, y - 4, width + 8, 36);
     this.progressBar = this.add.graphics();
-    this.load.on("progress", (value: number) => {
+    this.progressHandler = (value: number) => {
       this.progressBar?.clear();
       this.progressBar?.fillStyle(0x5da88f, 1);
       this.progressBar?.fillRect(x, y, width * value, 28);
-    });
+    };
+    this.load.on("progress", this.progressHandler);
   }
 
   private destroyProgressBar(): void {
     this.progressBar?.destroy();
     this.progressBox?.destroy();
+    if (this.progressHandler) {
+      this.load.off("progress", this.progressHandler);
+      this.progressHandler = null;
+    }
     this.progressBar = null;
     this.progressBox = null;
   }

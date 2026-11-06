@@ -58,12 +58,12 @@ function registerCanvas(scene: Phaser.Scene, key: string, canvas: HTMLCanvasElem
   return scene.textures.addCanvas(key, canvas) !== null;
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, seed: string, size: number): void {
+function addNoise(ctx: CanvasRenderingContext2D, seed: string, size: number, offsetX = 0): void {
   const rng = mulberry32(seedFromString(seed));
   for (let i = 0; i < 40; i++) {
     const dark = rng() < 0.5;
     ctx.fillStyle = dark ? "rgba(0, 0, 0, 0.10)" : "rgba(255, 255, 255, 0.08)";
-    const x = Math.floor(rng() * (size - 2));
+    const x = offsetX + Math.floor(rng() * (size - 2));
     const y = Math.floor(rng() * (size - 2));
     ctx.fillRect(x, y, 2, 2);
   }
@@ -100,7 +100,14 @@ function drawCharacter(ctx: CanvasRenderingContext2D, color: string, seed: strin
   ctx.fillStyle = shade(color, 0.9);
   ctx.fill();
   ctx.stroke();
+  // Value noise only inside the silhouette, never on the transparent frame.
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(24, 16, 16, 40, 8);
+  ctx.roundRect(26, 6, 12, 12, 5);
+  ctx.clip();
   addNoise(ctx, `${seed}:char`, CHAR_FRAME_SIZE);
+  ctx.restore();
 }
 
 function drawIcon(ctx: CanvasRenderingContext2D, frame: string, label: string, seed: string): void {
@@ -117,7 +124,13 @@ function drawIcon(ctx: CanvasRenderingContext2D, frame: string, label: string, s
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(label.slice(0, 2).toUpperCase(), 32, 34);
+  // Value noise only inside the frame, never on the transparent background.
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(4, 4, 56, 56, 10);
+  ctx.clip();
   addNoise(ctx, `${seed}:icon`, CHAR_FRAME_SIZE);
+  ctx.restore();
 }
 
 /** Generate the placeholder for one manifest entry. Returns true on success. */

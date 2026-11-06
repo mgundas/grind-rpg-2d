@@ -10,6 +10,14 @@ describe("mulberry32", () => {
     expect(seqA).toEqual(seqB);
   });
 
+  // Pinned values: if a future PRNG/hash change breaks these, placeholders,
+  // drop-table seeds and tests all re-roll silently — force a DECISIONS entry.
+  it("matches its pinned reference sequence", () => {
+    const rng = mulberry32(1234);
+    expect(rng()).toBeCloseTo(0.07329497812315822, 15);
+    expect(rng()).toBeCloseTo(0.7034119898453355, 15);
+  });
+
   it("stays within [0, 1) over many draws", () => {
     const rng = mulberry32(seedFromString("jade-throne"));
     for (let i = 0; i < 10000; i++) {
@@ -30,7 +38,7 @@ describe("mulberry32", () => {
 
 describe("seedFromString", () => {
   it("is stable for the same string", () => {
-    expect(seedFromString("wild_dog")).toBe(seedFromString("wild_dog"));
+    expect(seedFromString("wild_dog")).toBe(1557042236);
   });
 
   it("differs for different strings", () => {

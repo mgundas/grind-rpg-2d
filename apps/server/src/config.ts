@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DEFAULT_SERVER_PORT } from "@jadethrone/shared";
 
 /**
  * Server configuration, validated with Zod. The service never reads
@@ -8,7 +9,7 @@ import { z } from "zod";
  * deployment secrets live in `.env` (never committed; see `/.env.example`).
  */
 const envSchema = z.object({
-  GAME_SERVER_PORT: z.coerce.number().int().min(1).max(65535).default(2567),
+  GAME_SERVER_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
 
   POSTGRES_HOST: z.string().min(1).default("localhost"),
@@ -20,11 +21,18 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url().optional(),
 });
 
+/**
+ * Passwords that indicate a dev-only setup (unset → built-in default, empty,
+ * or the documented placeholder from .env.example) — the boot log warns for
+ * all of them so a deployed copy never runs with an obvious credential.
+ */
+const DEFAULT_DB_PASSWORDS = new Set(["", "jade_dev", "change-me-dev-only"]);
+
 export interface Config {
   port: number;
   logLevel: "debug" | "info" | "warn" | "error";
   databaseUrl: string;
-  /** True when no POSTGRES_PASSWORD was configured (dev default in use). */
+  /** True when a dev placeholder POSTGRES_PASSWORD is configured. */
   usingDefaultDbPassword: boolean;
 }
 
@@ -62,7 +70,7 @@ function parseConfig(): Config {
         database: env.POSTGRES_DB,
       }),
     usingDefaultDbPassword:
-      env.DATABASE_URL === undefined && process.env.POSTGRES_PASSWORD === undefined,
+      env.DATABASE_URL === undefined && DEFAULT_DB_PASSWORDS.has(env.POSTGRES_PASSWORD),
   };
 }
 

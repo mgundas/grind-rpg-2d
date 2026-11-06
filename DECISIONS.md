@@ -4,7 +4,7 @@ One short paragraph per non-obvious technical decision. Entries are appended as 
 
 ## D1 — Stay on the Colyseus 0.17 line
 
-Colyseus 0.18 is the current npm latest, but `AGENTS.md` pins 0.17, which is still maintained under the `legacy-0.17` dist-tag (`colyseus@0.17.11`, `@colyseus/core@0.17.56`, `@colyseus/schema@4.0.x`, `@colyseus/sdk@0.17.x`). We use the 0.17-recommended `app.config.ts` structure (`defineServer` / `defineRoom` imported from `"colyseus"`). To be confirmed during task 6 against the installed typings: the exact `defineServer`/listen signature of 0.17.11; if it differs from the migration guide, the fallback is the equally-supported classic pattern (`new Server({ transport: new WebSocketTransport({ app }) })` + `app.listen`). Also belongs to this decision: `@colyseus/schema@4` uses legacy decorators, so the server tsconfig must set `experimentalDecorators: true` and `useDefineForClassFields: false`.
+Colyseus 0.18 is the current npm latest, but `AGENTS.md` pins 0.17, which is still maintained under the `legacy-0.17` dist-tag (`colyseus@0.17.11`, `@colyseus/core@0.17.56`, `@colyseus/schema@4.0.x`, `@colyseus/sdk@0.17.x`). We use the 0.17-recommended `app.config.ts` structure (`defineServer` / `defineRoom`). To be confirmed during task 6 against the installed typings: the exact `defineServer`/listen signature of 0.17.11 — resolved in task 6: we import from `@colyseus/core` instead of the `colyseus` meta bundle, see D6. Also belongs to this decision: `@colyseus/schema@4` uses legacy decorators, so the server tsconfig must set `experimentalDecorators: true` and `useDefineForClassFields: false`.
 
 ## D2 — TypeScript pinned to 5.9.3
 
@@ -16,7 +16,7 @@ Every dependency version is pinned once in the `catalog:` block of `pnpm-workspa
 
 ## D4 — Shared and data packages are consumed as TypeScript source
 
-`@jadethrone/shared` and `@jadethrone/data` have no build step: their `exports`/`types` point at `./src/index.ts`. Vite compiles them in the apps, tsx runs them in the server dev loop, and esbuild bundles them into the server production build. One source of truth, no per-package emit/watch orchestration.
+`@jadethrone/shared` has no build step: `exports`/`types` point at `./src/index.ts` (confirmed against the installed files during task 6 — see D6 for the package-resolution angle). Vite compiles it in the apps, tsx runs it in the server dev loop, and esbuild bundles it into the server production build. `@jadethrone/data` is pure JSON/asset storage so far; when it gains its first TypeScript entrypoint (validation scripts, Phase 3+), it gets the same treatment. One source of truth, no per-package emit/watch orchestration.
 
 ## D5 — Express 5.3.0 for the REST API
 
@@ -41,5 +41,3 @@ Two Windows-specific findings from verifying the endpoint against an unreachable
 ## D10 — Server dev: `node --watch --import tsx` instead of `tsx watch`
 
 `tsx watch` (4.23.15) hangs at boot under `concurrently` 10's default (non-prefixed, non-raw) stdio wrapping — the process never evaluates the entrypoint and prints nothing after its command line; standalone and under `concurrently --raw` it boots fine, so the trigger is the pipe wrapping. The plan's documented fallback (`node --env-file-if-exists --import tsx --watch`) has no supervisor of its own and mounts the tsx loader inside plain `node --watch` — which boots reliably under concurrently with color prefixes intact and hot-reloads on edit. Adopted for the server `dev` script.
-
-## D10+ — added as work continues

@@ -21,26 +21,42 @@ const MAP_TILES_H = 30;
 /** Tile indexes into the placeholder strip (grass, dirt, stone, water, wall), firstgid = 1. */
 const TILE_GRASS = 1;
 const TILE_DIRT = 2;
+const TILE_STONE = 3;
 const TILE_WATER = 4;
 
 const PATH_ROWS_START = 14;
 const PATH_ROWS_END = 15;
 const PATH_COLS_START = 19;
 const PATH_COLS_END = 20;
-const WATER_ROW_COUNT = 2;
+/** Water strip along the full left edge (visible at the spawn camera). */
+const WATER_COL_COUNT = 2;
+/** Stone courtyard under the spawn point so every required tile kind is on screen. */
+const COURTYARD_ROWS_START = 7;
+const COURTYARD_ROWS_END = 12;
+const COURTYARD_COLS_START = 9;
+const COURTYARD_COLS_END = 15;
 
-/** Grass base, dirt path cross through the middle, water strip along the bottom edge. */
+/**
+ * Grass base, water strip along the left edge, dirt path cross through the
+ * middle, stone courtyard around the spawn. All four ground kinds stay in
+ * view at the spawn camera (zoom 2), which the acceptance matrix requires.
+ */
 function buildDemoMap(): number[][] {
   const rows: number[][] = [];
   for (let y = 0; y < MAP_TILES_H; y++) {
     const row: number[] = new Array<number>(MAP_TILES_W).fill(TILE_GRASS);
-    const isWaterRow = y >= MAP_TILES_H - WATER_ROW_COUNT;
     const isPathRow = y >= PATH_ROWS_START && y <= PATH_ROWS_END;
+    const onCourtyardRow = y >= COURTYARD_ROWS_START && y <= COURTYARD_ROWS_END;
     for (let x = 0; x < MAP_TILES_W; x++) {
-      if (isWaterRow) {
+      const skippedCourtyardCorner =
+        (y === COURTYARD_ROWS_START || y === COURTYARD_ROWS_END) &&
+        (x === COURTYARD_COLS_START || x === COURTYARD_COLS_END);
+      if (x < WATER_COL_COUNT) {
         row[x] = TILE_WATER;
       } else if (isPathRow || (x >= PATH_COLS_START && x <= PATH_COLS_END)) {
         row[x] = TILE_DIRT;
+      } else if (onCourtyardRow && !skippedCourtyardCorner) {
+        row[x] = TILE_STONE;
       }
     }
     rows.push(row);

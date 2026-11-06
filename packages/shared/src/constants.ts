@@ -41,4 +41,4 @@ export const SPAWN_POINT = { x: 400, y: 304 };
 export const MAX_PLAYERS_PER_CHANNEL = 200;
 
 /** Per-client message rate limit in msgs/s (GAME_DESIGN.md §10.2). */
-export const MESSAGES_PER_SECOND_LIMIT = 30;
+export const MAX_MESSAGES_PER_SECOND = 30;

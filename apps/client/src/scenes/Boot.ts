@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { GAME_NAME } from "@jadethrone/shared";
 import { fetchAssetManifest } from "../assets/manifest";
 
 /**
@@ -12,14 +13,14 @@ export class BootScene extends Phaser.Scene {
   }
 
   async create(): Promise<void> {
-    console.info(`Jade Throne — Phaser ${Phaser.VERSION}`);
+    console.info(`${GAME_NAME} — Phaser ${Phaser.VERSION}`);
     try {
       const manifest = await fetchAssetManifest();
       this.game.registry.set("manifest", manifest);
       this.scene.start("Preload");
     } catch (error) {
       this.add
-        .text(24, 24, `Jade Throne could not start.\n\n${String(error)}`, {
+        .text(24, 24, `${GAME_NAME} could not start.\n\n${String(error)}`, {
           fontFamily: "monospace",
           fontSize: "14px",
           color: "#ff9a8a",

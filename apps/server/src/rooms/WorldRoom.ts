@@ -1,12 +1,16 @@
 import { type Client, Room } from "@colyseus/core";
-import {
-  KINGDOMS,
-  MAX_PLAYERS_PER_CHANNEL,
-  MESSAGES_PER_SECOND_LIMIT,
-  SPAWN_POINT,
-} from "@jadethrone/shared";
+import { z } from "zod";
+import { MAX_MESSAGES_PER_SECOND, MAX_PLAYERS_PER_CHANNEL, SPAWN_POINT } from "@jadethrone/shared";
 import { logger } from "../logger";
 import { PlayerState, WorldState } from "./state/WorldState";
+
+const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
+
+/** Client-controlled join options are validated with Zod, never trusted. */
+const joinOptionsSchema = z.object({
+  name: z.string().optional(),
+  kingdom: z.enum(KINGDOM_IDS).optional(),
+});
 
 /**
  * The Phase 0 placeholder world room. Movement, AI and combat arrive in
@@ -16,7 +20,7 @@ export class WorldRoom extends Room {
   maxClients = MAX_PLAYERS_PER_CHANNEL;
 
   /** Per-client message rate limit (GAME_DESIGN.md §10.2). */
-  messagesLimit = MESSAGES_PER_SECOND_LIMIT;
+  maxMessagesPerSecond = MAX_MESSAGES_PER_SECOND;
 
   state = new WorldState();
 
@@ -25,12 +29,14 @@ export class WorldRoom extends Room {
   }
 
   onJoin(client: Client, options: unknown): void {
-    const joinOptions = (options ?? {}) as { name?: unknown; kingdom?: unknown };
+    const joinOptions = joinOptionsSchema.safeParse(options ?? {});
+    const name = joinOptions.success ? joinOptions.data.name : undefined;
+    const kingdom = joinOptions.success ? joinOptions.data.kingdom : undefined;
     const player = new PlayerState();
-    player.name = sanitizeDisplayName(joinOptions.name);
+    player.name = sanitizeDisplayName(name);
     player.x = SPAWN_POINT.x;
     player.y = SPAWN_POINT.y;
-    player.kingdom = sanitizeKingdom(joinOptions.kingdom);
+    player.kingdom = sanitizeKingdom(kingdom);
     this.state.players.set(client.sessionId, player);
     logger.info(
       { roomId: this.roomId, session: client.sessionId, name: player.name },
@@ -53,13 +59,16 @@ function sanitizeDisplayName(value: unknown): string {
   if (typeof value !== "string") {
     return "Guest";
   }
-  const trimmed = value.trim().slice(0, 16);
-  return trimmed.length >= 3 ? trimmed : "Guest";
+  // Strip everything outside letters/numbers/space/_/- after Unicode
+  // normalization, so control characters and newlines cannot enter state.
+  const cleaned = value
+    .normalize("NFKC")
+    .replace(/[^\p{L}\p{N} _-]/gu, "")
+    .trim()
+    .slice(0, 16);
+  return cleaned.length >= 3 ? cleaned : "Guest";
 }
 
 function sanitizeKingdom(value: unknown): string {
-  if (typeof value !== "string") {
-    return "ember";
-  }
-  return KINGDOMS.some((kingdom) => kingdom.id === value) ? value : "ember";
+  return KINGDOM_IDS.find((id) => id === value) ?? "ember";
 }

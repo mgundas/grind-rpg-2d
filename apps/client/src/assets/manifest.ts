@@ -73,8 +73,11 @@ function parseEntry(key: string, value: unknown): AssetEntry {
   if (typeof rawSpec.color === "string") spec.color = rawSpec.color;
   if (typeof rawSpec.rarity === "string") spec.rarity = rawSpec.rarity;
   if (typeof rawSpec.label === "string") spec.label = rawSpec.label;
-  if (Array.isArray(rawSpec.tiles)) {
-    spec.tiles = rawSpec.tiles.filter((t): t is string => typeof t === "string");
+  if (rawSpec.tiles !== undefined) {
+    if (!Array.isArray(rawSpec.tiles) || !rawSpec.tiles.every((t) => typeof t === "string")) {
+      throw new Error(`asset "${key}" needs "tiles" as a string array`);
+    }
+    spec.tiles = rawSpec.tiles;
   }
   return { path: value.path, placeholder: spec };
 }
@@ -84,8 +87,8 @@ export function parseAssetManifest(value: unknown): AssetManifest {
   if (!isRecord(value)) {
     throw new Error("manifest root must be an object");
   }
-  if (typeof value.version !== "number") {
-    throw new Error('manifest "version" must be a number');
+  if (typeof value.version !== "number" || !Number.isInteger(value.version) || value.version < 1) {
+    throw Error('manifest "version" must be a positive integer');
   }
   if (!isRecord(value.assets)) {
     throw new Error('manifest "assets" must be an object');

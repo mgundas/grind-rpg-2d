@@ -1,12 +1,7 @@
 import type { RequestHandler } from "express";
 import { Client } from "pg";
+import type { HealthPayload } from "@jadethrone/shared";
 import { config } from "../config";
-
-export interface HealthPayload {
-  status: "ok";
-  uptimeSeconds: number;
-  db: "up" | "unavailable";
-}
 
 /**
  * pg's connectionTimeoutMillis does not always cover a hanging DNS lookup
