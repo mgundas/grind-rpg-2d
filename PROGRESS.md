@@ -18,7 +18,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 12 — admin: theme styled login page skeleton
 - [x] Task 13 — root dev orchestration and workspace scripts
 - [x] Task 14 — CI workflow (.github/workflows/ci.yml)
-- [ ] Task 15 — ASSETS.md + assets/CREDITS.md skeleton
+- [x] Task 15 — ASSETS.md + assets/CREDITS.md skeleton
 - [ ] Task 16 — final verification, @reviewer pass, phase report
 
 ## Later phases (from GAME_DESIGN.md §12)
