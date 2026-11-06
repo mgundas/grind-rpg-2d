@@ -27,7 +27,7 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 1 — shared: direction + movement constants
 - [x] Task 2 — shared: Tiled parser + collision grid
 - [x] Task 3 — shared: deterministic movement step
-- [ ] Task 4 — shared: A* pathfinding
+- [x] Task 4 — shared: A* pathfinding
 - [ ] Task 5 — map generator: Ember Village
 - [ ] Task 6 — map generator: Ember Fields + invariants
 - [ ] Task 7 — server: map registry, schema v2, join
