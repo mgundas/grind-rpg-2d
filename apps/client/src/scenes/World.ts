@@ -647,6 +647,23 @@ export class WorldScene extends Phaser.Scene {
         this.createMonsterVisual(entity, level);
       }
     }
+
+    const store = useUiStore.getState();
+    if (store.targetMonsterId) {
+      const target = this.monsterRegistry.entities.get(store.targetMonsterId);
+      if (target) {
+        store.setTargetInfo({
+          id: target.id,
+          name: target.name,
+          level: target.level,
+          hp: target.hp,
+          maxHp: target.maxHp,
+          isBoss: target.isBoss,
+        });
+      } else {
+        store.setTargetMonster(null);
+      }
+    }
   }
 
   private createMonsterVisual(entity: MonsterEntity, playerLevel: number): void {

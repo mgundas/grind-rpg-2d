@@ -5,8 +5,12 @@ import { getHealth } from "../network/http";
 import { logout } from "../network/session";
 import { AuthScreen } from "./AuthScreen";
 import { CharacterSelect } from "./CharacterSelect";
+import { CharacterWindow } from "./CharacterWindow";
 import { Chat } from "./Chat";
+import { DeathScreen } from "./DeathScreen";
 import { DebugOverlay } from "./DebugOverlay";
+import { Hud } from "./Hud";
+import { TargetFrame } from "./TargetFrame";
 import { useUiStore } from "./store";
 import { Panel, styles, theme } from "./theme";
 
@@ -129,8 +133,12 @@ export function App() {
         <AuthScreen />
       ) : inGame ? (
         <>
+          <Hud />
+          <TargetFrame />
+          <CharacterWindow />
           <Chat />
           <DebugOverlay />
+          <DeathScreen />
           <div style={{ position: "absolute", top: 12, right: 12 }}>
             <button type="button" onClick={() => void logout()} style={styles.ghostButton}>
               Log out

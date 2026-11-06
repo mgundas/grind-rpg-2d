@@ -68,8 +68,21 @@ interface UiState {
   /** Selected monster (click/Tab) and server-driven walk mode. */
   targetMonsterId: string | null;
   setTargetMonster: (monsterId: string | null) => void;
+  targetInfo: {
+    id: string;
+    name: string;
+    level: number;
+    hp: number;
+    maxHp: number;
+    isBoss: boolean;
+  } | null;
+  setTargetInfo: (target: UiState["targetInfo"]) => void;
   autoWalk: boolean;
   setAutoWalk: (active: boolean) => void;
+
+  characterOpen: boolean;
+  toggleCharacter: () => void;
+  setCharacterOpen: (open: boolean) => void;
 
   dead: boolean;
   respawnHereAtMs: number;
@@ -148,9 +161,19 @@ export const useUiStore = create<UiState>((set) => ({
   setSelfStats: (selfStats) => set({ selfStats }),
 
   targetMonsterId: null,
-  setTargetMonster: (targetMonsterId) => set({ targetMonsterId }),
+  setTargetMonster: (targetMonsterId) =>
+    set((state) => ({
+      targetMonsterId,
+      targetInfo: targetMonsterId ? state.targetInfo : null,
+    })),
+  targetInfo: null,
+  setTargetInfo: (targetInfo) => set({ targetInfo }),
   autoWalk: false,
   setAutoWalk: (autoWalk) => set({ autoWalk }),
+
+  characterOpen: false,
+  toggleCharacter: () => set((state) => ({ characterOpen: !state.characterOpen })),
+  setCharacterOpen: (characterOpen) => set({ characterOpen }),
 
   dead: false,
   respawnHereAtMs: 0,
