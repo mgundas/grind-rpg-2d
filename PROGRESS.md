@@ -136,7 +136,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 1 — Shared item domain and inventory grid
 - [x] Task 2 — Item definitions data
 - [x] Task 3 — Drop tables, shops, NPCs and monster wiring
-- [ ] Task 4 — Protocol additions
+- [x] Task 4 — Protocol additions
 - [ ] Task 5 — DB schema and migration
 - [ ] Task 6 — Item loading, normalization and starter kit
 - [ ] Task 7 — Inventory mutation persistence

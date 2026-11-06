@@ -4,9 +4,22 @@ import {
   allocStatMessageSchema,
   attackMessageSchema,
   chatMessageSchema,
+  equipItemMessageSchema,
   inputMessageSchema,
+  interactNpcMessageSchema,
+  moveItemMessageSchema,
+  pickupMessageSchema,
+  requestInventoryMessageSchema,
   respawnMessageSchema,
   setTargetMessageSchema,
+  shopBuyMessageSchema,
+  shopSellMessageSchema,
+  splitStackMessageSchema,
+  unequipItemMessageSchema,
+  useItemMessageSchema,
+  warehouseDepositMessageSchema,
+  warehouseOpenMessageSchema,
+  warehouseWithdrawMessageSchema,
 } from "../src/protocol";
 
 describe("inputMessageSchema", () => {
@@ -81,6 +94,68 @@ describe("combat message schemas", () => {
     for (const stat of ["luck", "", 1, null]) {
       expect(allocStatMessageSchema.safeParse({ stat }).success).toBe(false);
     }
+  });
+});
+
+describe("Phase 4 item/economy message schemas", () => {
+  const id = "11111111-1111-4111-8111-111111111111";
+
+  it("accepts a requestInventory message", () => {
+    expect(requestInventoryMessageSchema.safeParse({}).success).toBe(true);
+  });
+
+  it("validates moveItem slots and UUIDs", () => {
+    expect(moveItemMessageSchema.safeParse({ instanceId: id, toSlot: 0 }).success).toBe(true);
+    expect(moveItemMessageSchema.safeParse({ instanceId: id, toSlot: 89 }).success).toBe(true);
+    expect(moveItemMessageSchema.safeParse({ instanceId: id, toSlot: 90 }).success).toBe(false);
+    expect(moveItemMessageSchema.safeParse({ instanceId: "not-a-uuid", toSlot: 0 }).success).toBe(
+      false,
+    );
+    expect(moveItemMessageSchema.safeParse({ instanceId: id }).success).toBe(false);
+  });
+
+  it("validates split quantities and optional destination", () => {
+    expect(splitStackMessageSchema.safeParse({ instanceId: id, quantity: 1 }).success).toBe(true);
+    expect(splitStackMessageSchema.safeParse({ instanceId: id, quantity: 5, toSlot: null }).success).toBe(
+      true,
+    );
+    expect(splitStackMessageSchema.safeParse({ instanceId: id, quantity: 0 }).success).toBe(false);
+    expect(splitStackMessageSchema.safeParse({ instanceId: id, quantity: 1.5 }).success).toBe(false);
+  });
+
+  it("validates equip, unequip and use messages", () => {
+    expect(equipItemMessageSchema.safeParse({ instanceId: id }).success).toBe(true);
+    expect(useItemMessageSchema.safeParse({ instanceId: id }).success).toBe(true);
+    expect(unequipItemMessageSchema.safeParse({ slot: 0 }).success).toBe(true);
+    expect(unequipItemMessageSchema.safeParse({ slot: 7 }).success).toBe(true);
+    expect(unequipItemMessageSchema.safeParse({ slot: 8 }).success).toBe(false);
+  });
+
+  it("validates pickup, NPC and shop messages", () => {
+    expect(pickupMessageSchema.safeParse({ dropId: id }).success).toBe(true);
+    expect(pickupMessageSchema.safeParse({ dropId: "x" }).success).toBe(false);
+    expect(interactNpcMessageSchema.safeParse({ npcId: "general_goods" }).success).toBe(true);
+    expect(interactNpcMessageSchema.safeParse({ npcId: "" }).success).toBe(false);
+    expect(
+      shopBuyMessageSchema.safeParse({ shopId: "general_goods", itemId: "potion_hp_s", quantity: 5 })
+        .success,
+    ).toBe(true);
+    expect(
+      shopBuyMessageSchema.safeParse({ shopId: "general_goods", itemId: "potion_hp_s", quantity: 0 })
+        .success,
+    ).toBe(false);
+    expect(shopSellMessageSchema.safeParse({ instanceId: id, quantity: 3 }).success).toBe(true);
+  });
+
+  it("validates warehouse messages", () => {
+    expect(warehouseOpenMessageSchema.safeParse({ npcId: "warehouse_keeper" }).success).toBe(true);
+    expect(warehouseDepositMessageSchema.safeParse({ instanceId: id }).success).toBe(true);
+    expect(warehouseWithdrawMessageSchema.safeParse({ instanceId: id, toSlot: 3 }).success).toBe(
+      true,
+    );
+    expect(warehouseWithdrawMessageSchema.safeParse({ instanceId: id, toSlot: 90 }).success).toBe(
+      false,
+    );
   });
 });
 

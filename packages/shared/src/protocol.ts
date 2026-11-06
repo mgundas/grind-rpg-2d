@@ -1,4 +1,6 @@
 import { CHAT_MAX_LEN, type MapId, type Stats } from "./constants";
+import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
+import type { ItemBonus } from "./items";
 import { z } from "zod";
 
 /**
@@ -24,6 +26,24 @@ export const MSG = {
   selfStats: "selfStats",
   autoWalk: "autoWalk",
   targetCleared: "targetCleared",
+  requestInventory: "requestInventory",
+  inventory: "inventory",
+  inventoryError: "inventoryError",
+  moveItem: "moveItem",
+  splitStack: "splitStack",
+  equipItem: "equipItem",
+  unequipItem: "unequipItem",
+  useItem: "useItem",
+  pickup: "pickup",
+  pickupResult: "pickupResult",
+  interactNpc: "interactNpc",
+  npcDialog: "npcDialog",
+  shopBuy: "shopBuy",
+  shopSell: "shopSell",
+  warehouseOpen: "warehouseOpen",
+  warehouse: "warehouse",
+  warehouseDeposit: "warehouseDeposit",
+  warehouseWithdraw: "warehouseWithdraw",
 } as const;
 
 /**
@@ -120,6 +140,157 @@ export type AllocStatMessage = z.infer<typeof allocStatMessageSchema>;
 /** Client → server: ask for a fresh owner-only progression snapshot. */
 export const requestStatsMessageSchema = z.object({});
 export type RequestStatsMessage = z.infer<typeof requestStatsMessageSchema>;
+
+// ---------------------------------------------------------------------------
+// Phase 4: items, inventory, NPCs and economy
+// ---------------------------------------------------------------------------
+
+/** Client → server: ask for a fresh owner-only inventory/gold snapshot. */
+export const requestInventoryMessageSchema = z.object({});
+export type RequestInventoryMessage = z.infer<typeof requestInventoryMessageSchema>;
+
+const instanceIdSchema = z.string().uuid();
+const inventorySlotSchema = z.number().int().min(0).max(INVENTORY_CELLS - 1);
+const equipmentSlotSchema = z.number().int().min(0).max(EQUIP_SLOT_COUNT - 1);
+const quantitySchema = z.number().int().min(1).max(9999);
+const npcIdSchema = z.string().min(1).max(64);
+const shopIdSchema = z.string().min(1).max(64);
+
+/** Move an inventory item to a target top-left cell. */
+export const moveItemMessageSchema = z
+  .object({ instanceId: instanceIdSchema, toSlot: inventorySlotSchema })
+  .strict();
+export type MoveItemMessage = z.infer<typeof moveItemMessageSchema>;
+
+/** Split `quantity` off a stack, optionally into a specific cell. */
+export const splitStackMessageSchema = z
+  .object({
+    instanceId: instanceIdSchema,
+    quantity: quantitySchema,
+    toSlot: inventorySlotSchema.nullable().optional(),
+  })
+  .strict();
+export type SplitStackMessage = z.infer<typeof splitStackMessageSchema>;
+
+export const equipItemMessageSchema = z.object({ instanceId: instanceIdSchema }).strict();
+export type EquipItemMessage = z.infer<typeof equipItemMessageSchema>;
+
+export const unequipItemMessageSchema = z.object({ slot: equipmentSlotSchema }).strict();
+export type UnequipItemMessage = z.infer<typeof unequipItemMessageSchema>;
+
+export const useItemMessageSchema = z.object({ instanceId: instanceIdSchema }).strict();
+export type UseItemMessage = z.infer<typeof useItemMessageSchema>;
+
+export const pickupMessageSchema = z.object({ dropId: instanceIdSchema }).strict();
+export type PickupMessage = z.infer<typeof pickupMessageSchema>;
+
+export const interactNpcMessageSchema = z.object({ npcId: npcIdSchema }).strict();
+export type InteractNpcMessage = z.infer<typeof interactNpcMessageSchema>;
+
+export const shopBuyMessageSchema = z
+  .object({ shopId: shopIdSchema, itemId: z.string().min(1).max(64), quantity: quantitySchema })
+  .strict();
+export type ShopBuyMessage = z.infer<typeof shopBuyMessageSchema>;
+
+export const shopSellMessageSchema = z
+  .object({ instanceId: instanceIdSchema, quantity: quantitySchema })
+  .strict();
+export type ShopSellMessage = z.infer<typeof shopSellMessageSchema>;
+
+export const warehouseOpenMessageSchema = z.object({ npcId: npcIdSchema }).strict();
+export type WarehouseOpenMessage = z.infer<typeof warehouseOpenMessageSchema>;
+
+export const warehouseDepositMessageSchema = z.object({ instanceId: instanceIdSchema }).strict();
+export type WarehouseDepositMessage = z.infer<typeof warehouseDepositMessageSchema>;
+
+export const warehouseWithdrawMessageSchema = z
+  .object({ instanceId: instanceIdSchema, toSlot: inventorySlotSchema.nullable().optional() })
+  .strict();
+export type WarehouseWithdrawMessage = z.infer<typeof warehouseWithdrawMessageSchema>;
+
+/** One owner-visible item instance (inventory, equipment or warehouse). */
+export interface ItemInstanceDto {
+  id: string;
+  itemId: string;
+  /** Inventory/warehouse top-left cell, or equipment slot index. */
+  slot: number;
+  quantity: number;
+  upgradeLevel: number;
+  bonuses: ItemBonus[];
+}
+
+/** Owner-only inventory snapshot. Sent on join and after every mutation. */
+export interface InventorySnapshotPayload {
+  revision: number;
+  gold: number;
+  items: ItemInstanceDto[];
+  /** Exactly `EQUIP_SLOT_COUNT` entries; null means the slot is empty. */
+  equipment: (ItemInstanceDto | null)[];
+}
+
+/** Owner-only account warehouse snapshot (three pages). */
+export interface WarehouseSnapshotPayload {
+  revision: number;
+  items: ItemInstanceDto[];
+}
+
+/**
+ * Wire-level failure reasons. The shared inventory codes are reused and
+ * extended with server-side validation outcomes.
+ */
+export type ItemActionErrorCode =
+  | InventoryErrorCode
+  | "not_owner"
+  | "out_of_range"
+  | "already_taken"
+  | "no_gold"
+  | "not_for_sale"
+  | "unknown_shop"
+  | "unknown_item"
+  | "unknown_npc"
+  | "not_consumable"
+  | "at_full_health"
+  | "at_full_mana"
+  | "cooldown"
+  | "dead"
+  | "warping"
+  | "warehouse_full";
+
+export interface InventoryErrorPayload {
+  code: ItemActionErrorCode;
+  message?: string;
+}
+
+/** Pickup acknowledgement used for loot FX (a snapshot follows separately). */
+export interface PickupResultPayload {
+  dropId: string;
+  ok: boolean;
+  code?: ItemActionErrorCode;
+  gold?: number;
+  itemId?: string;
+  quantity?: number;
+}
+
+export type NpcDialogKind = "shop" | "warehouse" | "blacksmith";
+
+export interface NpcDialogPayload {
+  npcId: string;
+  name: string;
+  kind: NpcDialogKind;
+  greeting: string;
+  shopId?: string;
+}
+
+export interface ShopStockEntry {
+  itemId: string;
+  price: number;
+}
+
+export interface ShopViewPayload {
+  shopId: string;
+  name: string;
+  items: ShopStockEntry[];
+}
 
 /** Identifies a combatant in a combat event. */
 export type CombatEntityRef =

@@ -77,6 +77,16 @@ export const AUTO_WALK_STOP_MARGIN_PX = 24;
 export const AUTO_WALK_MAX_EMPTY_PATHS = 3;
 export const COMBAT_EVENT_RADIUS_PX = 900;
 
+/** Phase-4 economy interaction ranges and timings (GAME_DESIGN.md §6.3, §7). */
+export const PICKUP_RADIUS_PX = 56;
+export const DROP_OWNERSHIP_MS = 30_000;
+export const GROUND_ITEM_DESPAWN_MS = 120_000;
+export const ITEM_USE_COOLDOWN_MS = 500;
+export const NPC_INTERACT_RADIUS_PX = 64;
+/** Extra drop positions stay close to the corpse but never overlap it exactly. */
+export const DROP_SCATTER_MIN_PX = 12;
+export const DROP_SCATTER_MAX_PX = 24;
+
 /**
  * Interest management (GAME_DESIGN.md §5.1): entities are added to a
  * client's view inside the lower radius and removed beyond the upper one —
