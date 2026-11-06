@@ -294,13 +294,15 @@ describeDb("persistence services (real Postgres)", () => {
     it("revokes on logout, bumps once and is idempotent", async () => {
       const { result } = await register(db);
       const accountId = result.account.id;
-      await logoutAccount(deps(db), result.tokens.refreshToken);
+      await expect(logoutAccount(deps(db), result.tokens.refreshToken)).resolves.toEqual({
+        accountId,
+      });
 
       const [row] = await db.select().from(accounts).where(eq(accounts.id, accountId));
       expect(row!.tokenVersion).toBe(1);
       expect(await liveSessions(db, accountId)).toHaveLength(0);
 
-      await expect(logoutAccount(deps(db), result.tokens.refreshToken)).resolves.toBeUndefined();
+      await expect(logoutAccount(deps(db), result.tokens.refreshToken)).resolves.toBeNull();
       const [again] = await db.select().from(accounts).where(eq(accounts.id, accountId));
       expect(again!.tokenVersion).toBe(1);
 

@@ -109,3 +109,11 @@ Login/logout bump `accounts.token_version`, so a stale access token can never re
 ## D27 — DB tests use a dedicated `_test` database and self-applied migrations
 
 `apps/server/test/db/persistence.test.ts` runs only when `TEST_DATABASE_URL` is set; the harness refuses any URL without "test" in it (so a stray env var can never touch dev data), applies the committed migrations itself, and uses randomized emails/usernames/character names so repeated runs are order-independent instead of relying on truncation. Locally the test database is `jade_throne_test` on the Pi; CI will point the same variable at its Postgres service. Pure logic (error mapping, character derivation, passwords, tokens) keeps running without a database.
+
+## D28 — REST middleware is scoped under `/api`, with per-IP fixed-window limits
+
+The Express app is shared with Colyseus's matchmaking/WebSocket routes, so JSON body parsing, the `/api` 404 and the error handler are mounted only where they belong; a catch-all would swallow matchmaking. Register/login/refresh use in-memory fixed-window limits (5/10/30 per 15 minutes per IP) **before** argon2 work, so a flood cannot burn CPU. `req.ip` is the proxy's address in dev; production needs `trust proxy` plus proxy hygiene (Phase 10). Services still return the single `ServiceError` taxonomy; the error middleware serialises it and logs only unexpected failures.
+
+## D29 — `jsonwebtoken` is imported through its default export
+
+`jsonwebtoken` is CommonJS with named exports assigned dynamically, so `import { TokenExpiredError } from "jsonwebtoken"` passes TypeScript and Vitest's Vite interop but crashes the real `tsx`/node ESM loader at boot. We import the default object and classify expiry by `error.name === "TokenExpiredError"`. This is also why every server task is smoke-tested through the tsx entrypoint, not only through Vitest.

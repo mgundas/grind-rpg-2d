@@ -70,14 +70,14 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 
 Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
 
-**Verification note (2026-11-06):** the dev database (`homepi:5452`) is reachable again. `drizzle/0000_*.sql` is applied to `jade_throne` and to a dedicated `jade_throne_test`; the 21 real-Postgres tests in `apps/server/test/db/persistence.test.ts` pass (re-run twice to prove they are order-independent). Full suite: 25 files, 237 tests, all passing when `TEST_DATABASE_URL` points at the test database.
+**Verification note (2026-11-06):** the dev database (`homepi:5452`) is reachable. `drizzle/0000_*.sql` is applied to `jade_throne` and to a dedicated `jade_throne_test`; the 21 real-Postgres persistence tests and the 8 HTTP route tests pass against the test database. Full suite: 27 files, 249 tests, all passing when `TEST_DATABASE_URL` points at the test database. The real `tsx` server was also exercised over HTTP (register → login → create character).
 
 - [x] Task 1 — Dependencies, config, DB schema, migration
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
 - [x] Task 3 — Password hashing and JWT helpers
 - [x] Task 4 — Account and character services (DB)
 - [x] Task 5 — Session registry, warp token extension, join authenticator (MapRoom wiring in task 7)
-- [ ] Task 6 — REST routes, middleware, server dependency wiring
+- [x] Task 6 — REST routes, middleware, server dependency wiring
 - [ ] Task 7 — MapRoom: authenticated join, state identity, persistence, kick
 - [ ] Task 8 — Warp persistence and target-map authentication
 - [ ] Task 9 — Client API + token storage + auth state

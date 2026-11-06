@@ -377,7 +377,10 @@ export async function refreshSession(
   }
 }
 
-export async function logoutAccount(deps: AuthDeps, refreshToken: string): Promise<void> {
+export async function logoutAccount(
+  deps: AuthDeps,
+  refreshToken: string,
+): Promise<{ accountId: string } | null> {
   const verified = verifyRefreshToken(refreshToken, deps.refreshSecret);
   if (!verified.ok) {
     throw invalidSession();
@@ -385,6 +388,7 @@ export async function logoutAccount(deps: AuthDeps, refreshToken: string): Promi
   const claims = verified.claims;
   const now = new Date();
   const tokenHash = hashToken(refreshToken);
+  const result: { accountId: string | null } = { accountId: null };
 
   try {
     await deps.db.transaction(async (tx) => {
@@ -418,10 +422,13 @@ export async function logoutAccount(deps: AuthDeps, refreshToken: string): Promi
         .update(accounts)
         .set({ tokenVersion: sql`${accounts.tokenVersion} + 1` })
         .where(eq(accounts.id, locked.id));
+      result.accountId = locked.id;
     });
   } catch (error) {
     throw toServiceError(error);
   }
+
+  return result.accountId ? { accountId: result.accountId } : null;
 }
 
 /** Safe account read for static `onAuth` / `/api/auth/me`. */

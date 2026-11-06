@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import jwt, { TokenExpiredError } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import { z } from "zod";
 
 /**
@@ -54,7 +54,9 @@ function verifyAndParse<T>(token: string, secret: string, schema: z.ZodType<T>):
     const parsed = schema.safeParse(decoded);
     return parsed.success ? { ok: true, claims: parsed.data } : { ok: false, reason: "invalid" };
   } catch (error) {
-    if (error instanceof TokenExpiredError) {
+    // `jsonwebtoken` is CommonJS with dynamically-assigned named exports, so
+    // the class is identified by name rather than imported (tsx/ESM interop).
+    if (error instanceof Error && error.name === "TokenExpiredError") {
       return { ok: false, reason: "expired" };
     }
     return { ok: false, reason: "invalid" };
