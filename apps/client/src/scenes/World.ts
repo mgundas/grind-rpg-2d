@@ -10,12 +10,14 @@ import {
   isWalkableAt,
   nearestWalkable,
   parseTiledMap,
+  type ChatMsgPayload,
   type CollisionGrid,
   type Dir8,
   type MapId,
   type Vec2,
+  type WarpPayload,
 } from "@jadethrone/shared";
-import { getRoom, sendInput } from "../network/session";
+import { consumeWarp, getPingMs, getRoom, leave, sendInput } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
 import { RemoteRegistry, type RemoteEntity } from "../state/remotes";
 import { useUiStore } from "../ui/store";
@@ -75,16 +77,27 @@ export class WorldScene extends Phaser.Scene {
 
   private remoteRegistry = new RemoteRegistry();
   private remoteVisuals = new Map<string, RemoteVisual>();
+  private debugAccumMs = 0;
+  private warping = false;
 
   constructor() {
     super({ key: "World" });
   }
 
   create(): void {
+    // Scene instances survive restart(); reset everything map/room-scoped.
+    this.predictor = null;
+    this.initializedFor = null;
+    this.remoteRegistry = new RemoteRegistry();
+    this.remoteVisuals.clear();
+    this.pathTarget = null;
+    this.warping = false;
+
     this.mapId = useUiStore.getState().mapId ?? DEFAULT_MAP;
     this.buildMap();
     this.buildCharacter();
     this.setupInput();
+    this.cameras.main.fadeIn(250, 0, 0, 0);
 
     this.cursors = this.input.keyboard?.createCursorKeys() ?? null;
     this.wasd =
@@ -127,6 +140,12 @@ export class WorldScene extends Phaser.Scene {
     this.arrow.setDepth(this.character.y + 1);
 
     this.updateRemotes();
+
+    this.debugAccumMs += delta;
+    if (this.debugAccumMs >= 250) {
+      this.debugAccumMs = 0;
+      this.pushDebugStats();
+    }
   }
 
   private ensurePredictor(): void {
@@ -160,6 +179,91 @@ export class WorldScene extends Phaser.Scene {
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
       this.syncRemotes(snapshot, sessionId);
+    });
+
+    room.onMessage("chatMsg", (payload: ChatMsgPayload) => {
+      useUiStore.getState().pushChat(payload);
+      this.showBubble(payload.from, payload.text);
+    });
+
+    room.onMessage("warp", (payload: WarpPayload) => {
+      void this.handleWarp(payload);
+    });
+
+    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
+      event.preventDefault();
+      useUiStore.getState().toggleDebug();
+    });
+  }
+
+  /** Fade out, consume the reservation, then rebuild the scene on the new map. */
+  private async handleWarp(payload: WarpPayload): Promise<void> {
+    if (this.warping) {
+      return;
+    }
+    this.warping = true;
+    useUiStore.getState().setMapId(payload.map);
+
+    await new Promise<void>((resolve) => {
+      this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => resolve());
+      this.cameras.main.fadeOut(250, 0, 0, 0);
+    });
+
+    try {
+      await leave();
+      await consumeWarp(payload);
+      this.scene.restart();
+    } catch (error) {
+      this.warping = false;
+      useUiStore.getState().setConnectionError(`Warp failed: ${String(error)}`);
+      useUiStore.getState().setConnectionPhase("error");
+      this.cameras.main.fadeIn(250, 0, 0, 0);
+    }
+  }
+
+  private showBubble(sessionId: string, text: string): void {
+    const ownSession = useUiStore.getState().sessionId;
+    const target =
+      sessionId === ownSession
+        ? this.character
+        : (this.remoteVisuals.get(sessionId)?.sprite ?? null);
+    if (!target) {
+      return;
+    }
+    const bubble = this.add
+      .text(target.x, target.y - 62, text, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "11px",
+        color: "#f2f7f4",
+        backgroundColor: "rgba(10, 14, 12, 0.78)",
+        padding: { x: 6, y: 4 },
+        wordWrap: { width: 160 },
+      })
+      .setOrigin(0.5, 1);
+    bubble.setDepth(target.y + 3);
+    this.tweens.add({
+      targets: bubble,
+      y: bubble.y - 8,
+      alpha: 0,
+      delay: 2800,
+      duration: 900,
+      onComplete: () => bubble.destroy(),
+    });
+  }
+
+  private pushDebugStats(): void {
+    const predictor = this.predictor;
+    const ui = useUiStore.getState();
+    ui.setDebugStats({
+      fps: this.game.loop.actualFps,
+      pingMs: getPingMs(),
+      mapId: ui.mapId,
+      x: predictor?.position.x ?? this.character.x,
+      y: predictor?.position.y ?? this.character.y,
+      lastSeq: predictor?.ackSeq ?? 0,
+      snapCount: predictor?.snaps ?? 0,
+      visiblePlayers: this.remoteRegistry.entities.size,
+      historyLength: predictor?.pendingInputs ?? 0,
     });
   }
 
@@ -227,7 +331,7 @@ export class WorldScene extends Phaser.Scene {
   /** Input precedence: chat focus > WASD > hold-to-steer > click path > idle. */
   private resolveInput(): DesiredInput {
     const ui = useUiStore.getState();
-    if (ui.chatFocused) {
+    if (ui.chatFocused || this.warping) {
       return { kind: "none" };
     }
 

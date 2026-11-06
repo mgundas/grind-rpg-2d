@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { GAME_NAME } from "@jadethrone/shared";
 import { getHealth } from "../network/http";
+import { Chat } from "./Chat";
+import { DebugOverlay } from "./DebugOverlay";
 import { JoinPanel } from "./JoinPanel";
 import { useUiStore } from "./store";
 
@@ -67,6 +69,8 @@ export function App() {
         </span>
       </div>
       <JoinPanel />
+      <Chat />
+      <DebugOverlay />
     </>
   );
 }

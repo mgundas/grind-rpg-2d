@@ -39,8 +39,8 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 13 — client: real map rendering
 - [x] Task 14 — client: input + prediction
 - [x] Task 15 — client: remote interpolation
-- [ ] Task 16 — client: chat, bubbles, F3 overlay
-- [ ] Task 17 — client: warp UX
+- [x] Task 16 — client: chat, bubbles, F3 overlay
+- [x] Task 17 — client: warp UX
 - [ ] Task 18 — phase gate: verification, reviewer, report
 
 ## Later phases (from GAME_DESIGN.md §12)

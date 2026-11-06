@@ -115,6 +115,35 @@ function bindSessionEvents(current: Room): void {
     if (room === current) {
       room = null;
     }
+    stopPingLoop();
     useUiStore.getState().setConnectionPhase("left");
   });
+  startPingLoop(current);
+}
+
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+let pingMs = 0;
+
+function startPingLoop(current: Room): void {
+  stopPingLoop();
+  pingMs = 0;
+  const measure = () => {
+    current.ping((ms) => {
+      pingMs = pingMs === 0 ? ms : pingMs * 0.7 + ms * 0.3;
+    });
+  };
+  measure();
+  pingTimer = setInterval(measure, 2000);
+}
+
+function stopPingLoop(): void {
+  if (pingTimer) {
+    clearInterval(pingTimer);
+    pingTimer = null;
+  }
+}
+
+/** Smoothed round-trip time in ms for the F3 overlay (0 until first pong). */
+export function getPingMs(): number {
+  return Math.round(pingMs);
 }
