@@ -140,6 +140,27 @@ function paintRect(
   }
 }
 
+function paintDisc(
+  width: number,
+  height: number,
+  data: number[],
+  cx: number,
+  cy: number,
+  radius: number,
+  tile: number,
+): void {
+  const r2 = radius * radius;
+  for (let ty = cy - radius; ty <= cy + radius; ty++) {
+    for (let tx = cx - radius; tx <= cx + radius; tx++) {
+      const dx = tx - cx;
+      const dy = ty - cy;
+      if (dx * dx + dy * dy <= r2) {
+        paint(width, height, data, tx, ty, tile);
+      }
+    }
+  }
+}
+
 function tileLayer(
   id: number,
   name: string,
@@ -373,6 +394,183 @@ export function generateVillageMap(): TiledMapFile {
 // next task; replaced by a real export there.
 export const MAP_NAMES = { village: ROOM_NAME_VILLAGE, fields: ROOM_NAME_FIELDS };
 
+/** Clearings where the fields generator keeps trees and rocks out. */
+const FIELDS_CLEARINGS = [
+  { x: 5, y: 80, r: 11 },
+  { x: 42, y: 42, r: 12 },
+  { x: 80, y: 80, r: 18 },
+  { x: 122, y: 112, r: 14 },
+];
+
+function insideClearing(tx: number, ty: number, padding = 0): boolean {
+  return FIELDS_CLEARINGS.some((clearing) => {
+    const dx = tx - clearing.x;
+    const dy = ty - clearing.y;
+    const r = clearing.r + padding;
+    return dx * dx + dy * dy <= r * r;
+  });
+}
+
+export function generateFieldsMap(): TiledMapFile {
+  const w = FIELDS_WIDTH;
+  const h = FIELDS_HEIGHT;
+  const rng = mulberry32(seedFromString(ROOM_NAME_FIELDS));
+
+  const ground = emptyLayer(w, h, TILE_GRASS);
+  const decor = emptyLayer(w, h, 0);
+  const above = emptyLayer(w, h, 0);
+  const collision = emptyLayer(w, h, 0);
+
+  // Organic dirt and stone patches.
+  for (let i = 0; i < 20; i++) {
+    const cx = 4 + Math.floor(rng() * (w - 8));
+    const cy = 4 + Math.floor(rng() * (h - 8));
+    paintDisc(w, h, ground, cx, cy, 2 + Math.floor(rng() * 4), TILE_DIRT);
+  }
+  for (let i = 0; i < 8; i++) {
+    const cx = 4 + Math.floor(rng() * (w - 8));
+    const cy = 4 + Math.floor(rng() * (h - 8));
+    paintDisc(w, h, ground, cx, cy, 1 + Math.floor(rng() * 2), TILE_STONE);
+  }
+
+  // West entrance: clear road, arrival point and the warp back to the village.
+  paintRect(w, h, ground, 2, 77, 12, 7, TILE_DIRT);
+  paintRect(w, h, collision, 2, 77, 12, 7, 0);
+
+  // Solid tree border, two tiles thick.
+  for (let ty = 0; ty < h; ty++) {
+    for (let tx = 0; tx < w; tx++) {
+      if (tx < 2 || ty < 2 || tx >= w - 2 || ty >= h - 2) {
+        collision[index(w, tx, ty)] = 1;
+        decor[index(w, tx, ty)] = TILE_WALL;
+      }
+    }
+  }
+
+  // Seeded tree clusters, kept out of clearings and the western corridor.
+  for (let i = 0; i < 28; i++) {
+    const cx = 5 + Math.floor(rng() * (w - 10));
+    const cy = 5 + Math.floor(rng() * (h - 10));
+    if (insideClearing(cx, cy, 1) || (cx < 13 && cy >= 74 && cy <= 87)) {
+      continue;
+    }
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) {
+        const tx = cx + dx;
+        const ty = cy + dy;
+        if (tx < 2 || ty < 2 || tx >= w - 2 || ty >= h - 2) {
+          continue;
+        }
+        if (insideClearing(tx, ty) || (tx < 13 && ty >= 74 && ty <= 87)) {
+          continue;
+        }
+        if (rng() < 0.45) {
+          collision[index(w, tx, ty)] = 1;
+          decor[index(w, tx, ty)] = TILE_WALL;
+        }
+      }
+    }
+  }
+
+  // Scattered rocks.
+  for (let i = 0; i < 16; i++) {
+    const tx = 4 + Math.floor(rng() * (w - 8));
+    const ty = 4 + Math.floor(rng() * (h - 8));
+    if (insideClearing(tx, ty) || (tx < 13 && ty >= 74 && ty <= 87)) {
+      continue;
+    }
+    collision[index(w, tx, ty)] = 1;
+    decor[index(w, tx, ty)] = TILE_WALL;
+  }
+
+  const objects: TiledObject[] = [
+    {
+      id: 1,
+      name: "spawn_player",
+      x: FIELDS_SPAWN.x,
+      y: FIELDS_SPAWN.y,
+      width: 0,
+      height: 0,
+      point: true,
+      rotation: 0,
+      type: "",
+      visible: true,
+    },
+    {
+      id: 2,
+      name: "warp",
+      x: 2 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      width: TILE_SIZE,
+      height: TILE_SIZE * 5,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [
+        { name: "targetMap", type: "string", value: ROOM_NAME_VILLAGE satisfies MapId },
+        { name: "targetX", type: "int", value: VILLAGE_SPAWN.x },
+        { name: "targetY", type: "int", value: VILLAGE_SPAWN.y },
+      ],
+    },
+    {
+      id: 3,
+      name: "mob_zone",
+      x: 36 * TILE_SIZE,
+      y: 34 * TILE_SIZE,
+      width: 14 * TILE_SIZE,
+      height: 14 * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "spawnGroupId", type: "string", value: "field_wolves" }],
+    },
+    {
+      id: 4,
+      name: "mob_zone",
+      x: 70 * TILE_SIZE,
+      y: 70 * TILE_SIZE,
+      width: 16 * TILE_SIZE,
+      height: 14 * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "spawnGroupId", type: "string", value: "field_boars" }],
+    },
+    {
+      id: 5,
+      name: "mob_zone",
+      x: 112 * TILE_SIZE,
+      y: 104 * TILE_SIZE,
+      width: 16 * TILE_SIZE,
+      height: 12 * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "spawnGroupId", type: "string", value: "field_bandits" }],
+    },
+    {
+      id: 6,
+      name: "stone_zone",
+      x: 92 * TILE_SIZE,
+      y: 116 * TILE_SIZE,
+      width: 14 * TILE_SIZE,
+      height: 10 * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "zoneId", type: "string", value: "fields_stones" }],
+    },
+  ];
+
+  return baseMap(w, h, "fields", [
+    tileLayer(1, "ground", w, h, ground),
+    tileLayer(2, "decor", w, h, decor),
+    tileLayer(3, "above", w, h, above),
+    tileLayer(4, "collision", w, h, collision, false),
+    objectLayer(5, objects),
+  ]);
+}
+
 /** Write the generated map files. Run via `pnpm generate:maps`. */
 export function writeMapFiles(): void {
   const mapsDir = new URL("../maps/", import.meta.url);
@@ -381,7 +579,12 @@ export function writeMapFiles(): void {
     new URL("../maps/map_ember_village.json", import.meta.url),
     `${JSON.stringify(generateVillageMap(), null, 2)}\n`,
   );
+  writeFileSync(
+    new URL("../maps/map_ember_fields.json", import.meta.url),
+    `${JSON.stringify(generateFieldsMap(), null, 2)}\n`,
+  );
   console.info("Wrote packages/data/maps/map_ember_village.json");
+  console.info("Wrote packages/data/maps/map_ember_fields.json");
 }
 
 const isMain =
