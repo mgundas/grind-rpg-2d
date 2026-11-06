@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CLASSES, getClass } from "@jadethrone/data/classes";
 import { MONSTERS, getMonster, hasMonster } from "@jadethrone/data/monsters";
+import { DROP_TABLES, hasDropTable } from "@jadethrone/data/dropTables";
 import { SPAWN_GROUPS, getSpawnGroup, hasSpawnGroup } from "@jadethrone/data/spawnGroups";
 
 describe("monsters.json", () => {
@@ -24,8 +25,17 @@ describe("monsters.json", () => {
       expect(monster.attackCooldownMs).toBeGreaterThanOrEqual(200);
       expect(monster.leashRange).toBeGreaterThanOrEqual(monster.aggroRange);
       expect(monster.goldMax).toBeGreaterThanOrEqual(monster.goldMin);
-      expect(monster.dropTableId).toBeNull(); // Phase 4 fills drop tables
+      expect(monster.dropTableId).not.toBeNull();
+      expect(hasDropTable(monster.dropTableId!)).toBe(true);
     }
+  });
+
+  it("gives every drop table exactly one owning monster", () => {
+    const assigned = MONSTERS.map((monster) => monster.dropTableId);
+    expect(new Set(assigned).size).toBe(MONSTERS.length);
+    expect([...DROP_TABLES.map((table) => table.id)].sort()).toEqual(
+      MONSTERS.map((monster) => monster.dropTableId).sort(),
+    );
   });
 
   it("looks monsters up by id", () => {

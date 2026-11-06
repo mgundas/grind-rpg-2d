@@ -5,8 +5,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./classes": "./src/classes.ts",
+    "./dropTables": "./src/dropTables.ts",
     "./items": "./src/items.ts",
     "./monsters": "./src/monsters.ts",
+    "./npcs": "./src/npcs.ts",
+    "./shops": "./src/shops.ts",
     "./spawnGroups": "./src/spawnGroups.ts",
     "./maps/*": "./maps/*"
   },

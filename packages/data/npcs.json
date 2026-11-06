@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "npcs": [
+    {
+      "id": "blacksmith",
+      "name": "Bren the Smith",
+      "kind": "blacksmith",
+      "greeting": "Steel remembers every strike. Bring me a blade when the forge wakes."
+    },
+    {
+      "id": "general_goods",
+      "name": "Mira of the Market",
+      "kind": "shop",
+      "shopId": "general_goods",
+      "greeting": "Potions, scrolls, and a few things that keep the road short."
+    },
+    {
+      "id": "weaponsmith",
+      "name": "Sera the Bladewright",
+      "kind": "shop",
+      "shopId": "weaponsmith",
+      "greeting": "A blade is only as honest as the hand that holds it."
+    },
+    {
+      "id": "armorer",
+      "name": "Oren the Armorer",
+      "kind": "shop",
+      "shopId": "armorer",
+      "greeting": "Plate, leather, or cloth. Better to leave with more than skin."
+    },
+    {
+      "id": "warehouse_keeper",
+      "name": "Keeper Sol",
+      "kind": "warehouse",
+      "greeting": "Your account's stores are safe behind this door. Same key works for every character you own."
+    }
+  ]
+}

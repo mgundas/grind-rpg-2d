@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "dropTables": [
+    {
+      "id": "wild_dog",
+      "drops": [
+        { "itemId": "material_wolf_fang", "chance": 1, "minQty": 1, "maxQty": 1 },
+        { "itemId": "potion_hp_s", "chance": 0.12, "minQty": 1, "maxQty": 1 },
+        { "itemId": "sword_ember_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 },
+        { "itemId": "dagger_ember_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "gray_wolf",
+      "drops": [
+        { "itemId": "material_wolf_fang", "chance": 0.6, "minQty": 1, "maxQty": 2 },
+        { "itemId": "potion_hp_s", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "shoes_leather_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "alpha_wolf",
+      "drops": [
+        { "itemId": "material_wolf_fang", "chance": 1, "minQty": 1, "maxQty": 2 },
+        { "itemId": "bracelet_copper_t1", "chance": 0.05, "minQty": 1, "maxQty": 1 },
+        { "itemId": "sword_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "wild_boar",
+      "drops": [
+        { "itemId": "material_bear_claw", "chance": 0.35, "minQty": 1, "maxQty": 1 },
+        { "itemId": "potion_hp_s", "chance": 0.2, "minQty": 1, "maxQty": 2 },
+        { "itemId": "shoes_leather_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "brown_bear",
+      "drops": [
+        { "itemId": "material_bear_claw", "chance": 1, "minQty": 1, "maxQty": 1 },
+        { "itemId": "potion_hp_m", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "armor_warrior_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
+        { "itemId": "armor_assassin_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "corrupted_deer",
+      "drops": [
+        { "itemId": "material_spirit_shard", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "material_corrupted_crystal", "chance": 0.02, "minQty": 1, "maxQty": 1 },
+        { "itemId": "potion_mp_s", "chance": 0.2, "minQty": 1, "maxQty": 1 },
+        { "itemId": "earrings_jade_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "bandit_thug",
+      "drops": [
+        { "itemId": "potion_hp_m", "chance": 0.2, "minQty": 1, "maxQty": 1 },
+        { "itemId": "sword_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
+        { "itemId": "armor_warrior_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 },
+        { "itemId": "helmet_iron_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "bandit_archer",
+      "drops": [
+        { "itemId": "potion_mp_m", "chance": 0.2, "minQty": 1, "maxQty": 1 },
+        { "itemId": "dagger_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
+        { "itemId": "shoes_leather_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 },
+        { "itemId": "necklace_amber_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "lesser_spirit",
+      "drops": [
+        { "itemId": "material_spirit_shard", "chance": 0.5, "minQty": 1, "maxQty": 1 },
+        { "itemId": "material_corrupted_crystal", "chance": 0.1, "minQty": 1, "maxQty": 1 },
+        { "itemId": "scroll_return", "chance": 0.05, "minQty": 1, "maxQty": 1 },
+        { "itemId": "bracelet_copper_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+      ]
+    },
+    {
+      "id": "wolf_king",
+      "drops": [
+        { "itemId": "material_spirit_shard", "chance": 1, "minQty": 2, "maxQty": 4 },
+        { "itemId": "material_corrupted_crystal", "chance": 1, "minQty": 1, "maxQty": 2 },
+        { "itemId": "potion_hp_l", "chance": 1, "minQty": 1, "maxQty": 2 },
+        { "itemId": "scroll_blessing", "chance": 0.1, "minQty": 1, "maxQty": 1 },
+        { "itemId": "sword_ember_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "dagger_ember_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "armor_warrior_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
+        { "itemId": "armor_assassin_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 }
+      ]
+    }
+  ]
+}
