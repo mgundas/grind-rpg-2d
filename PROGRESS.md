@@ -134,7 +134,7 @@ Phase report: `docs/reports/phase-3.md`.
 Plan: `docs/plans/phase-4.md`.
 
 - [x] Task 1 — Shared item domain and inventory grid
-- [ ] Task 2 — Item definitions data
+- [x] Task 2 — Item definitions data
 - [ ] Task 3 — Drop tables, shops, NPCs and monster wiring
 - [ ] Task 4 — Protocol additions
 - [ ] Task 5 — DB schema and migration
