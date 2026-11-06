@@ -1,8 +1,8 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-0.md`
+Current plan: Phase 0 complete → next plan needed for Phase 1 (start it with a single @architect consult on client prediction/reconciliation/interpolation).
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅
 
 - [x] Task 1 — Repo init and tracking docs (git init, .gitignore, README, DECISIONS seed)
 - [x] Task 2 — pnpm workspace + pinned toolchain catalog
@@ -19,7 +19,8 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 13 — root dev orchestration and workspace scripts
 - [x] Task 14 — CI workflow (.github/workflows/ci.yml)
 - [x] Task 15 — ASSETS.md + assets/CREDITS.md skeleton
-- [ ] Task 16 — final verification, @reviewer pass, phase report
+- [x] Task 16 — final verification, @reviewer pass, phase report
+- [x] Phase report: `docs/reports/phase-0.md`
 
 ## Later phases (from GAME_DESIGN.md §12)
 
