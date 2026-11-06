@@ -15,8 +15,11 @@ import {
   parseTiledMap,
   type ChatMsgPayload,
   type CollisionGrid,
+  type CombatEventPayload,
   type Dir8,
+  type LevelUpPayload,
   type MapId,
+  type MonsterDiedPayload,
   type TiledMapJson,
   type Vec2,
   type WarpPayload,
@@ -126,6 +129,10 @@ export class WorldScene extends Phaser.Scene {
   private lastServerPosition = { x: 0, y: 0, lastSeq: 0 };
   private autoWalkPrev = false;
   private attackReadyAtMs = 0;
+  private damageTexts: Phaser.GameObjects.Text[] = [];
+  private damageTextIndex = 0;
+  private monsterKnockback = new Map<string, { dx: number; dy: number; until: number }>();
+  private hitStopUntil = 0;
   private debugAccumMs = 0;
   private warping = false;
   private mapSwitchPending = false;
@@ -145,6 +152,9 @@ export class WorldScene extends Phaser.Scene {
     this.ownWalkBuffer = new SampleBuffer(32);
     this.autoWalkPrev = false;
     this.attackReadyAtMs = 0;
+    this.hitStopUntil = 0;
+    this.monsterKnockback.clear();
+    this.buildDamageTextPool();
     this.pathTarget = null;
     this.warping = false;
     this.mapSwitchPending = false;
@@ -346,12 +356,184 @@ export class WorldScene extends Phaser.Scene {
     room.onMessage("warp", (payload: WarpPayload) => {
       void this.handleWarp(payload);
     });
+
+    room.onMessage("combat", (payload: CombatEventPayload) => {
+      this.showCombatEvent(payload);
+    });
+    room.onMessage("monsterDied", (payload: MonsterDiedPayload) => {
+      this.showMonsterCorpse(payload);
+    });
+    room.onMessage("levelUp", (payload: LevelUpPayload) => {
+      this.showLevelUp(payload);
+    });
   }
 
   private setOwnVisible(visible: boolean): void {
     this.character.setVisible(visible);
     this.shadow.setVisible(visible);
     this.arrow.setVisible(visible);
+  }
+
+  private buildDamageTextPool(): void {
+    for (const text of this.damageTexts) {
+      text.destroy();
+    }
+    this.damageTexts = [];
+    for (let index = 0; index < 24; index++) {
+      const text = this.add
+        .text(0, 0, "", {
+          fontFamily: "monospace",
+          fontSize: "12px",
+          color: "#f5f7f2",
+          stroke: "#0b0f0d",
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(9000)
+        .setVisible(false);
+      this.damageTexts.push(text);
+    }
+    this.damageTextIndex = 0;
+  }
+
+  private showDamageNumber(x: number, y: number, label: string, color: string, size: number): void {
+    const text = this.damageTexts[this.damageTextIndex % this.damageTexts.length];
+    if (!text) {
+      return;
+    }
+    this.damageTextIndex++;
+    this.tweens.killTweensOf(text);
+    const offset = ((this.damageTextIndex % 3) - 1) * 8;
+    text
+      .setText(label)
+      .setColor(color)
+      .setFontSize(size)
+      .setPosition(x + offset, y)
+      .setAlpha(1)
+      .setScale(1)
+      .setVisible(true);
+    this.tweens.add({
+      targets: text,
+      y: y - 26,
+      alpha: 0,
+      duration: 720,
+      ease: "Cubic.easeOut",
+      onComplete: () => text.setVisible(false),
+    });
+  }
+
+  private flashMonster(monsterId: string): void {
+    const visual = this.monsterVisuals.get(monsterId);
+    if (!visual) {
+      return;
+    }
+    visual.sprite.setTint(0xffffff);
+    visual.sprite.setTintFill();
+    this.time.delayedCall(60, () => visual.sprite.clearTint());
+  }
+
+  private showCombatEvent(payload: CombatEventPayload): void {
+    for (const hit of payload.hits) {
+      if (hit.miss) {
+        this.showDamageNumber(hit.x, hit.y - 34, "MISS", "#9aa5a0", 11);
+      } else {
+        const takingDamage = hit.target.kind === "player";
+        const color = takingDamage ? "#ff6b5f" : hit.crit ? "#ffd34a" : "#f5f7f2";
+        this.showDamageNumber(
+          hit.x,
+          hit.y - 34,
+          `${takingDamage ? "-" : ""}${hit.damage}`,
+          color,
+          hit.crit ? 18 : 12,
+        );
+      }
+
+      if (hit.target.kind === "monster") {
+        this.flashMonster(hit.target.monsterId);
+        if (!hit.miss) {
+          const dx = hit.x - this.character.x;
+          const dy = hit.y - this.character.y;
+          const length = Math.hypot(dx, dy) || 1;
+          this.monsterKnockback.set(hit.target.monsterId, {
+            dx: (dx / length) * 8,
+            dy: (dy / length) * 8,
+            until: this.time.now + 90,
+          });
+        }
+      } else if (hit.target.sessionId === useUiStore.getState().sessionId) {
+        this.character.setTint(0xff6b5f);
+        this.time.delayedCall(80, () => this.character.clearTint());
+      }
+
+      if (hit.crit) {
+        this.cameras.main.shake(90, 0.0035);
+        this.hitStopUntil = this.time.now + 40;
+      }
+    }
+  }
+
+  private showMonsterCorpse(payload: MonsterDiedPayload): void {
+    const key = `mob.${payload.typeId}`;
+    if (!this.textures.exists(key)) {
+      return;
+    }
+    const sprite = this.add
+      .sprite(payload.x, payload.y, key)
+      .setOrigin(0.5, 0.85)
+      .setDepth(payload.y)
+      .setTint(0x777777);
+    const puff = this.add
+      .ellipse(payload.x, payload.y, 10, 6, 0xcccccc, 0.5)
+      .setDepth(payload.y + 1);
+    this.tweens.add({
+      targets: sprite,
+      alpha: 0,
+      y: payload.y + 10,
+      duration: 620,
+      onComplete: () => sprite.destroy(),
+    });
+    this.tweens.add({
+      targets: puff,
+      scaleX: 3,
+      scaleY: 2,
+      alpha: 0,
+      duration: 420,
+      onComplete: () => puff.destroy(),
+    });
+  }
+
+  private showLevelUp(payload: LevelUpPayload): void {
+    const text = this.add
+      .text(payload.x, payload.y - 72, "LEVEL UP", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "18px",
+        fontStyle: "bold",
+        color: "#ffd34a",
+        stroke: "#0b0f0d",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setDepth(9001);
+    const pillar = this.add
+      .rectangle(payload.x, payload.y - 30, 22, 90, 0xffd34a, 0.25)
+      .setDepth(payload.y + 2);
+
+    this.tweens.add({
+      targets: text,
+      y: text.y - 22,
+      alpha: 0,
+      duration: 1400,
+      ease: "Cubic.easeOut",
+      onComplete: () => text.destroy(),
+    });
+    this.tweens.add({
+      targets: pillar,
+      scaleX: 2.6,
+      scaleY: 1.6,
+      alpha: 0,
+      duration: 900,
+      onComplete: () => pillar.destroy(),
+    });
   }
 
   private tryAttack(own: RemotePlayerState | undefined): void {
@@ -733,6 +915,21 @@ export class WorldScene extends Phaser.Scene {
       if (!pos) {
         continue;
       }
+      if (now < this.hitStopUntil) {
+        continue; // 40 ms hit-stop on crits
+      }
+      let renderX = pos.x;
+      let renderY = pos.y;
+      const knockback = this.monsterKnockback.get(entity.id);
+      if (knockback) {
+        if (now < knockback.until) {
+          const factor = (knockback.until - now) / 90;
+          renderX += knockback.dx * factor;
+          renderY += knockback.dy * factor;
+        } else {
+          this.monsterKnockback.delete(entity.id);
+        }
+      }
       const spec = getMonster(entity.typeId);
       const scale = entity.isBoss
         ? 1.4
@@ -741,25 +938,25 @@ export class WorldScene extends Phaser.Scene {
           : spec.size === "small"
             ? 0.85
             : 1;
-      visual.sprite.setPosition(pos.x, pos.y);
-      visual.sprite.setDepth(pos.y);
-      visual.shadow.setPosition(pos.x, pos.y + 6);
-      visual.shadow.setDepth(pos.y - 1);
-      visual.label.setPosition(pos.x, pos.y - 52 * scale);
-      visual.label.setDepth(pos.y + 3);
+      visual.sprite.setPosition(renderX, renderY);
+      visual.sprite.setDepth(renderY);
+      visual.shadow.setPosition(renderX, renderY + 6);
+      visual.shadow.setDepth(renderY - 1);
+      visual.label.setPosition(renderX, renderY - 52 * scale);
+      visual.label.setDepth(renderY + 3);
       visual.label.setColor(monsterNameColor(entity.level, level));
 
       const ratio = entity.maxHp > 0 ? Math.max(0, Math.min(1, entity.hp / entity.maxHp)) : 0;
       const showBar = ratio < 1;
       const barWidth = 34 * scale;
       visual.barBackground
-        .setPosition(pos.x, pos.y - 62 * scale)
-        .setDepth(pos.y + 2)
+        .setPosition(renderX, renderY - 62 * scale)
+        .setDepth(renderY + 2)
         .setVisible(showBar);
       visual.barFill
-        .setPosition(pos.x - barWidth / 2, pos.y - 62 * scale)
+        .setPosition(renderX - barWidth / 2, renderY - 62 * scale)
         .setDisplaySize(barWidth * ratio, 3)
-        .setDepth(pos.y + 2)
+        .setDepth(renderY + 2)
         .setVisible(showBar);
     }
   }

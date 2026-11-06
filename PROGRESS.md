@@ -120,7 +120,7 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 14 — Client: monster rendering and interpolation
 - [x] Task 15 — Client: targeting, attack input and server-driven auto-walk
 - [x] Task 16 — Client: HUD, target frame, character window and death screen
-- [ ] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
+- [x] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
 - [ ] Task 18 — Phase gate: verification, reviewer, report
 
 **Temporary gap (closed by Task 13):** town respawn and disconnect-while-dead now persist full HP/MP/XP through `CharacterSave`; the DB roundtrip test covers the full payload (run against the test database when `TEST_DATABASE_URL` is set).
