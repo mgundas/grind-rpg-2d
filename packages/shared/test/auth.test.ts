@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createCharacterRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
   refreshRequestSchema,
@@ -46,5 +47,34 @@ describe("refreshRequestSchema", () => {
     expect(refreshRequestSchema.safeParse({ refreshToken: "abc" }).success).toBe(true);
     expect(refreshRequestSchema.safeParse({ refreshToken: "" }).success).toBe(false);
     expect(refreshRequestSchema.safeParse({}).success).toBe(false);
+  });
+});
+
+describe("createCharacterRequestSchema", () => {
+  const valid = {
+    name: "Grinder",
+    classId: "warrior",
+    gender: "male",
+    hairStyle: 0,
+    hairColor: 2,
+  };
+
+  it("accepts a valid character", () => {
+    expect(createCharacterRequestSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects invalid names, classes, genders and hair indexes", () => {
+    expect(createCharacterRequestSchema.safeParse({ ...valid, name: "ab" }).success).toBe(false);
+    expect(createCharacterRequestSchema.safeParse({ ...valid, name: "Bad Name" }).success).toBe(
+      false,
+    );
+    expect(createCharacterRequestSchema.safeParse({ ...valid, classId: "paladin" }).success).toBe(
+      false,
+    );
+    expect(createCharacterRequestSchema.safeParse({ ...valid, gender: "other" }).success).toBe(
+      false,
+    );
+    expect(createCharacterRequestSchema.safeParse({ ...valid, hairStyle: 3 }).success).toBe(false);
+    expect(createCharacterRequestSchema.safeParse({ ...valid, hairColor: 3 }).success).toBe(false);
   });
 });

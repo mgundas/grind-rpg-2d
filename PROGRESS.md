@@ -70,10 +70,12 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 
 Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
 
+**Verification note (2026-11-06):** the configured dev database (`homepi:5452`) was unreachable and Docker is not installed on this machine, so applying `drizzle/0000_*.sql` and the 20 real-Postgres tests in `apps/server/test/db/persistence.test.ts` are still pending. They are skipped without `TEST_DATABASE_URL`; everything else passes.
+
 - [x] Task 1 — Dependencies, config, DB schema, migration
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
 - [x] Task 3 — Password hashing and JWT helpers
-- [ ] Task 4 — Account and character services (DB)
+- [x] Task 4 — Account and character services (DB)
 - [ ] Task 5 — Session registry, warp token extension, static join authenticator
 - [ ] Task 6 — REST routes, middleware, server dependency wiring
 - [ ] Task 7 — MapRoom: authenticated join, state identity, persistence, kick

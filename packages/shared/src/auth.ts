@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { KINGDOM_IDS, type KingdomId } from "./constants";
-import { CHARACTER_NAME_PATTERN, type CharacterSummary } from "./characterRules";
+import {
+  CHARACTER_NAME_MAX,
+  CHARACTER_NAME_MIN,
+  CHARACTER_NAME_PATTERN,
+  CLASS_IDS,
+  GENDERS,
+  HAIR_COLOR_COUNT,
+  HAIR_STYLE_COUNT,
+  type CharacterSummary,
+} from "./characterRules";
 
 /**
  * REST auth/character DTOs shared by the server routes and the client API
@@ -34,6 +43,28 @@ export type RefreshRequest = z.infer<typeof refreshRequestSchema>;
 
 export const logoutRequestSchema = refreshRequestSchema;
 export type LogoutRequest = z.infer<typeof logoutRequestSchema>;
+
+export const createCharacterRequestSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(CHARACTER_NAME_MIN)
+    .max(CHARACTER_NAME_MAX)
+    .regex(CHARACTER_NAME_PATTERN),
+  classId: z.enum(CLASS_IDS),
+  gender: z.enum(GENDERS),
+  hairStyle: z
+    .number()
+    .int()
+    .min(0)
+    .max(HAIR_STYLE_COUNT - 1),
+  hairColor: z
+    .number()
+    .int()
+    .min(0)
+    .max(HAIR_COLOR_COUNT - 1),
+});
+export type CreateCharacterRequest = z.infer<typeof createCharacterRequestSchema>;
 
 export interface AuthTokens {
   accessToken: string;

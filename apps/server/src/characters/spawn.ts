@@ -1,0 +1,16 @@
+import { ROOM_NAME_VILLAGE, type MapId } from "@jadethrone/shared";
+import { loadMapAssets } from "../maps/mapRegistry";
+
+/** Every new character starts in Ember Village (the only home map in Phase 2). */
+export const DEFAULT_SPAWN_MAP: MapId = ROOM_NAME_VILLAGE;
+
+export interface PositionSave {
+  mapId: MapId;
+  x: number;
+  y: number;
+}
+
+export function defaultSpawn(): PositionSave {
+  const { spawn } = loadMapAssets(DEFAULT_SPAWN_MAP);
+  return { mapId: DEFAULT_SPAWN_MAP, x: spawn.x, y: spawn.y };
+}

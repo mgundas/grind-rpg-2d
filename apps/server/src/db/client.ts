@@ -11,16 +11,21 @@ import * as schema from "./schema";
 let pool: Pool | null = null;
 let db: NodePgDatabase<typeof schema> | null = null;
 
+export type Db = NodePgDatabase<typeof schema>;
+/** Exact transaction-callback client type; keeps services inference-safe. */
+export type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
+
 export function getPool(): Pool {
   pool ??= new Pool({
     connectionString: config.databaseUrl,
     connectionTimeoutMillis: 5000,
+    statement_timeout: 10_000,
     max: 10,
   });
   return pool;
 }
 
-export function getDb(): NodePgDatabase<typeof schema> {
+export function getDb(): Db {
   db ??= drizzle(getPool(), { schema });
   return db;
 }
