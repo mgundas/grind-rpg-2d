@@ -1,16 +1,21 @@
 import { Router } from "express";
 import { z } from "zod";
+import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
 import {
+  adminAnnouncementSchema,
   adminBanSchema,
   adminGiveItemSchema,
   adminLogQuerySchema,
+  adminRatesSchema,
   adminSearchQuerySchema,
+  adminShutdownSchema,
+  adminSpawnSchema,
   adminUpdateCharacterSchema,
   type AdminMonitorStatus,
   type AdminServerStatus,
 } from "@jadethrone/shared";
-import { eq } from "drizzle-orm";
-import { characters } from "../db/schema";
+import { announcements, characters } from "../db/schema";
 import {
   banAccount,
   grantItemOffline,
@@ -28,6 +33,7 @@ import {
   dashboard,
   getCharacterDetail,
   listAdminLogs,
+  listAnnouncements,
   listChatLogs,
   listGoldLogs,
   listItemLogs,
@@ -265,6 +271,133 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
     const account = authedAccount(res);
     const status: AdminMonitorStatus = adminCookieStatus(req, deps.authDeps, account);
     res.json(status);
+  });
+
+  router.get("/announcements", async (_req, res) => {
+    res.json({ announcements: await listAnnouncements(deps.db) });
+  });
+
+  router.post("/announcements", async (req, res) => {
+    const input = parseBody(adminAnnouncementSchema, req.body);
+    const account = authedAccount(res);
+    const now = Date.now();
+    const recurring = input.intervalMinutes != null;
+    const id = randomUUID();
+    const expiresAt =
+      input.expiresInMinutes === undefined
+        ? null
+        : new Date(now + input.expiresInMinutes * 60_000);
+    await deps.db.insert(announcements).values({
+      id,
+      message: input.message,
+      kind: recurring ? "recurring" : "immediate",
+      intervalMs: recurring ? input.intervalMinutes! * 60_000 : null,
+      active: recurring,
+      createdBy: account.id,
+      createdAt: new Date(now),
+      lastSentAt: recurring ? null : new Date(now),
+      expiresAt,
+    });
+    if (!recurring) {
+      deps.adminBus.broadcastAnnouncement({
+        id,
+        message: input.message,
+        kind: "admin",
+        sentAtMs: now,
+      });
+    }
+    await writeAdminLog(deps.db, {
+      actorAccountId: account.id,
+      action: "announcement_create",
+      detail: {
+        id,
+        message: input.message,
+        recurring,
+        intervalMinutes: input.intervalMinutes ?? null,
+      },
+      ip: req.ip,
+    });
+    res.status(201).json({ id });
+  });
+
+  router.delete("/announcements/:id", async (req, res) => {
+    const id = parseBody(z.string().uuid(), req.params.id);
+    const deleted = await deps.db
+      .delete(announcements)
+      .where(eq(announcements.id, id))
+      .returning({ id: announcements.id });
+    if (deleted.length === 0) {
+      res.status(404).json({ error: { code: "not_found", message: "Announcement not found." } });
+      return;
+    }
+    await writeAdminLog(deps.db, {
+      actorAccountId: authedAccount(res).id,
+      action: "announcement_delete",
+      detail: { id },
+      ip: req.ip,
+    });
+    res.status(204).end();
+  });
+
+  router.post("/server/rates", async (req, res) => {
+    const input = parseBody(adminRatesSchema, req.body);
+    deps.adminRuntime.setRates(input.xpRate, input.dropRate);
+    await writeAdminLog(deps.db, {
+      actorAccountId: authedAccount(res).id,
+      action: "server_rates",
+      detail: input,
+      ip: req.ip,
+    });
+    res.json(deps.adminRuntime.status());
+  });
+
+  router.post("/server/spawn", async (req, res) => {
+    const input = parseBody(adminSpawnSchema, req.body);
+    const players = deps.adminBus.list();
+    const target = players[0];
+    if (!target) {
+      res.status(409).json({
+        error: { code: "conflict", message: "At least one player must be online to spawn." },
+      });
+      return;
+    }
+    const actions = deps.adminBus.get(target.characterId);
+    if (!actions) {
+      res.status(409).json({ error: { code: "conflict", message: "Player just left." } });
+      return;
+    }
+    const count = await actions.spawnMonster(input.typeId, input.count, input.x, input.y);
+    await writeAdminLog(deps.db, {
+      actorAccountId: authedAccount(res).id,
+      action: "server_spawn",
+      targetCharacterId: target.characterId,
+      detail: { ...input, spawned: count, mapId: target.mapId },
+      ip: req.ip,
+    });
+    res.json({ spawned: count, mapId: target.mapId });
+  });
+
+  router.post("/server/shutdown", async (req, res) => {
+    const input = parseBody(adminShutdownSchema, req.body);
+    deps.adminRuntime.scheduleShutdown(input.delayMinutes, input.message);
+    await writeAdminLog(deps.db, {
+      actorAccountId: authedAccount(res).id,
+      action: "server_shutdown_schedule",
+      detail: input,
+      ip: req.ip,
+    });
+    res.json(deps.adminRuntime.status());
+  });
+
+  router.post("/server/shutdown/cancel", async (req, res) => {
+    deps.adminRuntime.cancelShutdown();
+    await writeAdminLog(deps.db, {
+      actorAccountId: authedAccount(res).id,
+      action: "server_shutdown_cancel",
+      detail: {},
+      ip: req.ip,
+    });
+    res.json(deps.adminRuntime.status());
   });
 
   return router;

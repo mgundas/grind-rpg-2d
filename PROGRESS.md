@@ -176,7 +176,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 10 — Admin runtime: rates, metrics, announcements, shutdown
 - [x] Task 11 — Admin read routes
 - [x] Task 12 — Admin mutation routes
-- [ ] Task 13 — Admin announcement/control routes
+- [x] Task 13 — Admin announcement/control routes
 - [ ] Task 14 — Colyseus monitor mount
 - [ ] Task 15 — Client announcement banner and kick reasons
 - [ ] Task 16 — Admin app foundation
