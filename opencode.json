@@ -24,7 +24,7 @@
     },
     "architect": {
       "mode": "subagent",
-      "model": "opencode-go/glm-5.3",
+      "model": "opencode-go/deepseek-v4.1-flash",
       "reasoningEffort": "high",
       "description": "Senior game architect. Use BEFORE implementing any hard system: multiplayer networking (client prediction, reconciliation, interpolation, StateView interest management), pathfinding, monster AI, combat resolution, inventory placement, upgrade/trade transactions, database schema changes. Returns a precise implementation plan with file names, function signatures and edge cases. Does not edit code.",
       "prompt": "You are the senior architect of Jade Throne. Read AGENTS.md, GAME_DESIGN.md, PROGRESS.md and DECISIONS.md, then the relevant code. Produce a concise, concrete implementation plan for the requested system: files to create or change, function signatures, data flow, Colyseus 0.17 and Phaser 4 APIs to use (verify them in node_modules type definitions), edge cases, and the tests to write. Do not write the implementation itself.",
@@ -36,7 +36,7 @@
     },
     "debugger": {
       "mode": "subagent",
-      "model": "opencode-go/kimi-k3.1-pro",
+      "model": "opencode-go/deepseek-v4.1-flash",
       "reasoningEffort": "high",
       "description": "Expert debugger. Use when the same error, failing test, type error or bug has survived two fix attempts, or when multiplayer behaviour is wrong (jitter, desync, rubber-banding, duplicated items). Finds the root cause and fixes it.",
       "prompt": "You are an expert debugger on Jade Throne. Reproduce the problem first (run the failing command or test). Find the root cause, not a workaround. Make the smallest correct fix, run typecheck and tests, and report what was wrong and what you changed. Follow AGENTS.md.",

@@ -52,7 +52,7 @@ Then continue with [B. Start building](#b-start-building).
 Read AGENTS.md, GAME_DESIGN.md, PROGRESS.md and DECISIONS.md. Look at the
 current code structure with @explore.
 
-We are starting Phase 3: Combat and monsters from GAME_DESIGN.md section 12.
+We are starting Phase 5: Admin panel from GAME_DESIGN.md section 12.
 
 Write a detailed plan for this phase only:
 1. A summary of what already exists that this phase builds on.
@@ -80,8 +80,8 @@ Read the plan. If something looks wrong or missing, tell it in Plan mode before 
 **Switch to Build mode (Tab) in the same session.**
 
 ```
-Save the plan above to docs/plans/phase-<N>.md and add the task list to
-PROGRESS.md under a "Phase <N>" heading with checkboxes.
+Save the plan above to docs/plans/phase-4.md and add the task list to
+PROGRESS.md under a "Phase 5" heading with checkboxes.
 
 Then start working through the tasks in order. After each task: run
 typecheck and the relevant tests, tick the checkbox in PROGRESS.md, and
