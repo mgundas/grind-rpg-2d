@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-1.md` (Phase 1 complete and re-verified after a second `@reviewer` pass — see `docs/reports/phase-1.md`).
+Current plan: `docs/plans/phase-3.md` (Phase 2 complete — see `docs/reports/phase-2.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -100,9 +100,32 @@ Phase report: `docs/reports/phase-2.md`.
 - `MapRoom.ts` (~640 lines) and `accountService.ts` still mix several responsibilities; split persistence/session/auth sub-services in a later refactor.
 - Known Phase-1 minors remain: chat range 900 vs interest-add 850, per-message invalid-input/chat warnings, and the 2 s warp leave timeout.
 
+## Phase 3 — Combat and monsters
+
+Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema and Phaser 4 typings).
+
+- [x] Task 1 — Shared: combat formulas, regen, XP and RNG interface
+- [ ] Task 2 — Shared: combat protocol messages and arc geometry
+- [ ] Task 3 — Data: monsters, spawn groups and class attack profiles
+- [ ] Task 4 — Shared/map: typed mob zones and assets
+- [ ] Task 5 — Server: schema (monsters, HP/MP/dead), runtime fields and RNG seam
+- [ ] Task 6 — Server: monster AI state machine
+- [ ] Task 7 — Server: spawn manager and deterministic placement
+- [ ] Task 8 — Server: wire monsters into MapRoom and interest
+- [ ] Task 9 — Server: player arc attack and combat events
+- [ ] Task 10 — Server: monster attacks and player death
+- [ ] Task 11 — Server: regen and respawn options
+- [ ] Task 12 — Server: XP, level-up and stat allocation
+- [ ] Task 13 — Server: full character-state persistence
+- [ ] Task 14 — Client: monster rendering and interpolation
+- [ ] Task 15 — Client: targeting, attack input and server-driven auto-walk
+- [ ] Task 16 — Client: HUD, target frame, character window and death screen
+- [ ] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
+- [ ] Task 18 — Phase gate: verification, reviewer, report
+
 ## Later phases (from GAME_DESIGN.md §12)
 
-- [ ] Phase 3 — Combat and monsters
+- [ ] Phase 4 — Items and economy
 - [ ] Phase 4 — Items and economy
 - [ ] Phase 5 — Admin panel
 - [ ] Phase 6 — Spirit stones, skills, parties

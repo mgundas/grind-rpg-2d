@@ -44,6 +44,37 @@ export const SPAWN_POINT = { x: 400, y: 304 };
 /** Base walk speed in px/s (GAME_DESIGN.md §5). */
 export const WALK_SPEED = 200;
 
+/** Core stat block shared by classes, characters and combat formulas. */
+export interface Stats {
+  vit: number;
+  int: number;
+  str: number;
+  dex: number;
+}
+
+/** Progression caps (GAME_DESIGN.md §4.3). */
+export const MAX_LEVEL = 99;
+export const STAT_POINT_CAP = 90;
+export const STAT_POINTS_PER_LEVEL = 3;
+
+/** Combat timings and ranges (GAME_DESIGN.md §5, §6). */
+export const ATTACK_ARC_DEGREES = 120;
+export const ATTACK_RANGE_PAD_PX = 16;
+export const COMBAT_TIMEOUT_MS = 5000;
+export const REGEN_INTERVAL_MS = 3000;
+export const MONSTER_SLEEP_RADIUS_PX = 1200;
+export const MONSTER_ATTACK_RANGE_HYSTERESIS_PX = 16;
+export const MONSTER_CHASE_REPATH_MS = 500;
+export const MONSTER_WANDER_RADIUS_PX = 96;
+export const MAX_ASTAR_PER_TICK = 10;
+export const RESPAWN_HERE_DELAY_MS = 10_000;
+export const RESPAWN_HERE_HP_FRACTION = 0.3;
+export const AUTO_WALK_TARGET_RANGE_PX = 1000;
+export const AUTO_WALK_GIVE_UP_MS = 1500;
+export const AUTO_WALK_STOP_MARGIN_PX = 24;
+export const AUTO_WALK_MAX_EMPTY_PATHS = 3;
+export const COMBAT_EVENT_RADIUS_PX = 900;
+
 /**
  * Interest management (GAME_DESIGN.md §5.1): entities are added to a
  * client's view inside the lower radius and removed beyond the upper one —

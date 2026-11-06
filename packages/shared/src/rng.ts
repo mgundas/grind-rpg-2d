@@ -28,3 +28,27 @@ export function mulberry32(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/**
+ * Injectable randomness. Combat and spawn code depend on this interface, not on
+ * a concrete PRNG: the live server installs a crypto-backed source, tests and
+ * balance scripts install `seededRandomSource`.
+ */
+export interface RandomSource {
+  /** Float in [0, 1). */
+  next(): number;
+}
+
+export function seededRandomSource(seed: number): RandomSource {
+  return { next: mulberry32(seed) };
+}
+
+/** Float in [min, max). */
+export function randomRange(rng: RandomSource, min: number, max: number): number {
+  return min + (max - min) * rng.next();
+}
+
+/** Integer in [minInclusive, maxExclusive). */
+export function randomInt(rng: RandomSource, minInclusive: number, maxExclusive: number): number {
+  return minInclusive + Math.floor(rng.next() * (maxExclusive - minInclusive));
+}
