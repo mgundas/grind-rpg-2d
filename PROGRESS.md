@@ -66,9 +66,29 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 - All normal joins use the exact map spawn, so two tabs overlap until Phase 2 persistence/character positions.
 - Browser look-and-feel checks (smooth remote motion, local interpolation feel, bubbles, y-sorting, fade, 150 ms feel) remain a human pass; automated checks cover state/netcode only.
 
+## Phase 2 — Accounts and characters
+
+Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
+
+- [ ] Task 1 — Dependencies, config, DB schema, migration
+- [ ] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
+- [ ] Task 3 — Password hashing and JWT helpers
+- [ ] Task 4 — Account and character services (DB)
+- [ ] Task 5 — Session registry, warp token extension, static join authenticator
+- [ ] Task 6 — REST routes, middleware, server dependency wiring
+- [ ] Task 7 — MapRoom: authenticated join, state identity, persistence, kick
+- [ ] Task 8 — Warp persistence and target-map authentication
+- [ ] Task 9 — Client API + token storage + auth state
+- [ ] Task 10 — Client session and screen routing
+- [ ] Task 11 — Auth screen (login/register, kingdom choice)
+- [ ] Task 12 — Character select, create, delete, preview
+- [ ] Task 13 — Layered appearance in the world
+- [ ] Task 14 — In-game logout and kick UX
+- [ ] Task 15 — Seed script and verification tooling
+- [ ] Task 16 — CI Postgres, docs, final verification, reviewer, phase report
+
 ## Later phases (from GAME_DESIGN.md §12)
 
-- [ ] Phase 2 — Accounts and characters
 - [ ] Phase 3 — Combat and monsters
 - [ ] Phase 4 — Items and economy
 - [ ] Phase 5 — Admin panel
