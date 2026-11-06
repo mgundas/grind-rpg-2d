@@ -177,7 +177,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 11 — Admin read routes
 - [x] Task 12 — Admin mutation routes
 - [x] Task 13 — Admin announcement/control routes
-- [ ] Task 14 — Colyseus monitor mount
+- [x] Task 14 — Colyseus monitor mount
 - [ ] Task 15 — Client announcement banner and kick reasons
 - [ ] Task 16 — Admin app foundation
 - [ ] Task 17 — Admin dashboard and Live Rooms pages

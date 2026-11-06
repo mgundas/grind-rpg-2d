@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/app.config.ts",
-    "build": "esbuild src/app.config.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/index.cjs --external:pg --external:pino --external:@node-rs/argon2",
+    "build": "esbuild src/app.config.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/index.cjs --external:pg --external:pino --external:@node-rs/argon2 --external:@colyseus/monitor",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.cjs",
     "db:generate": "drizzle-kit generate",
@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@colyseus/core": "catalog:",
+    "@colyseus/monitor": "catalog:",
     "@colyseus/schema": "catalog:",
     "@colyseus/ws-transport": "catalog:",
     "@jadethrone/data": "workspace:*",

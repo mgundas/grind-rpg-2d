@@ -1,5 +1,6 @@
 import express from "express";
 import { defineRoom, defineServer } from "@colyseus/core";
+import { monitor } from "@colyseus/monitor";
 import {
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
@@ -21,6 +22,7 @@ import { getDb, type Db } from "./db/client";
 import type { CharacterRecord } from "./characters/characterMappers";
 import { consumeWarpTokenPayload } from "./rooms/warpTokens";
 import { MapRoom } from "./rooms/MapRoom";
+import { requireAdminCookie } from "./http/adminCookie";
 import { errorHandler, notFoundHandler } from "./http/errors";
 import type { RateLimitSettings } from "./http/rateLimit";
 import { createAdminRouter } from "./routes/admin";
@@ -149,6 +151,10 @@ export function createGameServer(deps: ServerDeps = {}) {
     express: (app) => {
       app.disable("x-powered-by");
       app.get("/api/health", healthHandler);
+
+      // The monitor iframe cannot send a bearer header; the admin login cookie
+      // authenticates its HTML and asset requests.
+      app.use("/colyseus", requireAdminCookie({ authDeps }), monitor());
 
       // Scoped to /api: Colyseus owns the matchmaking/WebSocket routes and its
       // own body handling, so it must not see these middleware.

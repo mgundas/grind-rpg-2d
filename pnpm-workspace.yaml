@@ -34,6 +34,7 @@ catalog:
   # game & server
   phaser: 4.2.1
   "@colyseus/core": 0.17.56
+  "@colyseus/monitor": 0.17.9
   "@colyseus/schema": 4.0.31
   "@colyseus/sdk": 0.17.43
   "@colyseus/testing": 0.17.11
