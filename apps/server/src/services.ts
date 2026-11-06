@@ -4,6 +4,7 @@ import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
 import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
 import type { AdminLogInput } from "./admin/adminLog";
+import type { AdminRuntime } from "./admin/adminRuntime";
 import type { AdminBus } from "./admin/liveBus";
 import type { CharacterRecord } from "./characters/characterMappers";
 import type { Db } from "./db/client";
@@ -42,6 +43,8 @@ export interface ServerServices {
   items: ItemService;
   /** In-process registry of live players/rooms for the admin panel. */
   adminBus: AdminBus;
+  /** Process-level admin policy: rates, metrics, announcements, shutdown. */
+  adminRuntime: AdminRuntime;
   /** Best-effort persistence for the admin chat-log viewer. */
   logChat: (entry: ChatLogInput) => Promise<void>;
   /** Best-effort GM/admin audit write (in-game commands). */

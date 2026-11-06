@@ -4,6 +4,7 @@ import { config } from "./config";
 import { runMigrations } from "./db/migrate";
 import { logger } from "./logger";
 import { createGameServer } from "./server";
+import { getServerServices } from "./services";
 
 /**
  * The `@colyseus/core` typings were verified against 0.17.56 before writing
@@ -52,6 +53,7 @@ server
         "simulating network latency in both directions",
       );
     }
+    getServerServices().adminRuntime.start();
     logger.info(`Jade Throne game server listening on port ${config.port}`);
     logger.info({ rooms: Object.keys(matchMaker.getAllHandlers()) }, "rooms registered");
   })

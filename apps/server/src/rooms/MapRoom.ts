@@ -1715,12 +1715,15 @@ export class MapRoom extends Room {
     const ownerRuntime =
       this.runtimes.get(killed.ownerSessionId) ?? this.runtimes.get(killerSessionId);
     const ownerCharacterId = ownerRuntime?.characterId ?? "";
-    const rolled = rollDrops(
-      this.rng,
-      getDropTable(spec.dropTableId).drops,
-      spec.goldMin,
-      spec.goldMax,
-    );
+    const dropRate = getServerServices().adminRuntime.settings.dropRate;
+    const entries =
+      dropRate <= 0
+        ? []
+        : getDropTable(spec.dropTableId).drops.map((drop) => ({
+            ...drop,
+            chance: Math.min(1, drop.chance * dropRate),
+          }));
+    const rolled = rollDrops(this.rng, entries, spec.goldMin, spec.goldMax);
     const ownerUntilMs = now + DROP_OWNERSHIP_MS;
     const despawnAtMs = now + GROUND_ITEM_DESPAWN_MS;
 
@@ -2483,7 +2486,11 @@ export class MapRoom extends Room {
       return;
     }
     const spec = getMonster(killed.typeId);
-    const gain = monsterXpGain(spec.xp, spec.level, runtime.progression.level);
+    const xpRate = getServerServices().adminRuntime.settings.xpRate;
+    const gain = Math.max(
+      0,
+      Math.floor(monsterXpGain(spec.xp, spec.level, runtime.progression.level) * xpRate),
+    );
     const result = applyXpGain(runtime.progression.level, runtime.progression.xp, gain);
     runtime.progression.level = result.level;
     runtime.progression.xp = result.xp;

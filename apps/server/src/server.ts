@@ -28,6 +28,7 @@ import { createCharactersRouter } from "./routes/characters";
 import { healthHandler } from "./routes/health";
 import { randomUUID } from "node:crypto";
 import { writeAdminLog, type AdminLogInput } from "./admin/adminLog";
+import { createAdminRuntime, type AdminRuntime } from "./admin/adminRuntime";
 import { createAdminBus, type AdminBus } from "./admin/liveBus";
 import { chatLog } from "./db/schema";
 import { createItemService, type ItemService } from "./items/service";
@@ -52,6 +53,7 @@ export interface ServerDeps {
   loadCharacter?: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   items?: ItemService;
   adminBus?: AdminBus;
+  adminRuntime?: AdminRuntime;
   logChat?: (entry: ChatLogInput) => Promise<void>;
   logAdminAction?: (entry: AdminLogInput) => Promise<void>;
   createRandomSource?: () => RandomSource;
@@ -101,6 +103,8 @@ export function createGameServer(deps: ServerDeps = {}) {
     ((accountId, characterId) => getCharacterForAccount(db, accountId, characterId));
   const itemService = deps.items ?? createItemService(db);
   const adminBus = deps.adminBus ?? createAdminBus();
+  const adminRuntime =
+    deps.adminRuntime ?? createAdminRuntime({ db, bus: adminBus });
   const logAdminAction = async (entry: AdminLogInput): Promise<void> => {
     await writeAdminLog(db, entry);
   };
@@ -129,13 +133,14 @@ export function createGameServer(deps: ServerDeps = {}) {
     loadCharacter,
     items: itemService,
     adminBus,
+    adminRuntime,
     logChat: deps.logChat ?? logChat,
     logAdminAction: deps.logAdminAction ?? logAdminAction,
     createRandomSource: deps.createRandomSource ?? createCryptoRandomSource,
     combatTuning: deps.combatTuning ?? {},
   });
 
-  return defineServer({
+  const server = defineServer({
     rooms: {
       [ROOM_NAME_VILLAGE]: defineRoom(MapRoom),
       [ROOM_NAME_FIELDS]: defineRoom(MapRoom),
@@ -156,4 +161,6 @@ export function createGameServer(deps: ServerDeps = {}) {
       app.use(errorHandler);
     },
   });
+  adminRuntime.attachServer(server);
+  return server;
 }
