@@ -55,7 +55,7 @@ function credentials() {
 
 function characterInput(overrides: Partial<CreateCharacterRequest> = {}): CreateCharacterRequest {
   return {
-    name: `Hero${Math.floor(Math.random() * 100_000)}`,
+    name: `Hero${suffix()}`,
     classId: "warrior",
     gender: "male",
     hairStyle: 0,
@@ -313,10 +313,11 @@ describeDb("persistence services (real Postgres)", () => {
   describe("characters", () => {
     it("creates a persisted level-1 warrior at the village spawn", async () => {
       const { result } = await register(db);
-      const input = characterInput({ name: "WarriorOne", classId: "warrior" });
+      const name = `Warrior${suffix()}`;
+      const input = characterInput({ name, classId: "warrior" });
       const summary = await createCharacter(db, result.account.id, input);
       expect(summary).toMatchObject({
-        name: "WarriorOne",
+        name,
         classId: "warrior",
         level: 1,
         map: "map_ember_village",
@@ -343,19 +344,25 @@ describeDb("persistence services (real Postgres)", () => {
     it("rejects duplicate character names case-insensitively across accounts", async () => {
       const first = await register(db);
       const second = await register(db);
-      await createCharacter(db, first.result.account.id, characterInput({ name: "Samename" }));
+      const base = `Name${suffix()}`;
+      await createCharacter(db, first.result.account.id, characterInput({ name: base }));
       await expect(
-        createCharacter(db, second.result.account.id, characterInput({ name: "samename" })),
+        createCharacter(db, second.result.account.id, characterInput({ name: base.toLowerCase() })),
       ).rejects.toMatchObject({ code: "name_taken" });
     });
 
     it("enforces four character slots", async () => {
       const { result } = await register(db);
+      const prefix = suffix();
       for (let index = 0; index < 4; index++) {
-        await createCharacter(db, result.account.id, characterInput({ name: `Slot${index}Hero` }));
+        await createCharacter(
+          db,
+          result.account.id,
+          characterInput({ name: `Slot${index}${prefix}` }),
+        );
       }
       await expect(
-        createCharacter(db, result.account.id, characterInput({ name: "FifthHero" })),
+        createCharacter(db, result.account.id, characterInput({ name: `Fifth${prefix}` })),
       ).rejects.toMatchObject({ code: "slots_full" });
     });
 
@@ -363,7 +370,11 @@ describeDb("persistence services (real Postgres)", () => {
       const { result } = await register(db);
       const settled = await Promise.allSettled(
         Array.from({ length: 8 }, (_, index) =>
-          createCharacter(db, result.account.id, characterInput({ name: `Race${index}Hero` })),
+          createCharacter(
+            db,
+            result.account.id,
+            characterInput({ name: `Race${index}${suffix()}` }),
+          ),
         ),
       );
       expect(settled.filter((entry) => entry.status === "fulfilled")).toHaveLength(4);
@@ -383,9 +394,10 @@ describeDb("persistence services (real Postgres)", () => {
     it("resolves same-name races on the unique index without deadlocking", async () => {
       const first = await register(db);
       const second = await register(db);
+      const base = `Race${suffix()}`;
       const settled = await Promise.allSettled([
-        createCharacter(db, first.result.account.id, characterInput({ name: "Racename" })),
-        createCharacter(db, second.result.account.id, characterInput({ name: "racename" })),
+        createCharacter(db, first.result.account.id, characterInput({ name: base })),
+        createCharacter(db, second.result.account.id, characterInput({ name: base.toLowerCase() })),
       ]);
       expect(settled.filter((entry) => entry.status === "fulfilled")).toHaveLength(1);
       const rejection = settled.find((entry) => entry.status === "rejected");
@@ -461,9 +473,10 @@ describeDb("persistence services (real Postgres)", () => {
 
     it("saves several characters in one bulk statement", async () => {
       const { result } = await register(db);
+      const prefix = suffix();
       const created = await Promise.all(
         [0, 1, 2].map((index) =>
-          createCharacter(db, result.account.id, characterInput({ name: `Bulk${index}Hero` })),
+          createCharacter(db, result.account.id, characterInput({ name: `Bulk${index}${prefix}` })),
         ),
       );
 

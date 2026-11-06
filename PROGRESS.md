@@ -70,7 +70,7 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 
 Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
 
-**Verification note (2026-11-06):** the configured dev database (`homepi:5452`) was unreachable and Docker is not installed on this machine, so applying `drizzle/0000_*.sql` and the 20 real-Postgres tests in `apps/server/test/db/persistence.test.ts` are still pending. They are skipped without `TEST_DATABASE_URL`; everything else passes.
+**Verification note (2026-11-06):** the dev database (`homepi:5452`) is reachable again. `drizzle/0000_*.sql` is applied to `jade_throne` and to a dedicated `jade_throne_test`; the 21 real-Postgres tests in `apps/server/test/db/persistence.test.ts` pass (re-run twice to prove they are order-independent). Full suite: 25 files, 237 tests, all passing when `TEST_DATABASE_URL` points at the test database.
 
 - [x] Task 1 — Dependencies, config, DB schema, migration
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages

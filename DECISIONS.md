@@ -105,3 +105,7 @@ Login/logout bump `accounts.token_version`, so a stale access token can never re
 ## D26 — Deleting an online character is blocked, not kicked
 
 `deleteCharacter` takes an injected `isOnline(characterId)` predicate; the route wires it to the in-process session registry and returns 409 `character_online`. This is a deliberate simplification of the phase plan's "kick, then delete": a DB service must not await room internals, and the kick-then-delete path has a save-after-delete race. The accepted residual window is a join whose `onAuth` read happens just before the delete commits; the ghost cannot save (0-row update is a silent no-op) and cannot rejoin. Phase 4's item cascades will revisit deletion.
+
+## D27 — DB tests use a dedicated `_test` database and self-applied migrations
+
+`apps/server/test/db/persistence.test.ts` runs only when `TEST_DATABASE_URL` is set; the harness refuses any URL without "test" in it (so a stray env var can never touch dev data), applies the committed migrations itself, and uses randomized emails/usernames/character names so repeated runs are order-independent instead of relying on truncation. Locally the test database is `jade_throne_test` on the Pi; CI will point the same variable at its Postgres service. Pure logic (error mapping, character derivation, passwords, tokens) keeps running without a database.
