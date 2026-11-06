@@ -52,14 +52,17 @@ function parseConfig(): Config {
   return {
     port: env.GAME_SERVER_PORT,
     logLevel: env.LOG_LEVEL,
-    databaseUrl: env.DATABASE_URL ?? buildDatabaseUrl({
-      user: env.POSTGRES_USER,
-      password: env.POSTGRES_PASSWORD,
-      host: env.POSTGRES_HOST,
-      port: env.POSTGRES_PORT,
-      database: env.POSTGRES_DB,
-    }),
-    usingDefaultDbPassword: env.DATABASE_URL === undefined && process.env.POSTGRES_PASSWORD === undefined,
+    databaseUrl:
+      env.DATABASE_URL ??
+      buildDatabaseUrl({
+        user: env.POSTGRES_USER,
+        password: env.POSTGRES_PASSWORD,
+        host: env.POSTGRES_HOST,
+        port: env.POSTGRES_PORT,
+        database: env.POSTGRES_DB,
+      }),
+    usingDefaultDbPassword:
+      env.DATABASE_URL === undefined && process.env.POSTGRES_PASSWORD === undefined,
   };
 }
 

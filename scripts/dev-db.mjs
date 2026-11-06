@@ -40,10 +40,15 @@ if (isLocalHost) {
     console.log(
       "[dev-db] Docker is not installed here and POSTGRES_HOST is local; skipping container start.",
     );
-    console.log('[dev-db] Postgres is expected to run remotely; /api/health will report db: "unavailable".');
+    console.log(
+      '[dev-db] Postgres is expected to run remotely; /api/health will report db: "unavailable".',
+    );
   } else {
     console.log("[dev-db] starting local dev Postgres via docker compose...");
-    const up = spawnSync("docker", ["compose", "up", "-d", "--wait"], { shell: true, stdio: "inherit" });
+    const up = spawnSync("docker", ["compose", "up", "-d", "--wait"], {
+      shell: true,
+      stdio: "inherit",
+    });
     if (up.status !== 0) {
       console.warn("[dev-db] docker compose did not come up healthy; continuing anyway.");
     }

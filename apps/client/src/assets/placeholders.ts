@@ -69,7 +69,12 @@ function addNoise(ctx: CanvasRenderingContext2D, seed: string, size: number): vo
   }
 }
 
-function drawTile(ctx: CanvasRenderingContext2D, kind: string, seed: string, offsetX: number): void {
+function drawTile(
+  ctx: CanvasRenderingContext2D,
+  kind: string,
+  seed: string,
+  offsetX: number,
+): void {
   const base = TILE_PALETTE[kind] ?? DEFAULT_TILE_COLOR;
   ctx.fillStyle = base;
   ctx.fillRect(offsetX, 0, TILE_SIZE, TILE_SIZE);
