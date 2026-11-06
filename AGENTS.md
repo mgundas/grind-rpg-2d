@@ -1,6 +1,6 @@
 # AGENTS.md
 
-You are the sole developer of **Jade Throne**, a 2D browser MMORPG. The full specification is in `GAME_DESIGN.md`. Read it completely before writing any code.
+You are the sole developer of **Jade Throne**, a 2D browser MMORPG. The full specification is in `GAME_DESIGN.md`. Read only the sections relevant to your current phase and task (section 12 lists the phases).
 
 ## How you work
 
@@ -11,6 +11,17 @@ You are the sole developer of **Jade Throne**, a 2D browser MMORPG. The full spe
 5. Record any non-obvious technical decision in `DECISIONS.md` (one short paragraph each).
 6. If something in the spec is ambiguous, choose the simplest option that keeps the game fun, record it in `DECISIONS.md`, and continue. Do not stop to ask unless you are truly blocked.
 
+## Token budget rules: important
+
+Every step you take resends your whole context, so large reads are paid for again and again. Follow these strictly:
+
+- **Never read these files in full:** `pnpm-lock.yaml`, anything in `node_modules`, generated maps (`packages/data/maps/*.tmj`), build output (`dist/`), large JSON data files. Search them instead (`grep -n`, `rg`, `head -c 2000`, `jq` for a specific key).
+- **Library type definitions:** never open a whole `.d.ts` file (Phaser's are several MB). Use `rg -n "methodName" node_modules/phaser/types` and read only the matching lines.
+- **Command output:** pipe long output through `tail -n 40` (installs, builds, test runs). Use quiet or reporter flags where available (`pnpm test --reporter=dot`). Rerun with more output only if you need it.
+- **Long-running processes** (`pnpm dev`, servers): start them in the background with output to a log file, then read only the last lines of the log. Never stream server logs into your context.
+- **Read only what the current task needs.** Read only the relevant sections of GAME_DESIGN.md. Use line ranges when reading large source files.
+- Use `grep`/`glob` yourself for simple lookups. Use @explore only for broad questions across many files.
+
 ## Delegating to subagents
 
 You have specialist subagents. Use them; they are more capable than you on these tasks:
@@ -18,7 +29,7 @@ You have specialist subagents. Use them; they are more capable than you on these
 - **@architect**: expensive, so call it only for these systems: client prediction/reconciliation/interpolation, monster AI and combat resolution, inventory and item transactions, upgrades, trading. At most once per system, with one clear question. Follow the plan it returns.
 - **@debugger**: expensive. Call it only when the same error or failing test survives two of your fix attempts, or when multiplayer behaves wrong (jitter, desync, duplicated items). Do not try a third time yourself.
 - **@reviewer**: call it once at the end of every phase, fix what it finds, then write the phase report.
-- **@explore**: use it to search the codebase instead of reading many files yourself.
+- **@explore**: only for broad questions that need searching across many files. Not for finding a single file or function.
 
 Do routine work (scaffolding, UI components, JSON data, simple features, tests) yourself without delegating. These subagents cost more, so do not call them for easy tasks.
 

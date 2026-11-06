@@ -19,7 +19,7 @@
       "reasoningEffort": "high"
     },
     "explore": {
-      "model": "opencode-go/glm-5.3-flash",
+      "model": "opencode-go/deepseek-v4.1-flash",
       "reasoningEffort": "low"
     },
     "architect": {
@@ -57,5 +57,9 @@
         "bash": "allow"
       }
     }
+  },
+  "compaction": {
+    "auto": true,
+    "prune": true
   }
 }
