@@ -193,3 +193,11 @@ The bottom HP/MP/XP HUD is driven by the owner-only `selfStats` snapshot for lev
 ## D43 — Kill XP, level-ups and stat points are owner-only `selfStats` snapshots
 
 The killing blow awards monster XP with the level-gap multiplier; `applyXpGain` handles multiple levels, grants three stat points per level, and level-ups restore full HP/MP and recompute the class maxima. `selfStats` carries level, XP progress/next, HP/MP, stat points, raw stats and the derived attack/defense/crit values; it is sent after join, death, kills, level-ups and stat allocation, and the client can request a fresh snapshot with `requestStats` (needed because the join-time message can arrive before the SDK listener is bound). Stat allocation validates the point balance and the 90-point cap, recomputes max HP/MP, clamps current values, marks the character dirty and saves immediately. The level cap stops XP accumulation at 99.
+
+## D49 — Item mutations use pure planners and one parking transaction
+
+Every item change is a pure plan over the runtime's `InventoryState` (`{ changes, logs, gold }`) followed by one executor that locks `accounts → characters → items`, verifies each row's expected location/slot/quantity, then deletes and writes. Rows whose slot or location changes are first parked at unique negative slots, so swaps and equip-exchanges cannot trip the partial unique indexes in statement order. The room assigns the new state only after commit. `ServerServices` exposes one `ItemService` (`loadInventory`, `loadWarehouse`, `apply`) instead of one injected function per command; room tests use an in-memory fake that applies the same `ItemChange[]`.
+
+## D50 — Loaded items are repaired, never silently deleted
+
+`loadInventory` locks the character row, reads gold and item rows in one snapshot, and repairs overlaps, obsolete equipment slots, quantity corruption and unknown definitions before returning. Repairs are written with an `item_log` row (`action = "repair"`) so a hidden data problem leaves an audit trail. An unknown `definitionId` is treated as a size-1 material and kept; a misplaced equipment item moves to the first free inventory cell. New characters receive their starter weapon, potions and 500 gold inside the existing character-creation transaction, so a failed create leaves no orphan item or gold-log rows.

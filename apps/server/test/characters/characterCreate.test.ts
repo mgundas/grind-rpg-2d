@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { VILLAGE_SPAWN } from "@jadethrone/data";
+import { STARTER_KIT } from "@jadethrone/data/starterKits";
 import type { CreateCharacterRequest } from "@jadethrone/shared";
 import { buildNewCharacter } from "../../src/characters/characterService";
 import { defaultSpawn } from "../../src/characters/spawn";
@@ -30,7 +31,7 @@ describe("buildNewCharacter", () => {
     expect(row.hairColor).toBe(0);
     expect(row.level).toBe(1);
     expect(row.xp).toBe(0);
-    expect(row.gold).toBe(0);
+    expect(row.gold).toBe(STARTER_KIT.gold);
     expect(row.hp).toBe(316); // 120 + 4*40 + 1*36
     expect(row.mp).toBe(92); // 20 + 3*20 + 1*12
     expect(row.statVit).toBe(4);

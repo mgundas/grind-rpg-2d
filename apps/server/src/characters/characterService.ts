@@ -15,10 +15,19 @@ import {
   type MapId,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
+import { STARTER_KIT } from "@jadethrone/data/starterKits";
 import type { Db } from "../db/client";
 import { CHARACTER_UNIQUE, toServiceError } from "../db/errors";
-import { accounts, characters, type CharacterRow } from "../db/schema";
+import {
+  accounts,
+  characters,
+  goldLog,
+  itemLog,
+  items,
+  type CharacterRow,
+} from "../db/schema";
 import { ServiceError } from "../errors";
+import { buildStarterKit } from "../items/starterKit";
 import { toCharacterRecord, toCharacterSummary, type CharacterRecord } from "./characterMappers";
 import { defaultSpawn, type CharacterSave } from "./spawn";
 
@@ -114,7 +123,7 @@ export function buildNewCharacter(
     hairColor: input.hairColor,
     level,
     xp: 0,
-    gold: 0,
+    gold: STARTER_KIT.gold,
     hp: maxHp({ baseHp: info.baseHp, vit: info.stats.vit, level }),
     mp: maxMp({ baseMp: info.baseMp, int: info.stats.int, level }),
     statVit: info.stats.vit,
@@ -171,7 +180,30 @@ export async function createCharacter(
       }
 
       const [row] = await tx.insert(characters).values(insert).returning();
-      return toCharacterSummary(row as CharacterRow);
+      const characterRow = row as CharacterRow;
+
+      // Starter gear lives in the same transaction: a failed create never
+      // leaves orphan items or a gold ledger entry behind.
+      const kit = buildStarterKit(characterRow.id, accountId, input.classId);
+      if (kit.rows.length > 0) {
+        await tx.insert(items).values(kit.rows);
+      }
+      if (kit.logs.length > 0) {
+        await tx.insert(itemLog).values(kit.logs);
+      }
+      if (kit.gold > 0) {
+        await tx.insert(goldLog).values({
+          id: randomUUID(),
+          characterId: characterRow.id,
+          accountId,
+          delta: kit.gold,
+          balanceAfter: kit.gold,
+          reason: "starter",
+          detail: { kit: true },
+        });
+      }
+
+      return toCharacterSummary(characterRow);
     });
   } catch (error) {
     throw toServiceError(error, CHARACTER_UNIQUE);

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "gold": 500,
+  "potions": [{ "itemId": "potion_hp_s", "quantity": 5 }],
+  "weapons": {
+    "warrior": "sword_ember_t1",
+    "assassin": "dagger_ember_t1",
+    "hexblade": "sword_hex_t1",
+    "mystic": "bell_ember_t1"
+  }
+}

@@ -138,7 +138,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 3 — Drop tables, shops, NPCs and monster wiring
 - [x] Task 4 — Protocol additions
 - [x] Task 5 — DB schema and migration
-- [ ] Task 6 — Item loading, normalization and starter kit
+- [x] Task 6 — Item loading, normalization and starter kit
 - [ ] Task 7 — Inventory mutation persistence
 - [ ] Task 8 — Pickup and gold persistence
 - [ ] Task 9 — Shop and warehouse persistence
