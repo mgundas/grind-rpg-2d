@@ -104,6 +104,7 @@ interface GroundItemData {
   x: number;
   y: number;
   ownerCharacterId: string;
+  ownerUntilMs: number;
   despawnAtMs: number;
 }
 
@@ -168,6 +169,7 @@ export class WorldScene extends Phaser.Scene {
   private groundVisuals = new Map<string, GroundVisual>();
   private groundData = new Map<string, GroundItemData>();
   private npcPoints: NpcSpawn[] = [];
+  private failedDrops = new Map<string, number>();
   private altHeld = false;
   private lastAutoLootAt = 0;
   private ownWalkBuffer = new SampleBuffer(32);
@@ -201,6 +203,7 @@ export class WorldScene extends Phaser.Scene {
     }
     this.groundVisuals.clear();
     this.groundData.clear();
+    this.failedDrops.clear();
     this.altHeld = false;
     this.lastAutoLootAt = 0;
     this.ownWalkBuffer = new SampleBuffer(32);
@@ -1063,7 +1066,14 @@ export class WorldScene extends Phaser.Scene {
       if (item.despawnAtMs <= Date.now()) {
         continue;
       }
-      if (item.ownerCharacterId && item.ownerCharacterId !== characterId) {
+      if ((this.failedDrops.get(item.dropId) ?? 0) > Date.now()) {
+        continue;
+      }
+      if (
+        item.ownerCharacterId &&
+        item.ownerCharacterId !== characterId &&
+        item.ownerUntilMs > Date.now()
+      ) {
         continue;
       }
       const dx = item.x - own.x;
@@ -1085,7 +1095,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private maybeAutoLoot(): void {
-    if (!useUiStore.getState().autoLoot) {
+    const ui = useUiStore.getState();
+    if (!ui.autoLoot || ui.dead) {
       return;
     }
     const now = this.time.now;
@@ -1102,8 +1113,13 @@ export class WorldScene extends Phaser.Scene {
 
   private showPickupResult(payload: PickupResultPayload): void {
     if (!payload.ok) {
+      // Back off from a rejected drop (full bag, dead, lost claim) instead of
+      // retrying it every 250 ms forever.
+      this.failedDrops.set(payload.dropId, Date.now() + 4000);
+      useUiStore.getState().setInventoryError({ code: payload.code ?? "internal" });
       return;
     }
+    this.failedDrops.delete(payload.dropId);
     const own = this.ownPosition();
     if (payload.gold) {
       this.showDamageNumber(

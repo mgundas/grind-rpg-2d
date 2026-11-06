@@ -1,7 +1,8 @@
-import { and, eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, eq, lt } from "drizzle-orm";
 import type { WarehouseState } from "@jadethrone/shared";
 import type { Db } from "../db/client";
-import { items, type NewItemRow } from "../db/schema";
+import { itemLog, items, type ItemRow, type NewItemRow } from "../db/schema";
 import { logger } from "../logger";
 import type { ItemPlan } from "./itemChanges";
 import { applyItemTransaction } from "./itemTransactions";
@@ -22,8 +23,28 @@ export interface ItemService {
   /** Ground drops are inserted before they enter room state (Task 13). */
   insertGroundItem(row: NewItemRow): Promise<boolean>;
   deleteGroundItem(id: string): Promise<boolean>;
-  /** Purge leftovers from a previous process when a room starts. */
-  deleteGroundItemsForMap(mapId: string): Promise<number>;
+  /** Purge already-expired leftovers when a room starts (never live drops). */
+  deleteExpiredGroundItems(mapId: string): Promise<number>;
+}
+
+function despawnLog(row: ItemRow, reason: string) {
+  return {
+    id: randomUUID(),
+    itemId: row.id,
+    actorCharacterId: row.dropOwnerCharacterId ?? null,
+    action: "despawn" as const,
+    definitionId: row.definitionId,
+    quantity: row.quantity,
+    fromLocation: "ground",
+    fromSlot: null,
+    toLocation: null,
+    toSlot: null,
+    detail: {
+      reason,
+      mapId: row.mapId,
+      roomId: row.roomId,
+    },
+  };
 }
 
 export function createItemService(db: Db): ItemService {
@@ -34,7 +55,27 @@ export function createItemService(db: Db): ItemService {
       applyItemTransaction(db, { accountId, characterId }, plan),
     async insertGroundItem(row) {
       try {
-        await db.insert(items).values(row);
+        await db.transaction(async (tx) => {
+          await tx.insert(items).values(row);
+          await tx.insert(itemLog).values({
+            id: randomUUID(),
+            itemId: row.id,
+            actorCharacterId: row.dropOwnerCharacterId ?? null,
+            action: "drop",
+            definitionId: row.definitionId,
+            quantity: row.quantity ?? 1,
+            fromLocation: null,
+            fromSlot: null,
+            toLocation: "ground",
+            toSlot: null,
+            detail: {
+              mapId: row.mapId,
+              roomId: row.roomId,
+              x: row.x,
+              y: row.y,
+            },
+          });
+        });
         return true;
       } catch (error) {
         logger.error({ itemId: row.id, error }, "ground item insert failed");
@@ -43,23 +84,54 @@ export function createItemService(db: Db): ItemService {
     },
     async deleteGroundItem(id) {
       try {
-        const deleted = await db
-          .delete(items)
-          .where(and(eq(items.id, id), eq(items.location, "ground")))
-          .returning({ id: items.id });
-        return deleted.length > 0;
+        return await db.transaction(async (tx) => {
+          const [row] = await tx
+            .select()
+            .from(items)
+            .where(and(eq(items.id, id), eq(items.location, "ground")))
+            .limit(1);
+          if (!row) {
+            return false;
+          }
+          await tx.delete(items).where(eq(items.id, id));
+          await tx.insert(itemLog).values(despawnLog(row, "despawn"));
+          return true;
+        });
       } catch (error) {
         logger.error({ itemId: id, error }, "ground item delete failed");
         return false;
       }
     },
-    async deleteGroundItemsForMap(mapId) {
+    async deleteExpiredGroundItems(mapId) {
       try {
-        const deleted = await db
-          .delete(items)
-          .where(and(eq(items.location, "ground"), eq(items.mapId, mapId)))
-          .returning({ id: items.id });
-        return deleted.length;
+        return await db.transaction(async (tx) => {
+          const expired = (await tx
+            .select()
+            .from(items)
+            .where(
+              and(
+                eq(items.location, "ground"),
+                eq(items.mapId, mapId),
+                lt(items.despawnAt, new Date()),
+              ),
+            )) as ItemRow[];
+          if (expired.length === 0) {
+            return 0;
+          }
+          await tx
+            .delete(items)
+            .where(
+              and(
+                eq(items.location, "ground"),
+                eq(items.mapId, mapId),
+                lt(items.despawnAt, new Date()),
+              ),
+            );
+          await tx
+            .insert(itemLog)
+            .values(expired.map((row) => despawnLog(row, "stale_map_cleanup")));
+          return expired.length;
+        });
       } catch (error) {
         logger.error({ mapId, error }, "ground item map cleanup failed");
         return 0;

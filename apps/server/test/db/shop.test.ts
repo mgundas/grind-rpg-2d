@@ -48,12 +48,12 @@ async function setup(db: Db) {
   });
   const character = await createCharacter(db, account.account.id, input());
   await db.delete(items).where(eq(items.ownerCharacterId, character.id));
+  await db.delete(goldLog).where(eq(goldLog.characterId, character.id));
   return { accountId: account.account.id, characterId: character.id };
 }
 
 function idFactory(): () => string {
-  let next = 0;
-  return () => `buy-${++next}`;
+  return () => randomUUID();
 }
 
 function inventory(items: ItemStack[] = []) {
@@ -123,25 +123,26 @@ describeDb("shop persistence", () => {
     expect(logRows.some((row) => row.action === "buy")).toBe(true);
   });
 
-  it("splits a 25-potion purchase into two stacks", async () => {
+  it("splits a 105-potion purchase into two stacks", async () => {
     const { db } = testDb;
     const { accountId, characterId } = await setup(db);
+    await db.update(characters).set({ gold: 5000 }).where(eq(characters.id, characterId));
     const plan = planBuy(
       emptyInventory(),
       characterId,
-      500,
+      5000,
       "general_goods",
       "potion_hp_s",
-      25,
+      105,
       idFactory(),
     );
     await applyItemTransaction(db, { accountId, characterId }, plan.plan);
 
     const rows = await db.select().from(items).where(eq(items.ownerCharacterId, characterId));
     expect(rows).toHaveLength(2);
-    expect(rows.map((row) => row.quantity).sort()).toEqual([5, 20]);
+    expect(rows.map((row) => row.quantity).sort((a, b) => a - b)).toEqual([5, 100]);
     const [character] = await db.select().from(characters).where(eq(characters.id, characterId));
-    expect(character?.gold).toBe(500 - 25 * 40);
+    expect(character?.gold).toBe(5000 - 105 * 40);
   });
 
   it("lets exactly one of two concurrent purchases spend the last gold", async () => {

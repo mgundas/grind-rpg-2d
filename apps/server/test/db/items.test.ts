@@ -155,7 +155,7 @@ describeDb("item loading and starter kit", () => {
         definitionId: "armor_warrior_t2",
         ownerCharacterId: summary.id,
         location: "inventory",
-        slot: 1,
+        slot: 5,
         quantity: 1,
         createdBy: "test",
       },
@@ -202,6 +202,38 @@ describeDb("item loading and starter kit", () => {
     expect(loaded.inventory.equipment.every((entry) => entry === null)).toBe(true);
     expect(loaded.inventory.items[0]?.itemId).toBe("sword_ember_t1");
     expect(loaded.repairs[0]?.reason).toBe("equipment_slot");
+  });
+
+  it("repairs a misplaced equipment item without colliding with a real slot", async () => {
+    const { db } = testDb;
+    const account = await newAccount(db);
+    const summary = await createCharacter(db, account.account.id, characterInput());
+    await clearItems(db, summary.id);
+    await db.insert(items).values([
+      {
+        id: randomUUID(),
+        definitionId: "potion_hp_s",
+        ownerCharacterId: summary.id,
+        location: "inventory",
+        slot: 0,
+        quantity: 5,
+        createdBy: "test",
+      },
+      {
+        id: randomUUID(),
+        definitionId: "sword_ember_t1",
+        ownerCharacterId: summary.id,
+        location: "equipment",
+        slot: 5,
+        quantity: 1,
+        createdBy: "test",
+      },
+    ]);
+
+    const loaded = await loadInventory(db, account.account.id, summary.id);
+    expect(loaded.inventory.items).toHaveLength(2);
+    expect(loaded.inventory.items.find((item) => item.itemId === "potion_hp_s")?.slot).toBe(0);
+    expect(loaded.inventory.items.find((item) => item.itemId === "sword_ember_t1")?.slot).toBe(1);
   });
 
   it("keeps an unknown definition instead of deleting it", async () => {

@@ -19,6 +19,8 @@ export function Hotbar() {
   const [bindingsByCharacter, setBindingsByCharacter] = useState<
     Record<string, HotbarBindings>
   >({});
+  const draggedItemId = useUiStore((state) => state.draggedItemId);
+  const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
   const bindings = characterId
     ? (bindingsByCharacter[characterId] ?? loadHotbar(characterId))
     : loadHotbar(null);
@@ -96,16 +98,15 @@ export function Hotbar() {
             key={index}
             type="button"
             onClick={() => triggerSlot(index)}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const dropped = event.dataTransfer.getData("text/jt-item");
-              if (!dropped || !hasItem(dropped)) {
+            onPointerUp={(event) => {
+              if (!draggedItemId || !hasItem(draggedItemId)) {
                 return;
               }
+              event.stopPropagation();
               const next = [...bindings];
-              next[index] = dropped;
+              next[index] = draggedItemId;
               updateBindings(next);
+              setDraggedItemId(null);
             }}
             onContextMenu={(event) => {
               event.preventDefault();

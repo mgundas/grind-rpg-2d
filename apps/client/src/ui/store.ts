@@ -101,6 +101,9 @@ interface UiState {
   setInventoryError: (error: UiState["inventoryError"]) => void;
   autoLoot: boolean;
   setAutoLoot: (enabled: boolean) => void;
+  /** Item definition currently being dragged (inventory → hotbar). */
+  draggedItemId: string | null;
+  setDraggedItemId: (itemId: string | null) => void;
 
   npcDialog: NpcDialogPayload | null;
   setNpcDialog: (dialog: NpcDialogPayload | null) => void;
@@ -206,7 +209,12 @@ export const useUiStore = create<UiState>((set) => ({
   setCharacterOpen: (characterOpen) => set({ characterOpen }),
 
   inventory: null,
-  setInventory: (inventory) => set({ inventory }),
+  setInventory: (inventory) =>
+    set((state) =>
+      inventory && state.inventory && inventory.revision < state.inventory.revision
+        ? {}
+        : { inventory },
+    ),
   inventoryOpen: false,
   toggleInventory: () => set((state) => ({ inventoryOpen: !state.inventoryOpen })),
   setInventoryOpen: (inventoryOpen) => set({ inventoryOpen }),
@@ -214,13 +222,20 @@ export const useUiStore = create<UiState>((set) => ({
   setInventoryError: (inventoryError) => set({ inventoryError }),
   autoLoot: true,
   setAutoLoot: (autoLoot) => set({ autoLoot }),
+  draggedItemId: null,
+  setDraggedItemId: (draggedItemId) => set({ draggedItemId }),
 
   npcDialog: null,
   setNpcDialog: (npcDialog) => set({ npcDialog }),
   shopId: null,
   setShopId: (shopId) => set({ shopId }),
   warehouse: null,
-  setWarehouse: (warehouse) => set({ warehouse }),
+  setWarehouse: (warehouse) =>
+    set((state) =>
+      warehouse && state.warehouse && warehouse.revision < state.warehouse.revision
+        ? {}
+        : { warehouse },
+    ),
   warehouseOpen: false,
   setWarehouseOpen: (warehouseOpen) => set({ warehouseOpen }),
 

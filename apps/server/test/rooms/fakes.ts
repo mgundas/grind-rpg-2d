@@ -354,7 +354,7 @@ export function createFakeServices(): FakeServices {
       itemRows.delete(id);
       return true;
     },
-    async deleteGroundItemsForMap(mapId) {
+    async deleteExpiredGroundItems(mapId) {
       let deleted = 0;
       for (const [id, row] of itemRows) {
         if (row.location === "ground" && row.mapId === mapId) {

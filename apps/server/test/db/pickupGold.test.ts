@@ -48,6 +48,7 @@ async function setup(db: Db) {
   });
   const character = await createCharacter(db, account.account.id, input());
   await db.delete(items).where(eq(items.ownerCharacterId, character.id));
+  await db.delete(goldLog).where(eq(goldLog.characterId, character.id));
   return { accountId: account.account.id, characterId: character.id };
 }
 

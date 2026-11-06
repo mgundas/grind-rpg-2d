@@ -14,10 +14,3 @@ export interface GroundItemRuntime {
   ownerUntilMs: number;
   despawnAtMs: number;
 }
-
-export function isOwnerLocked(item: GroundItemRuntime, characterId: string, now: number): boolean {
-  if (!item.ownerCharacterId || now >= item.ownerUntilMs) {
-    return false;
-  }
-  return item.ownerCharacterId === characterId;
-}

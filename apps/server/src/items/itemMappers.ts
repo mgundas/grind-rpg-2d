@@ -112,14 +112,27 @@ export function loadRowsIntoState(
   const equipment: (ItemStack | null)[] = Array.from({ length: EQUIP_SLOTS.length }, () => null);
   const repairs: InventoryRepair[] = [];
 
-  for (const row of rows) {
+  // Inventory first: an equipment row that has to move into the bag must see
+  // the real occupied cells, otherwise it can target an occupied slot.
+  const ordered = [...rows].sort((a, b) => {
+    const rank = (row: ItemRow) => (row.location === "inventory" ? 0 : 1);
+    return rank(a) - rank(b);
+  });
+  for (const row of ordered) {
     if (row.location !== "inventory" && row.location !== "equipment") {
       continue;
     }
     const stack = toItemStack(row);
     if (row.location === "inventory") {
+      const known = hasItem(row.definitionId);
       const definition = safeDefinition(row.definitionId);
       const maxQuantity = definition.stackable ? Math.max(1, definition.maxStack) : 1;
+      if (!known) {
+        // A removed definition must not destroy the saved quantity; it is
+        // already unreadable in-game, but the row can be restored by data.
+        items.push(stack);
+        continue;
+      }
       if (!Number.isInteger(stack.quantity) || stack.quantity < 1) {
         stack.quantity = 1;
         repairs.push({

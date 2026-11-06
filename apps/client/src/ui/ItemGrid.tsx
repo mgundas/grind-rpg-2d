@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { RARITY_COLORS, equipSlotForItemType, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { theme } from "./theme";
@@ -8,14 +7,15 @@ interface ItemGridProps {
   startSlot: number;
   slotCount: number;
   cellSize?: number;
-  onMove: (instanceId: string, toSlot: number) => void;
-  onSplit: (instanceId: string, quantity: number, toSlot: number) => void;
+  drag: DragState | null;
+  onDragStart: (drag: DragState) => void;
+  onDropAt: (slot: number) => void;
   onEquip: (instanceId: string) => void;
   onUse: (instanceId: string) => void;
   onHover: (item: ItemInstanceDto | null, x: number, y: number) => void;
 }
 
-interface DragState {
+export interface DragState {
   instanceId: string;
   quantity: number;
   split: boolean;
@@ -36,20 +36,13 @@ export function ItemGrid({
   startSlot,
   slotCount,
   cellSize = 38,
-  onMove,
-  onSplit,
+  drag,
+  onDragStart,
+  onDropAt,
   onEquip,
   onUse,
   onHover,
 }: ItemGridProps) {
-  const [drag, setDrag] = useState<DragState | null>(null);
-
-  useEffect(() => {
-    const clear = () => setDrag(null);
-    window.addEventListener("pointerup", clear);
-    return () => window.removeEventListener("pointerup", clear);
-  }, []);
-
   const pageItems = items.filter(
     (item) => item.slot >= startSlot && item.slot < startSlot + slotCount,
   );
@@ -79,15 +72,9 @@ export function ItemGrid({
             aria-label={`Inventory slot ${slot}`}
             onPointerUp={(event) => {
               event.stopPropagation();
-              if (!drag) {
-                return;
+              if (drag) {
+                onDropAt(slot);
               }
-              if (drag.split) {
-                onSplit(drag.instanceId, Math.max(1, Math.floor(drag.quantity / 2)), slot);
-              } else {
-                onMove(drag.instanceId, slot);
-              }
-              setDrag(null);
             }}
             style={{
               position: "absolute",
@@ -120,16 +107,17 @@ export function ItemGrid({
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              setDrag({
+              onDragStart({
                 instanceId: item.id,
                 quantity: item.quantity,
                 split: event.shiftKey && item.quantity > 1,
               });
             }}
-            draggable
-            onDragStart={(event) => {
-              event.dataTransfer.setData("text/jt-item", item.itemId);
-              event.dataTransfer.effectAllowed = "copy";
+            onPointerUp={(event) => {
+              event.stopPropagation();
+              if (drag && drag.instanceId !== item.id) {
+                onDropAt(item.slot);
+              }
             }}
             onPointerEnter={(event) => onHover(item, event.clientX, event.clientY)}
             onPointerMove={(event) => onHover(item, event.clientX, event.clientY)}

@@ -146,21 +146,23 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 11 — Runtime inventory, join load, snapshots and command queue
 - [x] Task 12 — Equipment stats and server-side visual keys
 - [x] Task 13 — Drops, ground items and ownership
-- [ ] Task 14 — Pickup, gold credit and auto-loot support
-- [ ] Task 15 — Consumables and return scroll
+- [x] Task 14 — Pickup, gold credit and auto-loot support
+- [x] Task 15 — Consumables and return scroll
 - [x] Task 16 — NPC dialog and shops (server)
-- [ ] Task 17 — Warehouse (server)
+- [x] Task 17 — Warehouse (server)
 - [x] Task 18 — Client store, item icons and inventory UI
 - [x] Task 19 — Client equipment panel and visual layers
 - [x] Task 20 — Client hotbar, consumables and gold HUD
 - [x] Task 21 — Client ground items, pickup FX and auto-loot
 - [x] Task 22 — Client NPC dialog, shop and warehouse UI
 - [x] Task 23 — Verification tooling and docs
-- [ ] Task 24 — Phase gate
+- [x] Task 24 — Phase gate
+
+**Gate verification (2026-11-07):** `pnpm typecheck`, `pnpm lint`, `pnpm build` pass. Full suite against `jade_throne_test` (constructed from the local Postgres env): **55 files / 513 tests pass**, including the real-Postgres transaction, pickup, shop, warehouse and repair tests. `pnpm verify:phase4-economy` passes; the live `node scripts/verify-phase4-e2e.mjs` run against the real server passed starter inventory, NPC dialog, shop buy/sell, warehouse deposit and cross-character withdraw. `scripts/smoke-server.mjs` boots both map rooms with `db: "up"`.
 
 ## Later phases (from GAME_DESIGN.md §12)
 
-- [ ] Phase 4 — Items and economy (see the Phase 4 section above)
+- [x] Phase 4 — Items and economy → see the Phase 4 section above
 - [ ] Phase 5 — Admin panel
 - [ ] Phase 6 — Spirit stones, skills, parties
 - [ ] Phase 7 — Upgrades, bonuses, trading

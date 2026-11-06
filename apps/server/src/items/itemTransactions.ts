@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { MAX_GOLD } from "@jadethrone/shared";
 import type { Db, Tx } from "../db/client";
+import { logger } from "../logger";
 import { accounts, characters, goldLog, itemLog, items, type ItemRow } from "../db/schema";
 import { ItemError } from "./errors";
 import type { ItemChange, ItemPlan, RowState } from "./itemChanges";
@@ -123,6 +124,18 @@ export async function applyItemTransaction(
         verifyChange(change, byId.get(change.id));
       }
 
+      // Validate the gold delta before any item write. Two concurrent purchases
+      // that both planned against the old balance must fail with `no_gold`
+      // rather than colliding on a slot insert.
+      let gold = currentGold;
+      if (plan.gold) {
+        const requested = Math.trunc(plan.gold.delta);
+        if (requested < 0 && -requested > currentGold) {
+          throw new ItemError("no_gold", "Not enough gold.");
+        }
+        gold = Math.max(0, Math.min(MAX_GOLD, currentGold + requested));
+      }
+
       // Deletes first: they free slots for inserts/swaps in the same plan.
       for (const change of plan.changes) {
         if (change.kind === "delete") {
@@ -183,13 +196,7 @@ export async function applyItemTransaction(
         });
       }
 
-      let gold = currentGold;
       if (plan.gold) {
-        const requested = Math.trunc(plan.gold.delta);
-        if (requested < 0 && -requested > currentGold) {
-          throw new ItemError("no_gold", "Not enough gold.");
-        }
-        gold = Math.max(0, Math.min(MAX_GOLD, currentGold + requested));
         const actual = gold - currentGold;
         await tx
           .update(characters)
@@ -236,6 +243,10 @@ export async function applyItemTransaction(
     if (isUniqueViolation(error)) {
       throw new ItemError("stale", "Item slot changed; reload required.");
     }
+    logger.error(
+      { characterId: context.characterId, accountId: context.accountId, error },
+      "item transaction failed",
+    );
     throw new ItemError("internal", "Item transaction failed.");
   }
 }

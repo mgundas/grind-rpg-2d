@@ -16,6 +16,7 @@ import {
   INTEREST_RADIUS_PX,
   ITEM_USE_COOLDOWN_MS,
   MAX_ASTAR_PER_TICK,
+  MAX_GOLD,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
@@ -52,6 +53,9 @@ import {
   rollDrops,
   shopBuyMessageSchema,
   shopSellMessageSchema,
+  warehouseDepositMessageSchema,
+  warehouseOpenMessageSchema,
+  warehouseWithdrawMessageSchema,
   requestInventoryMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
@@ -98,6 +102,7 @@ import {
   diffInventory,
   planBuy,
   planConsume,
+  planDeposit,
   planEquip,
   planGoldPickup,
   planMove,
@@ -105,10 +110,11 @@ import {
   planSell,
   planSplit,
   planUnequip,
+  planWithdraw,
 } from "../items/planning";
-import { buildInventorySnapshot } from "./items";
+import { buildInventorySnapshot, buildWarehouseSnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
-import { isOwnerLocked, type GroundItemRuntime } from "./groundItems";
+import type { GroundItemRuntime } from "./groundItems";
 import { GroundItemState, PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
@@ -202,13 +208,13 @@ export class MapRoom extends Room {
     });
     spawnAllGroups(this.spawns, Date.now());
 
-    // Leftovers from a previous process are unreachable; remove them before
-    // this room starts producing new drops.
+    // Expired rows from a previous process are unreachable. Only `despawn_at`
+    // rows are removed, so a concurrent room's live drops are never touched.
     void getServerServices()
-      .items.deleteGroundItemsForMap(this.mapId)
+      .items.deleteExpiredGroundItems(this.mapId)
       .then((count) => {
         if (count > 0) {
-          logger.info({ roomId: this.roomId, mapId: this.mapId, count }, "purged stale ground items");
+          logger.info({ roomId: this.roomId, mapId: this.mapId, count }, "purged expired ground items");
         }
       })
       .catch((error: unknown) => {
@@ -490,6 +496,65 @@ export class MapRoom extends Room {
           parsed.data.quantity,
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.warehouseOpen, (client, raw) => {
+      const parsed = warehouseOpenMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid warehouseOpen message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        this.requireWarehouseRange(runtime, parsed.data.npcId);
+        await this.openWarehouse(client, runtime);
+      });
+    });
+
+    this.onMessage(MSG.warehouseDeposit, (client, raw) => {
+      const parsed = warehouseDepositMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid warehouseDeposit message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        this.requireWarehouseRange(runtime);
+        await this.ensureWarehouse(runtime);
+        const result = planDeposit(
+          runtime.inventory,
+          runtime.warehouse!,
+          runtime.characterId,
+          runtime.accountId,
+          parsed.data.instanceId,
+        );
+        await this.applyItemPlan(runtime, result.state.inventory, result.plan);
+        runtime.warehouse = result.state.warehouse;
+        runtime.warehouseRevision++;
+        this.sendWarehouse(client);
+      });
+    });
+
+    this.onMessage(MSG.warehouseWithdraw, (client, raw) => {
+      const parsed = warehouseWithdrawMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid warehouseWithdraw message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        this.requireWarehouseRange(runtime);
+        await this.ensureWarehouse(runtime);
+        const result = planWithdraw(
+          runtime.inventory,
+          runtime.warehouse!,
+          runtime.characterId,
+          runtime.accountId,
+          parsed.data.instanceId,
+          parsed.data.toSlot ?? null,
+        );
+        await this.applyItemPlan(runtime, result.state.inventory, result.plan);
+        runtime.warehouse = result.state.warehouse;
+        runtime.warehouseRevision++;
+        this.sendWarehouse(client);
       });
     });
 
@@ -972,7 +1037,12 @@ export class MapRoom extends Room {
         this.clearAutoWalk(attacker, sessionId, "target_lost");
       }
       this.awardKillXp(sessionId, killed);
-      void this.spawnDrops(killed, sessionId, now);
+      void this.spawnDrops(killed, sessionId, now).catch((error: unknown) => {
+        logger.error(
+          { roomId: this.roomId, monsterId: killed.monsterId, error },
+          "drop spawn failed",
+        );
+      });
     }
   }
 
@@ -1000,6 +1070,7 @@ export class MapRoom extends Room {
     state.x = item.x;
     state.y = item.y;
     state.ownerCharacterId = item.ownerCharacterId;
+    state.ownerUntilMs = item.ownerUntilMs;
     state.despawnAtMs = item.despawnAtMs;
     this.state.groundItems.set(item.dropId, state);
   }
@@ -1221,6 +1292,10 @@ export class MapRoom extends Room {
       if (!current || current.inventoryClosed) {
         return;
       }
+      if (current.dead) {
+        this.sendItemError(client, "dead");
+        return;
+      }
       try {
         await handler(current);
       } catch (error) {
@@ -1346,8 +1421,12 @@ export class MapRoom extends Room {
     }
 
     if (drop.kind === "gold") {
+      if (runtime.gold >= MAX_GOLD) {
+        throw new ItemError("not_usable", "Your gold is at the cap.");
+      }
       this.removeGroundItem(dropId);
       try {
+        const before = runtime.gold;
         const plan = planGoldPickup(runtime.characterId, drop.quantity, dropId);
         const { gold } = await getServerServices().items.apply(
           runtime.accountId,
@@ -1357,10 +1436,15 @@ export class MapRoom extends Room {
         runtime.gold = gold;
         runtime.inventoryRevision++;
         this.sendInventory(client.sessionId);
+        const credited = gold - before;
+        if (credited < drop.quantity) {
+          this.restoreGroundItem({ ...drop, quantity: drop.quantity - credited });
+        }
         this.sendPickupResult(client, {
           dropId,
-          ok: true,
-          gold: drop.quantity,
+          ok: credited > 0,
+          gold: credited,
+          code: credited > 0 ? undefined : "not_usable",
         });
       } catch (error) {
         this.restoreGroundItem(drop);
@@ -1429,7 +1513,9 @@ export class MapRoom extends Room {
     await this.applyItemPlan(runtime, consumed.state, consumed.plan);
 
     if (effect.kind === "warp_town") {
-      const accepted = await this.beginWarp(client, defaultSpawn());
+      const accepted = await this.beginWarp(client, defaultSpawn(), {
+        awaitInventory: false,
+      });
       if (!accepted) {
         await this.refundConsumedItem(runtime, before);
       }
@@ -1452,6 +1538,12 @@ export class MapRoom extends Room {
       player.hp = runtime.progression.hp;
       player.mp = runtime.progression.mp;
     }
+    runtime.dirty = true;
+    void this.enqueueSave(runtime, {
+      mapId: this.mapId,
+      x: runtime.mover.pos.x,
+      y: runtime.mover.pos.y,
+    });
     this.sendSelfStats(client.sessionId);
   }
 
@@ -1535,6 +1627,45 @@ export class MapRoom extends Room {
     throw new ItemError("out_of_range", "Walk closer to a shop.");
   }
 
+  private sendWarehouse(client: Client): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    this.safeSend(client, MSG.warehouse, buildWarehouseSnapshot(runtime));
+  }
+
+  private requireWarehouseRange(runtime: PlayerRuntime, npcId?: string): void {
+    for (const point of this.assets.npcs) {
+      if (npcId && point.npcId !== npcId) {
+        continue;
+      }
+      let info;
+      try {
+        info = getNpc(point.npcId);
+      } catch {
+        continue;
+      }
+      if (info.kind === "warehouse" && this.isNearNpc(runtime, point)) {
+        return;
+      }
+    }
+    throw new ItemError("out_of_range", "Walk closer to the warehouse keeper.");
+  }
+
+  private async ensureWarehouse(runtime: PlayerRuntime): Promise<void> {
+    if (!runtime.warehouse) {
+      runtime.warehouse = await getServerServices().items.loadWarehouse(runtime.accountId);
+      runtime.warehouseRevision++;
+    }
+  }
+
+  private async openWarehouse(client: Client, runtime: PlayerRuntime): Promise<void> {
+    runtime.warehouse = await getServerServices().items.loadWarehouse(runtime.accountId);
+    runtime.warehouseRevision++;
+    this.sendWarehouse(client);
+  }
+
   private async handlePickupFailure(
     client: Client,
     runtime: PlayerRuntime,
@@ -1591,6 +1722,11 @@ export class MapRoom extends Room {
         try {
           await this.reloadRuntimeInventory(runtime);
           this.sendInventory(client.sessionId);
+          if (runtime.warehouse) {
+            runtime.warehouse = await getServerServices().items.loadWarehouse(runtime.accountId);
+            runtime.warehouseRevision++;
+            this.sendWarehouse(client);
+          }
         } catch (reloadError) {
           logger.error(
             { roomId: this.roomId, session: client.sessionId, error: reloadError },
@@ -1920,6 +2056,7 @@ export class MapRoom extends Room {
   private async beginWarp(
     client: Client,
     destination: { mapId: MapId; x: number; y: number },
+    options: { awaitInventory?: boolean } = {},
   ): Promise<boolean> {
     const runtime = this.runtimes.get(client.sessionId);
     const player = this.state.players.get(client.sessionId);
@@ -1928,7 +2065,11 @@ export class MapRoom extends Room {
     }
     runtime.warping = true;
     runtime.inventoryClosed = true;
-    await runtime.inventoryChain?.catch(() => undefined);
+    // A return scroll calls beginWarp from inside the inventory chain. Awaiting
+    // that same chain here would deadlock, so the caller that owns it skips it.
+    if (options.awaitInventory !== false) {
+      await runtime.inventoryChain?.catch(() => undefined);
+    }
     const services = getServerServices();
     const source = {
       mapId: this.mapId,

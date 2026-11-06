@@ -8,7 +8,7 @@ import {
   sendUseItem,
 } from "../network/session";
 import { EquipmentPanel } from "./EquipmentPanel";
-import { ItemGrid } from "./ItemGrid";
+import { ItemGrid, type DragState } from "./ItemGrid";
 import { ItemTooltip } from "./ItemTooltip";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
@@ -28,7 +28,9 @@ export function InventoryWindow() {
   const setError = useUiStore((state) => state.setInventoryError);
   const autoLoot = useUiStore((state) => state.autoLoot);
   const setAutoLoot = useUiStore((state) => state.setAutoLoot);
+  const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
   const [hover, setHover] = useState<Hover | null>(null);
+  const [drag, setDrag] = useState<DragState | null>(null);
 
   useEffect(() => {
     if (!error) {
@@ -38,11 +40,36 @@ export function InventoryWindow() {
     return () => clearTimeout(timer);
   }, [error, setError]);
 
+  useEffect(() => {
+    const clear = () => {
+      setDrag(null);
+      setDraggedItemId(null);
+    };
+    window.addEventListener("pointerup", clear);
+    return () => window.removeEventListener("pointerup", clear);
+  }, [setDraggedItemId]);
+
   if (!open) {
     return null;
   }
 
   const items = inventory?.items ?? [];
+  const startDrag = (next: DragState) => {
+    setDrag(next);
+    setDraggedItemId(items.find((item) => item.id === next.instanceId)?.itemId ?? null);
+  };
+
+  const handleDrop = (slot: number) => {
+    if (!drag) {
+      return;
+    }
+    if (drag.split) {
+      sendSplitStack(drag.instanceId, Math.max(1, Math.floor(drag.quantity / 2)), slot);
+    } else {
+      sendMoveItem(drag.instanceId, slot);
+    }
+    setDrag(null);
+  };
 
   return (
     <>
@@ -75,8 +102,9 @@ export function InventoryWindow() {
             items={items}
             startSlot={0}
             slotCount={45}
-            onMove={sendMoveItem}
-            onSplit={sendSplitStack}
+            drag={drag}
+            onDragStart={startDrag}
+            onDropAt={handleDrop}
             onEquip={sendEquipItem}
             onUse={sendUseItem}
             onHover={(item, x, y) => setHover(item ? { item, x, y } : null)}
@@ -85,8 +113,9 @@ export function InventoryWindow() {
             items={items}
             startSlot={45}
             slotCount={45}
-            onMove={sendMoveItem}
-            onSplit={sendSplitStack}
+            drag={drag}
+            onDragStart={startDrag}
+            onDropAt={handleDrop}
             onEquip={sendEquipItem}
             onUse={sendUseItem}
             onHover={(item, x, y) => setHover(item ? { item, x, y } : null)}

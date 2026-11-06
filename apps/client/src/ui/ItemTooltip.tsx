@@ -19,6 +19,9 @@ function statLine(label: string, value: number | undefined, suffix = ""): string
 /** Floating item card; positioned near the pointer and clamped to the viewport. */
 export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
   const level = useUiStore((state) => state.selfStats?.level ?? 1);
+  const characters = useUiStore((state) => state.characters);
+  const selectedId = useUiStore((state) => state.selectedCharacterId);
+  const classId = characters.find((character) => character.id === selectedId)?.classId;
   let definition;
   try {
     definition = getItem(item.itemId);
@@ -34,6 +37,8 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
     statLine("Crit", stats.critChance === undefined ? undefined : stats.critChance * 100, "%"),
   ].filter((line): line is string => line !== null);
   const missingLevel = level < definition.levelReq;
+  const missingClass =
+    definition.classes !== "all" && classId !== undefined && !definition.classes.includes(classId);
   const width = 210;
 
   return (
@@ -76,6 +81,11 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
       {definition.levelReq > 1 ? (
         <div style={{ color: missingLevel ? "#ff7a6e" : theme.muted, marginTop: 4 }}>
           Required level {definition.levelReq}
+        </div>
+      ) : null}
+      {definition.classes !== "all" ? (
+        <div style={{ color: missingClass ? "#ff7a6e" : theme.muted }}>
+          Class: {definition.classes.join(", ")}
         </div>
       ) : null}
       {definition.sellPrice > 0 ? (

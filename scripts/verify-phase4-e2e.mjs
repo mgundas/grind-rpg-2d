@@ -76,7 +76,7 @@ async function createCharacter(auth, name) {
 }
 
 function self(room) {
-  return room.state.players.get(room.sessionId);
+  return room.state?.players?.get(room.sessionId);
 }
 
 async function join(accessToken, character) {
@@ -86,7 +86,7 @@ async function join(accessToken, character) {
     characterId: character.id,
     map: character.map,
   });
-  await waitUntil(() => Boolean(self(room)));
+  await waitUntil(() => Boolean(room.state?.players) && Boolean(self(room)));
   let inventory = null;
   room.onMessage("inventory", (payload) => {
     inventory = payload;
@@ -96,8 +96,10 @@ async function join(accessToken, character) {
   return { room, getInventory: () => inventory };
 }
 
+let inputSeq = 1;
+
 async function walkTo(room, target) {
-  const seq = 1;
+  const seq = ++inputSeq;
   room.send("input", { seq, kind: "path", x: target.x, y: target.y });
   await waitUntil(() => {
     const own = self(room);

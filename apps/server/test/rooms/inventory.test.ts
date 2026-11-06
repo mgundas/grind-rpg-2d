@@ -7,6 +7,7 @@ import {
   type InventorySnapshotPayload,
   type NpcDialogPayload,
   type SelfStatsPayload,
+  type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
 import type { KilledMonster } from "../../src/rooms/combat";
@@ -465,6 +466,79 @@ describe("MapRoom inventory snapshots", () => {
     const afterSell = (await sold) as InventorySnapshotPayload;
     expect(afterSell.gold).toBe(460 + 24);
     expect(afterSell.items.some((item) => item.itemId === "material_wolf_fang")).toBe(false);
+  });
+
+  it("deposits and withdraws through the warehouse NPC", async () => {
+    const itemId = randomUUID();
+    const { room, client } = await joinWithInventory("Keeper", (id) => {
+      fake.giveItem({
+        id: itemId,
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 0,
+        quantity: 5,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const internals = room as unknown as {
+      runtimes: Map<string, { mover: { pos: { x: number; y: number } } }>;
+    };
+    const runtime = internals.runtimes.get(client.sessionId)!;
+    const player = room.state.players.get(client.sessionId)!;
+
+    const rejected = client.waitForMessage(MSG.inventoryError, 2000);
+    send(client, MSG.warehouseDeposit, { instanceId: itemId });
+    expect(((await rejected) as { code: string }).code).toBe("out_of_range");
+
+    const npcX = 38 * 32 + 16;
+    const npcY = 42 * 32 + 16;
+    runtime.mover.pos.x = npcX + 8;
+    runtime.mover.pos.y = npcY + 8;
+    player.x = npcX + 8;
+    player.y = npcY + 8;
+
+    const opened = client.waitForMessage(MSG.warehouse, 2000);
+    send(client, MSG.warehouseOpen, { npcId: "warehouse_keeper" });
+    expect(((await opened) as WarehouseSnapshotPayload).items).toHaveLength(0);
+
+    const inventoryAfterDeposit = client.waitForMessage(MSG.inventory, 2000);
+    const warehouseAfterDeposit = client.waitForMessage(MSG.warehouse, 2000);
+    send(client, MSG.warehouseDeposit, { instanceId: itemId });
+    const inventory1 = (await inventoryAfterDeposit) as InventorySnapshotPayload;
+    const warehouse1 = (await warehouseAfterDeposit) as WarehouseSnapshotPayload;
+    expect(inventory1.items).toHaveLength(0);
+    expect(warehouse1.items.map((item) => item.id)).toEqual([itemId]);
+
+    const inventoryAfterWithdraw = client.waitForMessage(MSG.inventory, 2000);
+    const warehouseAfterWithdraw = client.waitForMessage(MSG.warehouse, 2000);
+    send(client, MSG.warehouseWithdraw, { instanceId: itemId });
+    const inventory2 = (await inventoryAfterWithdraw) as InventorySnapshotPayload;
+    const warehouse2 = (await warehouseAfterWithdraw) as WarehouseSnapshotPayload;
+    expect(inventory2.items[0]?.id).toBe(itemId);
+    expect(warehouse2.items).toHaveLength(0);
+  });
+
+  it("uses a return scroll and still releases the inventory chain", async () => {
+    const scrollId = randomUUID();
+    const { client } = await joinWithInventory("Wanderer", (id) => {
+      fake.giveItem({
+        id: scrollId,
+        itemId: "scroll_return",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const inventory = client.waitForMessage(MSG.inventory, 2000);
+    const warp = client.waitForMessage(MSG.warp, 6000);
+    send(client, MSG.useItem, { instanceId: scrollId });
+    const afterUse = (await inventory) as InventorySnapshotPayload;
+    expect(afterUse.items).toHaveLength(0);
+    const payload = (await warp) as { map: string };
+    expect(payload.map).toBe(ROOM_NAME_VILLAGE);
+    // Tear down the source room immediately instead of waiting for the server's
+    // "client did not leave after warp" timeout.
+    await client.leave();
   });
 
   it("serializes two quick moves so the second sees the first result", async () => {

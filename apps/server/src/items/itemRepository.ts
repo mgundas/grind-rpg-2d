@@ -37,6 +37,16 @@ async function persistRepairs(
   for (const repair of repairs) {
     applied.set(repair.itemId, repair);
   }
+  // Park every changing row first: a repair can move an item into a slot that
+  // another repaired row is vacating, which would trip the unique index.
+  let park = 0;
+  for (const repair of applied.values()) {
+    if (repair.toSlot === repair.fromSlot && repair.toLocation === repair.fromLocation) {
+      continue;
+    }
+    park++;
+    await tx.update(items).set({ slot: -park }).where(eq(items.id, repair.itemId));
+  }
   for (const repair of applied.values()) {
     await tx
       .update(items)
