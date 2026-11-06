@@ -364,3 +364,56 @@ describe("MapRoom chat", () => {
     expect(message.text).toBe("still here");
   });
 });
+
+describe("MapRoom interest management", () => {
+  it("keeps the own player and nearby players visible, hides far ones", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const near = await colyseus.connectTo(room, {
+      name: "Near",
+      x: VILLAGE_SPAWN.x + 64,
+      y: VILLAGE_SPAWN.y,
+    });
+    const far = await colyseus.connectTo(room, {
+      name: "Far",
+      x: VILLAGE_SPAWN.x + 1000,
+      y: VILLAGE_SPAWN.y,
+    });
+    await room.waitForNextPatch();
+
+    const aliceServer = room.clients.find((c) => c.sessionId === alice.sessionId)!;
+    const aliceState = room.state.players.get(alice.sessionId)!;
+    const nearState = room.state.players.get(near.sessionId)!;
+    const farState = room.state.players.get(far.sessionId)!;
+
+    expect(aliceServer.view?.has(aliceState)).toBe(true);
+    expect(aliceServer.view?.has(nearState)).toBe(true);
+    expect(aliceServer.view?.has(farState)).toBe(false);
+  });
+
+  it("uses 850/900 px hysteresis for add and remove", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const far = await colyseus.connectTo(room, {
+      name: "Far",
+      x: VILLAGE_SPAWN.x + 1000,
+      y: VILLAGE_SPAWN.y,
+    });
+    await room.waitForNextPatch();
+
+    const aliceServer = room.clients.find((c) => c.sessionId === alice.sessionId)!;
+    const aliceState = room.state.players.get(alice.sessionId)!;
+    const farState = room.state.players.get(far.sessionId)!;
+    expect(aliceServer.view?.has(farState)).toBe(false);
+
+    // 800 px: inside the add radius -> becomes visible.
+    farState.x = aliceState.x + 800;
+    await sleep(350);
+    expect(aliceServer.view?.has(farState)).toBe(true);
+
+    // 950 px: beyond the remove radius -> hidden again.
+    farState.x = aliceState.x + 950;
+    await sleep(350);
+    expect(aliceServer.view?.has(farState)).toBe(false);
+  });
+});

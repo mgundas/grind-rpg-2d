@@ -57,3 +57,7 @@ Each validated `input` intent is stepped for exactly one 50 ms tick (20 intents/
 ## D14 — Local chat is direct, range-filtered sends (not room broadcasts)
 
 Chat recipients are selected by the shared `chatRecipients` helper (900 px around the sender, sender included for the echo/bubble) and delivered with `client.send("chatMsg")` to just those clients; a per-sender 1 s cooldown is enforced server-side. This keeps chat consistent with interest management without coupling it to state patches, and Phase 8 can add shout/whisper/scramble on top. `SIMULATE_LATENCY_MS` calls `server.simulateLatency()` in both directions for the acceptance test (F3 ping therefore reads roughly double the configured value).
+
+## D15 — Interest management: tagged collection + per-client StateView at 4 Hz
+
+The `players` map is view-tagged and each client owns a `StateView`; `updateInterest()` adds a player inside 850 px and removes them beyond 900 px, always keeping the own player visible. The pass runs at 4 Hz (`clock.setInterval(..., 250)`) plus immediately on join, so joins feel instant without paying the O(players²) cost every tick. In Phase 3 this becomes a spatial hash if the population grows.

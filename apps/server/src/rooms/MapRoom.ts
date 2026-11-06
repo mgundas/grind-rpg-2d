@@ -3,6 +3,9 @@ import { StateView } from "@colyseus/schema";
 import { z } from "zod";
 import {
   CHAT_COOLDOWN_MS,
+  INTEREST_ADD_RADIUS_PX,
+  INTEREST_INTERVAL_MS,
+  INTEREST_RADIUS_PX,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
@@ -127,6 +130,8 @@ export class MapRoom extends Room {
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);
+    // Interest management runs at 4 Hz, not every tick (GAME_DESIGN.md §5.1).
+    this.clock.setInterval(() => this.updateInterest(), INTEREST_INTERVAL_MS);
     logger.info({ roomId: this.roomId, mapId: this.mapId }, "map room created");
   }
 
@@ -148,17 +153,10 @@ export class MapRoom extends Room {
     this.runtimes.set(client.sessionId, runtime);
 
     client.view = new StateView();
-    // Interim (task 10 narrows this to the interest radius): everyone sees
-    // everyone. The new client sees all existing players, and existing
-    // clients add the new player to their views.
-    for (const other of this.state.players.values()) {
-      client.view.add(other);
-    }
-    for (const otherClient of this.clients) {
-      if (otherClient.sessionId !== client.sessionId) {
-        otherClient.view?.add(player);
-      }
-    }
+    // Immediate pass so joiners see everyone relevant without waiting for the
+    // next 250 ms interval. Hysteresis inside updateInterest() prevents
+    // boundary flicker.
+    this.updateInterest();
 
     logger.info(
       { roomId: this.roomId, mapId: this.mapId, session: client.sessionId, name: player.name },
@@ -170,6 +168,41 @@ export class MapRoom extends Room {
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     logger.info({ roomId: this.roomId, session: client.sessionId, closeCode: code }, "player left");
+  }
+
+  /**
+   * StateView interest management: a player is added to a client's view inside
+   * INTEREST_ADD_RADIUS_PX and removed beyond INTEREST_RADIUS_PX. The gap is
+   * hysteresis; the own player is always visible.
+   */
+  private updateInterest(): void {
+    const addSquared = INTEREST_ADD_RADIUS_PX * INTEREST_ADD_RADIUS_PX;
+    const removeSquared = INTEREST_RADIUS_PX * INTEREST_RADIUS_PX;
+
+    for (const client of this.clients) {
+      const view = client.view;
+      const own = this.state.players.get(client.sessionId);
+      if (!view || !own) {
+        continue;
+      }
+      for (const [sessionId, player] of this.state.players) {
+        if (sessionId === client.sessionId) {
+          if (!view.has(player)) {
+            view.add(player);
+          }
+          continue;
+        }
+        const dx = player.x - own.x;
+        const dy = player.y - own.y;
+        const distanceSquared = dx * dx + dy * dy;
+        const visible = view.has(player);
+        if (!visible && distanceSquared <= addSquared) {
+          view.add(player);
+        } else if (visible && distanceSquared > removeSquared) {
+          view.remove(player);
+        }
+      }
+    }
   }
 
   /**
