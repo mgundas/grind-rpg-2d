@@ -59,6 +59,8 @@ export const STAT_POINTS_PER_LEVEL = 3;
 
 /** Combat timings and ranges (GAME_DESIGN.md §5, §6). */
 export const ATTACK_ARC_DEGREES = 120;
+/** cos(60°), the half-angle of the 120° frontal arc; must match the degrees above. */
+export const ATTACK_ARC_HALF_COS = 0.5;
 export const ATTACK_RANGE_PAD_PX = 16;
 export const COMBAT_TIMEOUT_MS = 5000;
 export const REGEN_INTERVAL_MS = 3000;

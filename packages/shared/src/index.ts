@@ -2,6 +2,7 @@ export * from "./auth";
 export * from "./characterRules";
 export * from "./chat";
 export * from "./collision";
+export * from "./combat";
 export * from "./constants";
 export * from "./direction";
 export * from "./formulas";

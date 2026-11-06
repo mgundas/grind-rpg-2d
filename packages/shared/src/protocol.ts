@@ -1,4 +1,4 @@
-import { CHAT_MAX_LEN, type MapId } from "./constants";
+import { CHAT_MAX_LEN, type MapId, type Stats } from "./constants";
 import { z } from "zod";
 
 /**
@@ -12,6 +12,17 @@ export const MSG = {
   chatMsg: "chatMsg",
   warp: "warp",
   sessionKicked: "sessionKicked",
+  attack: "attack",
+  setTarget: "setTarget",
+  respawn: "respawn",
+  allocStat: "allocStat",
+  combat: "combat",
+  monsterDied: "monsterDied",
+  levelUp: "levelUp",
+  death: "death",
+  selfStats: "selfStats",
+  autoWalk: "autoWalk",
+  targetCleared: "targetCleared",
 } as const;
 
 /**
@@ -75,4 +86,104 @@ export interface WarpPayload {
   x: number;
   y: number;
   reservation: SeatReservationPayload;
+}
+
+/** Client → server: swing the basic attack in the current (or supplied) facing. */
+export const attackMessageSchema = z.object({
+  dir: z.number().int().min(0).max(7).optional(),
+});
+export type AttackMessage = z.infer<typeof attackMessageSchema>;
+
+/** Client → server: walk to and auto-attack a monster. */
+export const setTargetMessageSchema = z.object({
+  monsterId: z.string().min(1).max(64),
+});
+export type SetTargetMessage = z.infer<typeof setTargetMessageSchema>;
+
+/** Client → server: respawn after a PvE death. */
+export const respawnMessageSchema = z.object({
+  option: z.enum(["here", "town"]),
+});
+export type RespawnMessage = z.infer<typeof respawnMessageSchema>;
+export type RespawnOption = RespawnMessage["option"];
+
+export const STAT_KEYS = ["vit", "int", "str", "dex"] as const;
+export type StatKey = (typeof STAT_KEYS)[number];
+
+/** Client → server: spend one stat point. */
+export const allocStatMessageSchema = z.object({
+  stat: z.enum(STAT_KEYS),
+});
+export type AllocStatMessage = z.infer<typeof allocStatMessageSchema>;
+
+/** Identifies a combatant in a combat event. */
+export type CombatEntityRef =
+  | { kind: "player"; sessionId: string }
+  | { kind: "monster"; monsterId: string };
+
+export interface CombatHit {
+  target: CombatEntityRef;
+  /** Authoritative target position at hit time (for damage numbers). */
+  x: number;
+  y: number;
+  miss: boolean;
+  crit: boolean;
+  damage: number;
+}
+
+/** One message per swing; carries every target hit by the same attack. */
+export interface CombatEventPayload {
+  eventSeq: number;
+  attacker: CombatEntityRef;
+  hits: CombatHit[];
+}
+
+/** Sent when a monster dies; the state entity is removed in the same patch. */
+export interface MonsterDiedPayload {
+  monsterId: string;
+  typeId: string;
+  x: number;
+  y: number;
+  killerSessionId: string | null;
+}
+
+export interface LevelUpPayload {
+  sessionId: string;
+  name: string;
+  level: number;
+  x: number;
+  y: number;
+}
+
+/** Owner-only death notice with the earliest allowed "restart here" time. */
+export interface DeathPayload {
+  respawnHereAtMs: number;
+}
+
+/** Owner-only progression snapshot (XP and stats stay off public state). */
+export interface SelfStatsPayload {
+  level: number;
+  xp: number;
+  xpToNext: number;
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
+  statPoints: number;
+  stats: Stats;
+  attack: number;
+  defense: number;
+  critChance: number;
+}
+
+/** Owner-only switch between local prediction and server-driven auto-walk. */
+export interface AutoWalkPayload {
+  active: boolean;
+  targetMonsterId?: string;
+}
+
+export type TargetClearedReason = "unreachable" | "target_lost" | "cancelled";
+
+export interface TargetClearedPayload {
+  reason: TargetClearedReason;
 }

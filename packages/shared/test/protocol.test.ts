@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { CHAT_MAX_LEN } from "../src/constants";
-import { chatMessageSchema, inputMessageSchema } from "../src/protocol";
+import {
+  allocStatMessageSchema,
+  attackMessageSchema,
+  chatMessageSchema,
+  inputMessageSchema,
+  respawnMessageSchema,
+  setTargetMessageSchema,
+} from "../src/protocol";
 
 describe("inputMessageSchema", () => {
   it("accepts every direction and the three intent kinds", () => {
@@ -40,6 +47,40 @@ describe("inputMessageSchema", () => {
   it("rejects unknown intent kinds and extra required fields", () => {
     expect(inputMessageSchema.safeParse({ seq: 1, kind: "jump" }).success).toBe(false);
     expect(inputMessageSchema.safeParse({ kind: "none" }).success).toBe(false);
+  });
+});
+
+describe("combat message schemas", () => {
+  it("accepts an attack with or without a direction", () => {
+    expect(attackMessageSchema.safeParse({}).success).toBe(true);
+    for (let dir = 0; dir <= 7; dir++) {
+      expect(attackMessageSchema.safeParse({ dir }).success).toBe(true);
+    }
+    for (const dir of [-1, 8, 2.5, "2"]) {
+      expect(attackMessageSchema.safeParse({ dir }).success).toBe(false);
+    }
+  });
+
+  it("validates a setTarget monster id", () => {
+    expect(setTargetMessageSchema.safeParse({ monsterId: "m0_g1_2" }).success).toBe(true);
+    expect(setTargetMessageSchema.safeParse({ monsterId: "" }).success).toBe(false);
+    expect(setTargetMessageSchema.safeParse({ monsterId: "x".repeat(65) }).success).toBe(false);
+    expect(setTargetMessageSchema.safeParse({ monsterId: 7 }).success).toBe(false);
+  });
+
+  it("accepts only the two respawn options", () => {
+    expect(respawnMessageSchema.safeParse({ option: "here" }).success).toBe(true);
+    expect(respawnMessageSchema.safeParse({ option: "town" }).success).toBe(true);
+    expect(respawnMessageSchema.safeParse({ option: "somewhere" }).success).toBe(false);
+  });
+
+  it("accepts only the four stat keys", () => {
+    for (const stat of ["vit", "int", "str", "dex"]) {
+      expect(allocStatMessageSchema.safeParse({ stat }).success).toBe(true);
+    }
+    for (const stat of ["luck", "", 1, null]) {
+      expect(allocStatMessageSchema.safeParse({ stat }).success).toBe(false);
+    }
   });
 });
 
