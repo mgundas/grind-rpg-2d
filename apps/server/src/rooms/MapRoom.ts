@@ -356,26 +356,19 @@ export class MapRoom extends Room {
       case "dir":
         runtime.mover.path = [];
         runtime.lastIntent = { kind: "dir", dir: message.dir as Dir8 };
-        runtime.lastPathTarget = null;
         break;
       case "path": {
+        // Recompute from the current position every tick: with the same
+        // target and grid the client predictor reproduces this exactly during
+        // reconciliation, regardless of which input got acknowledged.
         const target = { x: message.x, y: message.y };
-        const previous = runtime.lastPathTarget;
-        const sameTarget =
-          previous !== null &&
-          Math.abs(previous.x - target.x) < 2 &&
-          Math.abs(previous.y - target.y) < 2;
-        if (!sameTarget) {
-          runtime.mover.path = findPath(this.assets.grid, runtime.mover.pos, target);
-          runtime.lastPathTarget = target;
-        }
+        runtime.mover.path = findPath(this.assets.grid, runtime.mover.pos, target);
         runtime.lastIntent = { kind: "path" };
         break;
       }
       case "none":
         runtime.mover.path = [];
         runtime.lastIntent = { kind: "none" };
-        runtime.lastPathTarget = null;
         break;
     }
     runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);

@@ -163,7 +163,9 @@ export function findPath(
   }
 
   if (start.tx === goal.tx && start.ty === goal.ty) {
-    return [];
+    const samePoint =
+      Math.abs(fromPx.x - targetPoint.x) < 0.001 && Math.abs(fromPx.y - targetPoint.y) < 0.001;
+    return samePoint ? [] : [{ x: targetPoint.x, y: targetPoint.y }];
   }
 
   const width = grid.width;

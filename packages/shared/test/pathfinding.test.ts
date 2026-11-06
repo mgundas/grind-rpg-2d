@@ -46,8 +46,12 @@ describe("findPath", () => {
     expect(findPath(grid, { x: 48, y: 48 }, { x: 300, y: 300 })).toEqual([]);
   });
 
-  it("returns no waypoints when start and goal share a tile", () => {
-    expect(findPath(grid, { x: 48, y: 48 }, { x: 50, y: 50 })).toEqual([]);
+  it("returns a short hop when start and goal share a tile", () => {
+    expect(findPath(grid, { x: 48, y: 48 }, { x: 50, y: 50 })).toEqual([{ x: 50, y: 50 }]);
+  });
+
+  it("returns no waypoints when start already equals the target", () => {
+    expect(findPath(grid, { x: 48, y: 48 }, { x: 48, y: 48 })).toEqual([]);
   });
 
   it("gives up when the node budget is exhausted", () => {

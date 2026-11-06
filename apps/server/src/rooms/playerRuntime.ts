@@ -19,8 +19,6 @@ export interface PlayerRuntime {
   /** Intent used for the 3-tick grace after the last input. */
   lastIntent: MoveIntent;
   ticksSinceInput: number;
-  /** Last click-to-move target, to avoid re-running A* on repeats. */
-  lastPathTarget: Vec2 | null;
   /** Epoch ms before which chat is rate-limited. */
   chatReadyAtMs: number;
   /** A warp is in flight; skip movement/warp checks. */
@@ -36,7 +34,6 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     lastSeq: 0,
     lastIntent: { kind: "none" },
     ticksSinceInput: 999,
-    lastPathTarget: null,
     chatReadyAtMs: 0,
     warping: false,
     warpCooldownUntilMs: 0,
