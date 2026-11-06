@@ -8,6 +8,7 @@
       "weapons": ["sword", "two_handed_sword"],
       "baseHp": 120,
       "baseMp": 20,
+      "attack": { "rangePx": 64, "cooldownMs": 900, "maxTargets": 8 },
       "stats": { "vit": 4, "int": 3, "str": 6, "dex": 3 },
       "colors": { "outfit": "#8c3b2f", "trim": "#c9a227", "pants": "#3b3a36" },
       "doctrines": [
@@ -30,6 +31,7 @@
       "weapons": ["dagger", "bow"],
       "baseHp": 90,
       "baseMp": 30,
+      "attack": { "rangePx": 56, "cooldownMs": 650, "maxTargets": 6 },
       "stats": { "vit": 3, "int": 3, "str": 4, "dex": 6 },
       "colors": { "outfit": "#2f4a3f", "trim": "#5da88f", "pants": "#2b2b33" },
       "doctrines": [
@@ -52,6 +54,7 @@
       "weapons": ["sword"],
       "baseHp": 100,
       "baseMp": 40,
+      "attack": { "rangePx": 60, "cooldownMs": 850, "maxTargets": 6 },
       "stats": { "vit": 3, "int": 5, "str": 5, "dex": 3 },
       "colors": { "outfit": "#4b2f5e", "trim": "#9b6bd1", "pants": "#2f2b36" },
       "doctrines": [
@@ -74,6 +77,7 @@
       "weapons": ["bell", "fan"],
       "baseHp": 80,
       "baseMp": 50,
+      "attack": { "rangePx": 60, "cooldownMs": 850, "maxTargets": 6 },
       "stats": { "vit": 3, "int": 6, "str": 3, "dex": 4 },
       "colors": { "outfit": "#2f4a6b", "trim": "#6bb6d1", "pants": "#353b44" },
       "doctrines": [

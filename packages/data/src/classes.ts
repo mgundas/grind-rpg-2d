@@ -23,6 +23,12 @@ const doctrineSchema = z.object({
   description: z.string().min(1),
 });
 
+const attackSchema = z.object({
+  rangePx: z.number().positive(),
+  cooldownMs: z.number().int().min(200),
+  maxTargets: z.number().int().min(1).max(20),
+});
+
 const classSchema = z.object({
   id: z.enum(CLASS_IDS),
   name: z.string().min(1),
@@ -30,6 +36,7 @@ const classSchema = z.object({
   weapons: z.array(z.string().min(1)).min(1),
   baseHp: z.number().int().positive(),
   baseMp: z.number().int().positive(),
+  attack: attackSchema,
   stats: statsSchema,
   colors: z.object({
     outfit: z.string().regex(/^#[0-9a-fA-F]{6}$/),
@@ -52,6 +59,12 @@ export interface DoctrineInfo {
   description: string;
 }
 
+export interface ClassAttackProfile {
+  rangePx: number;
+  cooldownMs: number;
+  maxTargets: number;
+}
+
 export interface ClassInfo {
   id: ClassId;
   name: string;
@@ -59,6 +72,7 @@ export interface ClassInfo {
   weapons: string[];
   baseHp: number;
   baseMp: number;
+  attack: ClassAttackProfile;
   stats: { vit: number; int: number; str: number; dex: number };
   colors: { outfit: string; trim: string; pants: string };
   doctrines: DoctrineInfo[];

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "groups": [
+    {
+      "id": "field_wolves",
+      "members": [
+        { "monsterId": "wild_dog", "count": 3 },
+        { "monsterId": "gray_wolf", "count": 2 },
+        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 30000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "field_boars",
+      "members": [
+        { "monsterId": "wild_boar", "count": 2 },
+        { "monsterId": "brown_bear", "count": 2 },
+        { "monsterId": "corrupted_deer", "count": 2 },
+        { "monsterId": "brown_bear", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "field_bandits",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 3 },
+        { "monsterId": "bandit_archer", "count": 2 },
+        { "monsterId": "lesser_spirit", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "field_boss",
+      "members": [{ "monsterId": "wolf_king", "count": 1, "leader": true }],
+      "respawnMinMs": 1200000,
+      "respawnMaxMs": 1200000
+    }
+  ]
+}

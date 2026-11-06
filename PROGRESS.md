@@ -106,7 +106,7 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 
 - [x] Task 1 — Shared: combat formulas, regen, XP and RNG interface
 - [x] Task 2 — Shared: combat protocol messages and arc geometry
-- [ ] Task 3 — Data: monsters, spawn groups and class attack profiles
+- [x] Task 3 — Data: monsters, spawn groups and class attack profiles
 - [ ] Task 4 — Shared/map: typed mob zones and assets
 - [ ] Task 5 — Server: schema (monsters, HP/MP/dead), runtime fields and RNG seam
 - [ ] Task 6 — Server: monster AI state machine
