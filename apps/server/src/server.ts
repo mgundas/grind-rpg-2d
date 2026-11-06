@@ -18,6 +18,7 @@ import {
   type CharacterSave,
 } from "./characters/characterService";
 import { getDb, type Db } from "./db/client";
+import type { CharacterRecord } from "./characters/characterMappers";
 import { consumeWarpTokenPayload } from "./rooms/warpTokens";
 import { MapRoom } from "./rooms/MapRoom";
 import { errorHandler, notFoundHandler } from "./http/errors";
@@ -43,6 +44,7 @@ export interface ServerDeps {
   joinAuthenticator?: JoinAuthenticator;
   saveCharacter?: (characterId: string, save: CharacterSave) => Promise<boolean>;
   saveCharacters?: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
+  loadCharacter?: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   createRandomSource?: () => RandomSource;
   combatTuning?: CombatTuning;
   rateLimits?: {
@@ -85,6 +87,9 @@ export function createGameServer(deps: ServerDeps = {}) {
   const saveCharacter =
     deps.saveCharacter ?? ((characterId, save) => saveCharacterState(db, characterId, save));
   const saveCharacters = deps.saveCharacters ?? ((saves) => saveCharacterStates(db, saves));
+  const loadCharacter =
+    deps.loadCharacter ??
+    ((accountId, characterId) => getCharacterForAccount(db, accountId, characterId));
 
   setServerServices({
     db,
@@ -93,6 +98,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     sessionRegistry,
     saveCharacter,
     saveCharacters,
+    loadCharacter,
     createRandomSource: deps.createRandomSource ?? createCryptoRandomSource,
     combatTuning: deps.combatTuning ?? {},
   });

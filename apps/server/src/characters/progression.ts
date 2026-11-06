@@ -26,12 +26,12 @@ export function progressionFromCharacter(character: CharacterRecord): PlayerProg
     str: character.statStr,
     dex: character.statDex,
   };
-  const maximumHp = maxHp({ baseHp: info.baseHp, vit: stats.vit, level: character.level });
-  const maximumMp = maxMp({ baseMp: info.baseMp, int: stats.int, level: character.level });
-
   // Over-full XP (legacy/corrupt rows) levels up in memory; `applyXpGain` with
   // zero gain still consumes full thresholds.
   const levelled = applyXpGain(character.level, character.xp, 0);
+
+  const maximumHp = maxHp({ baseHp: info.baseHp, vit: stats.vit, level: levelled.level });
+  const maximumMp = maxMp({ baseMp: info.baseMp, int: stats.int, level: levelled.level });
 
   return {
     // A dead-on-login row is revived at full HP rather than trapping the player

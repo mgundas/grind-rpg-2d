@@ -31,12 +31,17 @@ function Bar({
 /** Bottom-centre HP/MP/XP bars and level (GAME_DESIGN.md §10.4). */
 export function Hud() {
   const self = useUiStore((state) => state.selfStats);
+  const vitals = useUiStore((state) => state.vitals);
   const account = useUiStore((state) => state.account);
   const characters = useUiStore((state) => state.characters);
   const selectedId = useUiStore((state) => state.selectedCharacterId);
   if (!self) {
     return null;
   }
+  const hp = vitals?.hp ?? self.hp;
+  const maxHp = vitals?.maxHp ?? self.maxHp;
+  const mp = vitals?.mp ?? self.mp;
+  const maxMp = vitals?.maxMp ?? self.maxMp;
   const character = characters.find((candidate) => candidate.id === selectedId);
 
   return (
@@ -70,12 +75,12 @@ export function Hud() {
           Lv {self.level} {character?.name ?? account?.username ?? ""}
         </span>
         <span style={{ color: theme.muted }}>
-          {self.hp}/{self.maxHp} HP
+          {hp}/{maxHp} HP
         </span>
       </div>
       <div style={{ display: "grid", gap: 4 }}>
-        <Bar value={self.hp} max={self.maxHp} color="#b83b35" height={10} />
-        <Bar value={self.mp} max={self.maxMp} color="#3f79b8" height={7} />
+        <Bar value={hp} max={maxHp} color="#b83b35" height={10} />
+        <Bar value={mp} max={maxMp} color="#3f79b8" height={7} />
         <Bar value={self.xp} max={self.xpToNext} color={theme.jade} height={5} />
       </div>
     </div>

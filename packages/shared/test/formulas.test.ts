@@ -58,9 +58,9 @@ describe("attack formulas", () => {
     expect(physicalAttack({ classId: "warrior", stats: warrior, level: 1 })).toBe(14);
     expect(physicalAttack({ classId: "assassin", stats: assassin, level: 1 })).toBe(18);
     expect(physicalAttack({ classId: "warrior", stats: warrior, level: 10 })).toBe(32);
-    expect(
-      physicalAttack({ classId: "warrior", stats: warrior, level: 1, weaponAttack: 7 }),
-    ).toBe(21);
+    expect(physicalAttack({ classId: "warrior", stats: warrior, level: 1, weaponAttack: 7 })).toBe(
+      21,
+    );
   });
 
   it("derives defense from VIT", () => {
@@ -84,9 +84,9 @@ describe("damage rolls", () => {
 
 describe("hit chance", () => {
   it("uses the spec formula", () => {
-    expect(
-      hitChance({ attackerDex: 3, defenderDex: 3, attackerLevel: 1, defenderLevel: 1 }),
-    ).toBe(0.7);
+    expect(hitChance({ attackerDex: 3, defenderDex: 3, attackerLevel: 1, defenderLevel: 1 })).toBe(
+      0.7,
+    );
     expect(
       hitChance({ attackerDex: 10, defenderDex: 3, attackerLevel: 10, defenderLevel: 1 }),
     ).toBeCloseTo(0.7 + 0.035 + 0.09, 10);

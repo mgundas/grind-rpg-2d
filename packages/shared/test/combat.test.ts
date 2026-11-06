@@ -8,7 +8,11 @@ function point(id: string, x: number, y: number) {
 }
 
 // A point exactly 60° clockwise from +X, 40 px away.
-const boundary = point("boundary", 100 + 40 * Math.cos(Math.PI / 3), 100 + 40 * Math.sin(Math.PI / 3));
+const boundary = point(
+  "boundary",
+  100 + 40 * Math.cos(Math.PI / 3),
+  100 + 40 * Math.sin(Math.PI / 3),
+);
 // A point just outside the arc (61°).
 const outside = point(
   "outside",

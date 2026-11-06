@@ -215,6 +215,7 @@ export function resolveMonsterAttack(
   runtime.progression.hp = Math.max(0, runtime.progression.hp - damage);
   player.hp = runtime.progression.hp;
   runtime.lastCombatAtMs = ctx.now;
+  runtime.dirty = true;
 
   return {
     hit: { target: victim, x, y, miss: false, crit, damage },

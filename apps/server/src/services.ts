@@ -3,6 +3,7 @@ import type { AuthDeps } from "./auth/accountService";
 import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
 import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
+import type { CharacterRecord } from "./characters/characterMappers";
 import type { Db } from "./db/client";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
@@ -24,6 +25,8 @@ export interface ServerServices {
   sessionRegistry: SessionRegistry;
   saveCharacter: (characterId: string, save: CharacterSave) => Promise<boolean>;
   saveCharacters: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
+  /** Re-read after a duplicate kick saved the previous session's state. */
+  loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   /** Fresh per-room RNG stream: crypto in production, seeded in tests. */
   createRandomSource: () => RandomSource;
   combatTuning: CombatTuning;

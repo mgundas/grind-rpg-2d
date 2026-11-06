@@ -79,9 +79,7 @@ describe("extractMapObjects", () => {
   it("parses mob zones with their spawn group id", () => {
     const objects = extractMapObjects(validMap());
     expect(objects.npcs).toHaveLength(1);
-    expect(objects.mobZones).toEqual([
-      { x: 96, y: 160, w: 96, h: 96, spawnGroupId: "wolves" },
-    ]);
+    expect(objects.mobZones).toEqual([{ x: 96, y: 160, w: 96, h: 96, spawnGroupId: "wolves" }]);
     expect(objects.stoneZones).toHaveLength(0);
   });
 

@@ -44,6 +44,8 @@ export class MonsterRegistry {
         entity.typeId = data.typeId;
         entity.name = data.name;
         entity.level = data.level;
+        entity.x = data.x;
+        entity.y = data.y;
         entity.facing = data.facing;
         entity.hp = data.hp;
         entity.maxHp = data.maxHp;

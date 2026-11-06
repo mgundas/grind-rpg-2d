@@ -355,6 +355,37 @@ export class MapRoom extends Room {
 
     this.sendSelfStats(client.sessionId);
 
+    // A duplicate join replaced and saved the previous session. Its save is
+    // newer than the matchmaking snapshot, so refresh before the first tick
+    // can overwrite it with stale HP/XP/position.
+    const fresh = await getServerServices().loadCharacter(auth.account.id, auth.character.id);
+    const activeRuntime = this.runtimes.get(client.sessionId);
+    const activePlayer = this.state.players.get(client.sessionId);
+    if (fresh && activeRuntime && activePlayer) {
+      const refreshed = progressionFromCharacter(fresh);
+      activeRuntime.progression = refreshed;
+      activePlayer.level = refreshed.level;
+      activePlayer.hp = refreshed.hp;
+      activePlayer.maxHp = refreshed.maxHp;
+      activePlayer.mp = refreshed.mp;
+      activePlayer.maxMp = refreshed.maxMp;
+      if (fresh.map === this.mapId) {
+        const position = this.resolveSpawn(fresh.x, fresh.y);
+        if (
+          Math.abs(position.x - activeRuntime.mover.pos.x) > 0.5 ||
+          Math.abs(position.y - activeRuntime.mover.pos.y) > 0.5
+        ) {
+          activeRuntime.mover.pos.x = position.x;
+          activeRuntime.mover.pos.y = position.y;
+          activeRuntime.mover.path = [];
+          activePlayer.x = position.x;
+          activePlayer.y = position.y;
+        }
+      }
+      this.sendSelfStats(client.sessionId);
+      this.updateInterest();
+    }
+
     logger.info(
       {
         roomId: this.roomId,
@@ -888,7 +919,7 @@ export class MapRoom extends Room {
   private allocateStat(sessionId: string, stat: StatKey): void {
     const runtime = this.runtimes.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (!runtime || !player) {
+    if (!runtime || !player || runtime.warping) {
       return;
     }
     if (runtime.progression.statPoints <= 0) {
@@ -995,6 +1026,7 @@ export class MapRoom extends Room {
       monster.mover.path = [];
       monster.failedRepaths = 0;
       monster.lastTargetTileKey = null;
+      monster.nextRepathAtMs = 0;
       if (monster.ai !== "return") {
         monster.ai = "return";
       }
@@ -1321,22 +1353,25 @@ export class MapRoom extends Room {
     const dx = monsterRuntime.mover.pos.x - runtime.mover.pos.x;
     const dy = monsterRuntime.mover.pos.y - runtime.mover.pos.y;
     const distanceSquared = dx * dx + dy * dy;
-    if (distanceSquared < runtime.bestTargetDistSq) {
-      runtime.bestTargetDistSq = distanceSquared;
-      runtime.noProgressSinceMs = now;
-    } else if (now - runtime.noProgressSinceMs > AUTO_WALK_GIVE_UP_MS) {
-      this.clearAutoWalk(runtime, sessionId, "unreachable");
-      return;
-    }
-
     const range = this.attackRangeFor(player);
     if (distanceSquared <= range * range) {
+      // Standing still while attacking is progress, not a stuck chase.
+      runtime.bestTargetDistSq = distanceSquared;
+      runtime.noProgressSinceMs = now;
       runtime.mover.path = [];
       runtime.lastIntent = { kind: "none" };
       runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
       if (now >= runtime.attackReadyAtMs) {
         runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, monsterRuntime.mover.pos) };
       }
+      return;
+    }
+
+    if (distanceSquared < runtime.bestTargetDistSq) {
+      runtime.bestTargetDistSq = distanceSquared;
+      runtime.noProgressSinceMs = now;
+    } else if (now - runtime.noProgressSinceMs > AUTO_WALK_GIVE_UP_MS) {
+      this.clearAutoWalk(runtime, sessionId, "unreachable");
       return;
     }
 

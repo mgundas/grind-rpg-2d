@@ -14,6 +14,7 @@ const STAT_LABELS = [
 export function CharacterWindow() {
   const open = useUiStore((state) => state.characterOpen);
   const self = useUiStore((state) => state.selfStats);
+  const vitals = useUiStore((state) => state.vitals);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -45,8 +46,8 @@ export function CharacterWindow() {
         Level {self.level} · {self.xp}/{self.xpToNext} XP
       </div>
       <div style={{ display: "grid", gap: 5, marginBottom: 12 }}>
-        <Row label="HP" value={`${self.hp} / ${self.maxHp}`} />
-        <Row label="MP" value={`${self.mp} / ${self.maxMp}`} />
+        <Row label="HP" value={`${vitals?.hp ?? self.hp} / ${vitals?.maxHp ?? self.maxHp}`} />
+        <Row label="MP" value={`${vitals?.mp ?? self.mp} / ${vitals?.maxMp ?? self.maxMp}`} />
         <Row label="Attack" value={String(self.attack)} />
         <Row label="Defense" value={self.defense.toFixed(1)} />
         <Row label="Crit" value={`${(self.critChance * 100).toFixed(1)}%`} />

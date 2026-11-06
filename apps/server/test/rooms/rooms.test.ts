@@ -167,6 +167,7 @@ beforeAll(async () => {
       joinAuthenticator: fake.joinAuthenticator,
       saveCharacter: fake.saveCharacter,
       saveCharacters: fake.saveCharacters,
+      loadCharacter: fake.loadCharacter,
       // Hit, neutral damage roll, no crit; cycles per target. AI wander is not
       // due during these tests, so combat draws stay predictable.
       createRandomSource: () => {
@@ -390,6 +391,10 @@ describe("MapRoom join", () => {
     });
     await room.waitForNextPatch();
 
+    const firstRuntime = playerRuntimeOf(room, first.sessionId);
+    firstRuntime.progression.xp = 77;
+    firstRuntime.dirty = true;
+
     const left = new Promise<number>((resolve) => {
       first.onLeave((code) => resolve(code));
     });
@@ -403,6 +408,9 @@ describe("MapRoom join", () => {
     expect(code).toBe(4100);
     expect(room.state.players.has(second.sessionId)).toBe(true);
     expect(room.state.players.has(first.sessionId)).toBe(false);
+    // The kick save is newer than the matchmaking snapshot; the new runtime
+    // must not overwrite it with stale progression.
+    expect(playerRuntimeOf(room, second.sessionId).progression.xp).toBe(77);
   });
 
   it("rejects a join whose authentication fails", async () => {
@@ -1108,11 +1116,13 @@ describe("player damage, death and respawn", () => {
     const player = room.state.players.get(client.sessionId)!;
     const runtime = playerRuntimeOf(room, client.sessionId);
     runtime.progression.hp = 1;
+    runtime.progression.xp = 100;
     player.hp = 1;
 
     await waitUntil(() => deaths.length > 0, 4000);
     expect(player.dead).toBe(true);
     expect(player.hp).toBe(0);
+    expect(runtime.progression.xp).toBe(98); // 2% of level-1 requirement
     expect(deaths[0]).toMatchObject({ respawnHereAtMs: expect.any(Number) });
 
     sendRespawn(client, "here");
@@ -1136,6 +1146,7 @@ describe("player damage, death and respawn", () => {
     runtime.diedAtMs = Date.now();
     runtime.dirty = true;
     runtime.progression.hp = 0;
+    runtime.progression.xp = 100;
     player.dead = true;
     player.hp = 0;
 
@@ -1164,6 +1175,7 @@ describe("player damage, death and respawn", () => {
     runtime.diedAtMs = Date.now();
     runtime.dirty = true;
     runtime.progression.hp = 0;
+    runtime.progression.xp = 100;
     player.dead = true;
     player.hp = 0;
 
@@ -1277,6 +1289,14 @@ describe("click-to-attack", () => {
       4000,
     );
     expect(room.state.monsters.get(targetId)!.hp).toBeLessThan(500);
+
+    const playerSwings = () =>
+      combat.filter(
+        (message) =>
+          (message as CombatEventPayload).attacker.kind === "player" &&
+          (message as CombatEventPayload).hits.some((hit) => hit.target.kind === "monster"),
+      ).length;
+    await waitUntil(() => playerSwings() >= 2, 4000);
 
     sendInput(client, { seq: 1, kind: "none" });
     await waitUntil(

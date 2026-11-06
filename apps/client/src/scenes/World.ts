@@ -61,6 +61,10 @@ interface RemotePlayerState {
   hairStyle: number;
   hairColor: number;
   level: number;
+  hp: number;
+  maxHp: number;
+  mp: number;
+  maxMp: number;
   facing: number;
   x: number;
   y: number;
@@ -238,7 +242,11 @@ export class WorldScene extends Phaser.Scene {
 
     this.ensurePredictor();
 
-    const autoWalk = ui.autoWalk;
+    let autoWalk = ui.autoWalk;
+    if (autoWalk && this.wantsMovement()) {
+      this.cancelAutoWalk();
+      autoWalk = false;
+    }
     if (this.autoWalkPrev && !autoWalk && this.predictor) {
       this.predictor.resetAt(
         { x: this.lastServerPosition.x, y: this.lastServerPosition.y },
@@ -339,6 +347,12 @@ export class WorldScene extends Phaser.Scene {
       const me = snapshot.players?.get(sessionId);
       if (me) {
         this.lastServerPosition = { x: me.x, y: me.y, lastSeq: me.lastSeq };
+        useUiStore.getState().setVitals({
+          hp: me.hp,
+          maxHp: me.maxHp,
+          mp: me.mp,
+          maxMp: me.maxMp,
+        });
         if (useUiStore.getState().autoWalk) {
           this.ownWalkBuffer.push(this.time.now, me.x, me.y);
         }
@@ -534,6 +548,45 @@ export class WorldScene extends Phaser.Scene {
       duration: 900,
       onComplete: () => pillar.destroy(),
     });
+  }
+
+  private wantsMovement(): boolean {
+    if (
+      this.keyDown("up") ||
+      this.keyDown("down") ||
+      this.keyDown("left") ||
+      this.keyDown("right")
+    ) {
+      return true;
+    }
+    if (this.pathTarget) {
+      return true;
+    }
+    return (
+      this.pointerHeld &&
+      this.pointerWorld !== null &&
+      this.time.now - this.pointerDownAt >= HOLD_TO_STEER_MS
+    );
+  }
+
+  /**
+   * Leave server-driven auto-walk. Sending `none` is what tells the server to
+   * cancel; the predictor is re-seeded with that sequence so the following
+   * movement intent is accepted.
+   */
+  private cancelAutoWalk(): void {
+    const seq = this.lastServerPosition.lastSeq + 1;
+    sendInput({ seq, kind: "none" });
+    this.lastServerPosition = {
+      x: this.lastServerPosition.x,
+      y: this.lastServerPosition.y,
+      lastSeq: seq,
+    };
+    this.predictor?.resetAt({ x: this.lastServerPosition.x, y: this.lastServerPosition.y }, seq);
+    const store = useUiStore.getState();
+    store.setAutoWalk(false);
+    store.setTargetMonster(null);
+    this.autoWalkPrev = false;
   }
 
   private tryAttack(own: RemotePlayerState | undefined): void {

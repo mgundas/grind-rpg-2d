@@ -44,6 +44,7 @@ export interface FakeServices {
   joinAuthenticator: JoinAuthenticator;
   saveCharacter: Mock<(characterId: string, save: CharacterSave) => Promise<boolean>>;
   saveCharacters: Mock<(saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>>;
+  loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   identities: Map<string, JoinIdentity>;
   saved: BulkCharacterSave[];
   prepare: (options?: FakeJoinOptions) => JoinIdentity;
@@ -141,6 +142,18 @@ export function createFakeServices(): FakeServices {
     }
   });
 
+  async function loadCharacter(
+    accountId: string,
+    characterId: string,
+  ): Promise<CharacterRecord | null> {
+    for (const identity of identities.values()) {
+      if (identity.account.id === accountId && identity.character.id === characterId) {
+        return identity.character;
+      }
+    }
+    return null;
+  }
+
   function prepare(options: FakeJoinOptions = {}): JoinIdentity {
     const account = makeAccount(options);
     const map = options.map ?? ROOM_NAME_VILLAGE;
@@ -199,6 +212,7 @@ export function createFakeServices(): FakeServices {
     joinAuthenticator,
     saveCharacter,
     saveCharacters,
+    loadCharacter,
     identities,
     saved,
     prepare,

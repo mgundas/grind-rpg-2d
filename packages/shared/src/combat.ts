@@ -68,10 +68,7 @@ export function isInMeleeArc(
  * Returns the ids of every entity inside the frontal arc, nearest first with a
  * stable id tie-break, capped at `maxTargets`.
  */
-export function findArcTargets(
-  candidates: readonly ArcTarget[],
-  query: ArcQuery,
-): string[] {
+export function findArcTargets(candidates: readonly ArcTarget[], query: ArcQuery): string[] {
   const padPx = query.padPx ?? ATTACK_RANGE_PAD_PX;
   const maxTargets = Math.max(0, query.maxTargets ?? DEFAULT_MAX_TARGETS);
   if (maxTargets === 0) {

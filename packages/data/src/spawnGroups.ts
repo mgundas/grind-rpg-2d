@@ -30,7 +30,11 @@ const groupSchema = z
       });
     }
     if (group.members.filter((member) => member.leader).length > 1) {
-      ctx.addIssue({ code: "custom", message: "a group has at most one leader", path: ["members"] });
+      ctx.addIssue({
+        code: "custom",
+        message: "a group has at most one leader",
+        path: ["members"],
+      });
     }
     const total = group.members.reduce((sum, member) => sum + member.count, 0);
     if (total < 1 || total > 10) {

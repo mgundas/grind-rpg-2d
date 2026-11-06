@@ -65,6 +65,10 @@ interface UiState {
   selfStats: SelfStatsPayload | null;
   setSelfStats: (stats: SelfStatsPayload | null) => void;
 
+  /** Public HP/MP from state patches (combat and regen update these at 20 Hz). */
+  vitals: { hp: number; maxHp: number; mp: number; maxMp: number } | null;
+  setVitals: (vitals: UiState["vitals"]) => void;
+
   /** Selected monster (click/Tab) and server-driven walk mode. */
   targetMonsterId: string | null;
   setTargetMonster: (monsterId: string | null) => void;
@@ -159,6 +163,9 @@ export const useUiStore = create<UiState>((set) => ({
 
   selfStats: null,
   setSelfStats: (selfStats) => set({ selfStats }),
+
+  vitals: null,
+  setVitals: (vitals) => set({ vitals }),
 
   targetMonsterId: null,
   setTargetMonster: (targetMonsterId) =>
