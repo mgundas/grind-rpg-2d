@@ -7,6 +7,8 @@ import {
   dir8Towards,
   extractMapObjects,
   facing4FromDir8,
+  isClassId,
+  isGender,
   isWalkableAt,
   nearestWalkable,
   parseTiledMap,
@@ -23,6 +25,8 @@ import { LocalPredictor, type DesiredInput } from "../state/predictor";
 import { RemoteRegistry, type RemoteEntity, type RemotePlayerData } from "../state/remotes";
 import { useUiStore } from "../ui/store";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
+import { ensureCharacterTexture } from "../assets/characterTextures";
+import type { CharacterLook } from "../assets/characterArt";
 
 const KEY_CHARACTER = "char.body.male";
 const HOLD_TO_STEER_MS = 200;
@@ -31,6 +35,10 @@ const CLICK_MAX_MS = 200;
 interface RemotePlayerState {
   name: string;
   kingdom: string;
+  classId: string;
+  gender: string;
+  hairStyle: number;
+  hairColor: number;
   facing: number;
   x: number;
   y: number;
@@ -80,6 +88,7 @@ export class WorldScene extends Phaser.Scene {
   private remoteVisuals = new Map<string, RemoteVisual>();
   private debugAccumMs = 0;
   private warping = false;
+  private mapSwitchPending = false;
 
   constructor() {
     super({ key: "World" });
@@ -93,11 +102,18 @@ export class WorldScene extends Phaser.Scene {
     this.remoteVisuals.clear();
     this.pathTarget = null;
     this.warping = false;
+    this.mapSwitchPending = false;
 
     this.mapId = useUiStore.getState().mapId ?? DEFAULT_MAP;
     this.buildMap();
     this.buildCharacter();
     this.setupInput();
+
+    this.input.keyboard?.off("keydown-F3");
+    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
+      event.preventDefault();
+      useUiStore.getState().toggleDebug();
+    });
 
     const keyboard = this.input.keyboard;
     this.cursors = keyboard
@@ -138,6 +154,18 @@ export class WorldScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    const ui = useUiStore.getState();
+    if (ui.connectionPhase === "connected" && ui.mapId && ui.mapId !== this.mapId) {
+      if (!this.mapSwitchPending) {
+        this.mapSwitchPending = true;
+        this.scene.restart();
+      }
+      return;
+    }
+    if (ui.connectionPhase !== "connected") {
+      this.setOwnVisible(false);
+    }
+
     this.ensurePredictor();
 
     if (this.predictor) {
@@ -187,7 +215,9 @@ export class WorldScene extends Phaser.Scene {
     const sessionId = room.sessionId;
     this.predictor = new LocalPredictor(this.grid, { x: own.x, y: own.y }, sendInput);
     this.initializedFor = sessionId;
+    this.character.setTexture(ensureCharacterTexture(this, lookFromPlayer(own)));
     this.character.setPosition(own.x, own.y);
+    this.setOwnVisible(true);
     this.syncRemotes(state, sessionId);
 
     room.onStateChange((next: unknown) => {
@@ -207,11 +237,12 @@ export class WorldScene extends Phaser.Scene {
     room.onMessage("warp", (payload: WarpPayload) => {
       void this.handleWarp(payload);
     });
+  }
 
-    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
-      event.preventDefault();
-      useUiStore.getState().toggleDebug();
-    });
+  private setOwnVisible(visible: boolean): void {
+    this.character.setVisible(visible);
+    this.shadow.setVisible(visible);
+    this.arrow.setVisible(visible);
   }
 
   /** Fade out, consume the reservation, then rebuild the scene on the new map. */
@@ -293,6 +324,10 @@ export class WorldScene extends Phaser.Scene {
       visible[sessionId] = {
         name: player.name,
         kingdom: player.kingdom,
+        classId: player.classId,
+        gender: player.gender,
+        hairStyle: player.hairStyle,
+        hairColor: player.hairColor,
         facing: player.facing,
         x: player.x,
         y: player.y,
@@ -319,7 +354,9 @@ export class WorldScene extends Phaser.Scene {
     const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
     const color = KINGDOMS.find((kingdom) => kingdom.id === entity.kingdom)?.color ?? "#cfd8d3";
     const shadow = this.add.ellipse(pos.x, pos.y + 6, 24, 9, 0x000000, 0.3);
-    const sprite = this.add.sprite(pos.x, pos.y, KEY_CHARACTER).setOrigin(0.5, 0.85);
+    const sprite = this.add
+      .sprite(pos.x, pos.y, ensureCharacterTexture(this, lookFromPlayer(entity)))
+      .setOrigin(0.5, 0.85);
     const label = this.add
       .text(pos.x, pos.y - 52, entity.name, {
         fontFamily: "monospace",
@@ -517,7 +554,23 @@ export class WorldScene extends Phaser.Scene {
     });
 
     this.character.setDepth(this.spawn.y);
+    // Hidden until the authenticated character's first state patch arrives.
+    this.setOwnVisible(false);
   }
+}
+
+function lookFromPlayer(player: {
+  classId: string;
+  gender: string;
+  hairStyle: number;
+  hairColor: number;
+}): CharacterLook {
+  return {
+    classId: isClassId(player.classId) ? player.classId : "warrior",
+    gender: isGender(player.gender) ? player.gender : "male",
+    hairStyle: Number.isInteger(player.hairStyle) ? player.hairStyle : 0,
+    hairColor: Number.isInteger(player.hairColor) ? player.hairColor : 0,
+  };
 }
 
 function facingRotation(dir: Dir8): number {

@@ -1,10 +1,14 @@
 import { useEffect } from "react";
 import { GAME_NAME } from "@jadethrone/shared";
+import { api } from "../network/api";
 import { getHealth } from "../network/http";
+import { logout } from "../network/session";
+import { AuthScreen } from "./AuthScreen";
+import { CharacterSelect } from "./CharacterSelect";
 import { Chat } from "./Chat";
 import { DebugOverlay } from "./DebugOverlay";
-import { JoinPanel } from "./JoinPanel";
 import { useUiStore } from "./store";
+import { Panel, styles, theme } from "./theme";
 
 const POLL_MS = 5000;
 
@@ -15,12 +19,15 @@ const STATUS_COLOR = {
 } as const;
 
 /**
- * Overlay root: server status badge + guest join card. The #overlay wrapper
- * keeps pointer-events off the canvas, so nothing here can steal mouse input.
+ * Overlay root: server status, auth/character screens, and the in-game HUD.
+ * `#overlay` is pointer-transparent; every interactive card opts back in.
  */
 export function App() {
   const serverOnline = useUiStore((state) => state.serverOnline);
+  const authPhase = useUiStore((state) => state.authPhase);
+  const account = useUiStore((state) => state.account);
   const connectionPhase = useUiStore((state) => state.connectionPhase);
+  const sessionKickedReason = useUiStore((state) => state.sessionKickedReason);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,6 +45,41 @@ export function App() {
     };
   }, []);
 
+  // Restore a stored session once at boot. `restore` rotates the refresh token
+  // and returns the current character list.
+  useEffect(() => {
+    let cancelled = false;
+    const boot = async () => {
+      const store = useUiStore.getState();
+      if (!api.hasSession()) {
+        store.setAnonymous();
+        return;
+      }
+      try {
+        const me = await api.restore();
+        if (!cancelled) {
+          store.setAuthenticated(me.account, me.characters);
+        }
+      } catch {
+        if (!cancelled) {
+          store.setAnonymous("Session expired. Sign in again.");
+        }
+      }
+    };
+    void boot();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A login elsewhere invalidates this session's tokens; return to the login
+  // screen. A duplicate join keeps the tokens and shows the character list.
+  useEffect(() => {
+    if (sessionKickedReason === "login") {
+      useUiStore.getState().setAnonymous("Signed in from another session.");
+    }
+  }, [sessionKickedReason]);
+
   const label = serverOnline === null ? "checking" : serverOnline ? "online" : "offline";
   const statusColor =
     serverOnline === null
@@ -45,6 +87,8 @@ export function App() {
       : serverOnline
         ? STATUS_COLOR.online
         : STATUS_COLOR.offline;
+
+  const inGame = authPhase === "authenticated" && connectionPhase === "connected";
 
   return (
     <>
@@ -62,15 +106,34 @@ export function App() {
             textShadow: "0 1px 2px rgba(0,0,0,0.5)",
           }}
         >
-          {GAME_NAME} — server: <span style={{ color: statusColor }}>{label}</span>
-          {connectionPhase === "connected" ? (
-            <span style={{ color: "#7ee08a" }}> · in game</span>
+          {GAME_NAME} · server: <span style={{ color: statusColor }}>{label}</span>
+          {inGame && account ? (
+            <span style={{ color: theme.jade }}> · {account.username}</span>
           ) : null}
         </span>
       </div>
-      <JoinPanel />
-      <Chat />
-      <DebugOverlay />
+
+      {authPhase === "checking" ? (
+        <Panel title={GAME_NAME} subtitle="Restoring session">
+          <p style={{ textAlign: "center", fontSize: 12, color: theme.muted }}>
+            Checking your saved session…
+          </p>
+        </Panel>
+      ) : authPhase === "anonymous" ? (
+        <AuthScreen />
+      ) : inGame ? (
+        <>
+          <Chat />
+          <DebugOverlay />
+          <div style={{ position: "absolute", top: 12, right: 12 }}>
+            <button type="button" onClick={() => void logout()} style={styles.ghostButton}>
+              Log out
+            </button>
+          </div>
+        </>
+      ) : (
+        <CharacterSelect />
+      )}
     </>
   );
 }

@@ -1,16 +1,22 @@
 import { Client, type Room } from "@colyseus/sdk";
 import {
-  ROOM_NAME_VILLAGE,
-  type ChatMsgPayload,
+  MSG,
+  SESSION_KICK_CODE,
   type InputMessage,
   type MapId,
+  type SessionKickedPayload,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { useUiStore } from "../ui/store";
+import { ApiError, api } from "./api";
+import { tokens } from "./tokens";
 
 /**
  * Colyseus session lifecycle for the client. One room at a time; scenes read
  * the room through `getRoom()` and register state/message handlers.
+ *
+ * The access token is attached with `client.auth.token`, which the SDK forwards
+ * as `Authorization: Bearer` on matchmaking and `_authToken` on the WebSocket.
  */
 
 let sdk: Client | null = null;
@@ -40,37 +46,64 @@ export function getSessionId(): string | null {
 }
 
 export interface ConnectOptions {
-  name: string;
-  kingdom: string;
-  map?: MapId;
+  characterId: string;
+  map: MapId;
 }
 
-/** Join (or create) the map room and wire connection status into the store. */
+async function attemptJoin(client: Client, characterId: string, map: MapId): Promise<Room> {
+  const access = tokens.getAccess();
+  if (access) {
+    client.auth.token = access;
+  }
+  return client.joinOrCreate(map, { characterId, map });
+}
+
+/** Join the character's saved map; one refresh/character-list retry on failure. */
 export async function connect(options: ConnectOptions): Promise<Room> {
   if (connectPromise) {
     return connectPromise;
   }
   const ui = useUiStore.getState();
-  const map = options.map ?? ui.mapId ?? ROOM_NAME_VILLAGE;
   ui.setConnectionPhase("connecting");
   ui.setConnectionError(null);
   ui.setChatFocused(false);
-  ui.setMapId(map);
+  ui.setMapId(options.map);
 
   connectPromise = (async () => {
     try {
-      const joined = await getClient().joinOrCreate(map, {
-        name: options.name,
-        kingdom: options.kingdom,
-      });
+      const client = getClient();
+      let joined: Room;
+      try {
+        joined = await attemptJoin(client, options.characterId, options.map);
+      } catch (firstError) {
+        // The access token may have expired, or the character may have changed
+        // maps in another tab. `/me` refreshes the token and reloads characters.
+        const me = await api.me();
+        useUiStore.getState().setCharacters(me.characters);
+        const character = me.characters.find((candidate) => candidate.id === options.characterId);
+        if (!character) {
+          throw firstError;
+        }
+        useUiStore.getState().setMapId(character.map);
+        joined = await attemptJoin(client, character.id, character.map);
+      }
+
       room = joined;
       bindSessionEvents(joined);
-      useUiStore.getState().setSessionId(joined.sessionId);
-      useUiStore.getState().setConnectionPhase("connected");
+      const store = useUiStore.getState();
+      store.setSessionKicked(null);
+      store.setSessionId(joined.sessionId);
+      store.setConnectionPhase("connected");
       return joined;
     } catch (error) {
-      useUiStore.getState().setConnectionPhase("error");
-      useUiStore.getState().setConnectionError(String(error));
+      const store = useUiStore.getState();
+      if (error instanceof ApiError && (error.code === "unauthorized" || error.status === 401)) {
+        tokens.clear();
+        store.setAnonymous("Session expired. Sign in again.");
+      } else {
+        store.setConnectionPhase("error");
+        store.setConnectionError(String(error));
+      }
       throw error;
     } finally {
       connectPromise = null;
@@ -85,38 +118,49 @@ export async function consumeWarp(payload: WarpPayload): Promise<Room> {
   const next = await getClient().consumeSeatReservation(payload.reservation);
   room = next;
   bindSessionEvents(next);
-  useUiStore.getState().setSessionId(next.sessionId);
-  useUiStore.getState().setMapId(payload.map);
-  useUiStore.getState().setConnectionPhase("connected");
+  const store = useUiStore.getState();
+  store.setSessionKicked(null);
+  store.setSessionId(next.sessionId);
+  store.setMapId(payload.map);
+  store.setConnectionPhase("connected");
   return next;
 }
 
 export async function leave(options: { silent?: boolean } = {}): Promise<void> {
-  if (!room) {
-    return;
-  }
   const current = room;
   room = null;
   useUiStore.getState().setChatFocused(false);
+  if (!current) {
+    return;
+  }
   await current.leave();
   if (!options.silent) {
     useUiStore.getState().setConnectionPhase("left");
   }
 }
 
+/** Leave (saving the position), revoke the refresh token, return to login. */
+export async function logout(): Promise<void> {
+  try {
+    await leave({ silent: true });
+  } finally {
+    try {
+      await api.logout();
+    } catch {
+      // The local session is cleared regardless of network/server errors.
+    }
+    const store = useUiStore.getState();
+    store.setSessionKicked(null);
+    store.setAnonymous();
+  }
+}
+
 export function sendInput(message: InputMessage): void {
-  room?.send("input", message);
+  room?.send(MSG.input, message);
 }
 
 export function sendChat(text: string): void {
-  room?.send("chat", { text });
-}
-
-export function onChatMessage(handler: (payload: ChatMsgPayload) => void): () => void {
-  if (!room) {
-    return () => undefined;
-  }
-  return room.onMessage("chatMsg", handler);
+  room?.send(MSG.chat, { text });
 }
 
 function bindSessionEvents(current: Room): void {
@@ -124,27 +168,49 @@ function bindSessionEvents(current: Room): void {
     if (room !== current) {
       return;
     }
-    useUiStore.getState().setChatFocused(false);
-    useUiStore.getState().setConnectionPhase("error");
-    useUiStore.getState().setConnectionError(message ?? `connection error ${code}`);
+    const store = useUiStore.getState();
+    store.setChatFocused(false);
+    store.setConnectionPhase("error");
+    store.setConnectionError(message ?? `connection error ${code}`);
   });
-  current.onLeave(() => {
-    const unexpected = room === current;
-    if (unexpected) {
-      room = null;
-      useUiStore.getState().setChatFocused(false);
-      useUiStore.getState().setConnectionPhase("left");
+
+  current.onMessage(MSG.sessionKicked, (payload: SessionKickedPayload) => {
+    const store = useUiStore.getState();
+    store.setSessionKicked(payload.reason);
+    if (payload.reason === "login") {
+      // The token version was bumped by the new login; these tokens are dead.
+      tokens.clear();
     }
-    stopPingLoop();
+    store.setConnectionPhase("left");
   });
+
+  current.onLeave((code) => {
+    if (room === current) {
+      room = null;
+      const store = useUiStore.getState();
+      store.setChatFocused(false);
+      store.setConnectionPhase("left");
+      // The message can be lost; the close code is the fallback. Keep tokens
+      // (a duplicate join here is not a credential problem).
+      if (code === SESSION_KICK_CODE && !useUiStore.getState().sessionKickedReason) {
+        useUiStore.getState().setSessionKicked("duplicate");
+      }
+    }
+    if (pingRoom === current) {
+      stopPingLoop();
+    }
+  });
+
   startPingLoop(current);
 }
 
 let pingTimer: ReturnType<typeof setInterval> | null = null;
+let pingRoom: Room | null = null;
 let pingMs = 0;
 
 function startPingLoop(current: Room): void {
   stopPingLoop();
+  pingRoom = current;
   pingMs = 0;
   const measure = () => {
     current.ping((ms) => {
@@ -160,6 +226,7 @@ function stopPingLoop(): void {
     clearInterval(pingTimer);
     pingTimer = null;
   }
+  pingRoom = null;
 }
 
 /** Smoothed round-trip time in ms for the F3 overlay (0 until first pong). */

@@ -83,6 +83,10 @@ export class SampleBuffer {
 export interface RemotePlayerData {
   name: string;
   kingdom: string;
+  classId: string;
+  gender: string;
+  hairStyle: number;
+  hairColor: number;
   facing: number;
   x: number;
   y: number;
@@ -92,6 +96,10 @@ export interface RemoteEntity {
   sessionId: string;
   name: string;
   kingdom: string;
+  classId: string;
+  gender: string;
+  hairStyle: number;
+  hairColor: number;
   facing: number;
   buffer: SampleBuffer;
 }
@@ -118,6 +126,10 @@ export class RemoteRegistry {
           sessionId,
           name: player.name,
           kingdom: player.kingdom,
+          classId: player.classId,
+          gender: player.gender,
+          hairStyle: player.hairStyle,
+          hairColor: player.hairColor,
           facing: player.facing,
           buffer: new SampleBuffer(),
         };
@@ -125,6 +137,10 @@ export class RemoteRegistry {
       }
       entity.name = player.name;
       entity.kingdom = player.kingdom;
+      entity.classId = player.classId;
+      entity.gender = player.gender;
+      entity.hairStyle = player.hairStyle;
+      entity.hairColor = player.hairColor;
       entity.facing = player.facing;
       entity.buffer.push(now, player.x, player.y);
     }

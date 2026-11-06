@@ -191,6 +191,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     async restore() {
       const refreshed = await refreshTokens();
       if (!refreshed) {
+        tokenStore.clear();
         throw new ApiError("unauthorized", "Session expired. Sign in again.", 401);
       }
       return { account: refreshed.account, characters: refreshed.characters };

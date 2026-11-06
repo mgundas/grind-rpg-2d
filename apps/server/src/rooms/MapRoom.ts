@@ -409,6 +409,8 @@ export class MapRoom extends Room {
     const source = { mapId: this.mapId, x: player.x, y: player.y };
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
+    // The move is intentional; do not let the target join "kick" this session.
+    getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
 
     try {
       const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY, {
@@ -468,17 +470,20 @@ export class MapRoom extends Room {
         runtime.dirty = true;
         void services
           .savePosition(runtime.characterId, source)
-          .then((ok) => {
-            if (ok) {
-              runtime.dirty = false;
-            }
-          })
           .catch((saveError: unknown) =>
             logger.error(
               { roomId: this.roomId, session: client.sessionId, error: saveError },
               "failed to restore source position after failed warp",
             ),
           );
+        await services.sessionRegistry.register({
+          accountId: runtime.accountId,
+          characterId: runtime.characterId,
+          sessionId: client.sessionId,
+          saveForKick: () => this.savePlayerNow(client.sessionId),
+          send: (type, payload) => client.send(type, payload),
+          leave: (code) => client.leave(code),
+        });
         this.updateInterest();
       }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");

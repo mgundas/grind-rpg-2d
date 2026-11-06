@@ -81,11 +81,11 @@ Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typ
 - [x] Task 7 — MapRoom: authenticated join, state identity, persistence, kick
 - [x] Task 8 — Warp persistence and target-map authentication
 - [x] Task 9 — Client API + token storage + auth state
-- [ ] Task 10 — Client session and screen routing
-- [ ] Task 11 — Auth screen (login/register, kingdom choice)
-- [ ] Task 12 — Character select, create, delete, preview
-- [ ] Task 13 — Layered appearance in the world
-- [ ] Task 14 — In-game logout and kick UX
+- [x] Task 10 — Client session and screen routing
+- [x] Task 11 — Auth screen (login/register, kingdom choice)
+- [x] Task 12 — Character select, create, delete, preview
+- [x] Task 13 — Layered appearance in the world
+- [x] Task 14 — In-game logout and kick UX
 - [ ] Task 15 — Seed script and verification tooling
 - [ ] Task 16 — CI Postgres, docs, final verification, reviewer, phase report
 

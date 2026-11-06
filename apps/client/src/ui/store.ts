@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { AccountPublic, CharacterSummary, ChatMsgPayload, MapId } from "@jadethrone/shared";
+import type {
+  AccountPublic,
+  CharacterSummary,
+  ChatMsgPayload,
+  MapId,
+  SessionKickReason,
+} from "@jadethrone/shared";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -28,12 +34,14 @@ interface UiState {
   characters: CharacterSummary[];
   selectedCharacterId: string | null;
   authError: string | null;
+  sessionKickedReason: SessionKickReason | null;
   setAuthChecking: () => void;
   setAnonymous: (error?: string | null) => void;
   setAuthenticated: (account: AccountPublic, characters: CharacterSummary[]) => void;
   setCharacters: (characters: CharacterSummary[]) => void;
   setSelectedCharacter: (id: string | null) => void;
   setAuthError: (error: string | null) => void;
+  setSessionKicked: (reason: SessionKickReason | null) => void;
 
   connectionPhase: ConnectionPhase;
   connectionError: string | null;
@@ -71,6 +79,7 @@ export const useUiStore = create<UiState>((set) => ({
   characters: [],
   selectedCharacterId: null,
   authError: null,
+  sessionKickedReason: null,
   setAuthChecking: () => set({ authPhase: "checking", authError: null }),
   setAnonymous: (authError = null) =>
     set({
@@ -81,6 +90,7 @@ export const useUiStore = create<UiState>((set) => ({
       authError,
       connectionPhase: "idle",
       connectionError: null,
+      sessionKickedReason: null,
     }),
   setAuthenticated: (account, characters) =>
     set({
@@ -100,6 +110,7 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   setSelectedCharacter: (selectedCharacterId) => set({ selectedCharacterId }),
   setAuthError: (authError) => set({ authError }),
+  setSessionKicked: (sessionKickedReason) => set({ sessionKickedReason }),
 
   connectionPhase: "idle",
   connectionError: null,
