@@ -17,6 +17,7 @@ import {
 import type { SessionRegistry } from "../auth/sessionRegistry";
 import { listCharacters } from "../characters/characterService";
 import type { Db } from "../db/client";
+import { clearAdminCookie, isAdminRole, setAdminCookie } from "../http/adminCookie";
 import { authedAccount, requireAuth } from "../http/requireAuth";
 import {
   DEFAULT_RATE_LIMITS,
@@ -70,6 +71,9 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
     // before kicking so a stale in-flight reservation cannot win.
     deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
     await deps.sessionRegistry.kickAccount(payload.account.id, "login");
+    if (isAdminRole(payload.account.role)) {
+      setAdminCookie(res, payload.tokens.accessToken, deps.authDeps.accessTtlSeconds);
+    }
     res.json(payload);
   });
 
@@ -80,6 +84,9 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
       userAgent: req.headers["user-agent"],
     });
     deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
+    if (isAdminRole(payload.account.role)) {
+      setAdminCookie(res, payload.tokens.accessToken, deps.authDeps.accessTtlSeconds);
+    }
     res.json(payload);
   });
 
@@ -90,6 +97,7 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
       deps.sessionRegistry.noteAccount(revoked.accountId, revoked.tokenVersion);
       await deps.sessionRegistry.kickAccount(revoked.accountId, "logout");
     }
+    clearAdminCookie(res);
     res.status(204).end();
   });
 
