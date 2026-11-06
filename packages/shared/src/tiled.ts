@@ -150,11 +150,17 @@ export interface MobZone {
   spawnGroupId: string;
 }
 
+/** A static town NPC point from a Tiled `npc` object. */
+export interface NpcSpawn {
+  npcId: string;
+  x: number;
+  y: number;
+}
+
 export interface MapObjects {
   spawn: Vec2;
   warps: WarpZone[];
-  /** Parsed for later phases; unused in Phase 1. */
-  npcs: TiledObjectJson[];
+  npcs: NpcSpawn[];
   mobZones: MobZone[];
   stoneZones: TiledObjectJson[];
 }
@@ -227,7 +233,13 @@ export function extractMapObjects(map: TiledMapJson): MapObjects {
   return {
     spawn: { x: spawnObject.x, y: spawnObject.y },
     warps,
-    npcs: objects.filter((object) => object.name === "npc"),
+    npcs: objects
+      .filter((object) => object.name === "npc")
+      .map((object) => ({
+        npcId: requiredString(object, "npcId"),
+        x: object.x,
+        y: object.y,
+      })),
     mobZones,
     stoneZones: objects.filter((object) => object.name === "stone_zone"),
   };

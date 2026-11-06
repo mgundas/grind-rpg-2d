@@ -5,6 +5,7 @@ import {
   MSG,
   ROOM_NAME_VILLAGE,
   type InventorySnapshotPayload,
+  type NpcDialogPayload,
   type SelfStatsPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
@@ -254,6 +255,216 @@ describe("MapRoom inventory snapshots", () => {
     internals.tickGroundItems(Date.now());
     expect(room.state.groundItems.size).toBe(0);
     expect(internals.groundItems.size).toBe(0);
+  });
+
+  it("picks up an owned material drop into the inventory", async () => {
+    const { room, client } = await joinWithInventory("Picker");
+    const player = room.state.players.get(client.sessionId)!;
+    const internals = room as unknown as {
+      spawnDrops: (
+        killed: KilledMonster,
+        killerSessionId: string,
+        now: number,
+      ) => Promise<void>;
+    };
+    await internals.spawnDrops(
+      {
+        monsterId: "m0_g3_0",
+        typeId: "wild_dog",
+        x: player.x,
+        y: player.y,
+        ownerSessionId: client.sessionId,
+      },
+      client.sessionId,
+      Date.now(),
+    );
+    const drop = [...room.state.groundItems.values()].find(
+      (entry) => entry.itemId === "material_wolf_fang",
+    );
+    expect(drop).toBeDefined();
+
+    const resultPromise = client.waitForMessage(MSG.pickupResult, 2000);
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.pickup, { dropId: drop!.dropId });
+    const result = (await resultPromise) as { ok: boolean; itemId?: string };
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(result.ok).toBe(true);
+    expect(result.itemId).toBe("material_wolf_fang");
+    expect(snapshot.items.some((item) => item.itemId === "material_wolf_fang")).toBe(true);
+    expect(room.state.groundItems.has(drop!.dropId)).toBe(false);
+  });
+
+  it("credits gold and refuses another player's owned drop", async () => {
+    const { room, client } = await joinWithInventory("Coin");
+    const player = room.state.players.get(client.sessionId)!;
+    const internals = room as unknown as {
+      spawnDrops: (
+        killed: KilledMonster,
+        killerSessionId: string,
+        now: number,
+      ) => Promise<void>;
+      groundItems: Map<string, { ownerCharacterId: string; ownerUntilMs: number }>;
+      addGroundItem: (item: {
+        dropId: string;
+        kind: "item" | "gold";
+        itemId: string;
+        quantity: number;
+        rarity: "common";
+        x: number;
+        y: number;
+        ownerCharacterId: string;
+        ownerUntilMs: number;
+        despawnAtMs: number;
+      }) => void;
+    };
+    await internals.spawnDrops(
+      {
+        monsterId: "m0_g4_0",
+        typeId: "wild_dog",
+        x: player.x,
+        y: player.y,
+        ownerSessionId: client.sessionId,
+      },
+      client.sessionId,
+      Date.now(),
+    );
+    const gold = [...room.state.groundItems.values()].find((entry) => entry.kind === "gold");
+    expect(gold).toBeDefined();
+    const resultPromise = client.waitForMessage(MSG.pickupResult, 2000);
+    send(client, MSG.pickup, { dropId: gold!.dropId });
+    const result = (await resultPromise) as { ok: boolean; gold?: number };
+    expect(result.ok).toBe(true);
+    expect(result.gold).toBeGreaterThan(0);
+
+    // A manually owned item rejects the wrong character.
+    const foreignId = randomUUID();
+    internals.addGroundItem({
+      dropId: foreignId,
+      kind: "item",
+      itemId: "material_wolf_fang",
+      quantity: 1,
+      rarity: "common",
+      x: player.x,
+      y: player.y,
+      ownerCharacterId: "someone-else",
+      ownerUntilMs: Date.now() + 30_000,
+      despawnAtMs: Date.now() + 120_000,
+    });
+    const denied = client.waitForMessage(MSG.pickupResult, 2000);
+    send(client, MSG.pickup, { dropId: foreignId });
+    expect(((await denied) as { code?: string }).code).toBe("not_owner");
+    expect(room.state.groundItems.has(foreignId)).toBe(true);
+  });
+
+  it("drinks a potion, heals and decrements the stack", async () => {
+    const potionId = randomUUID();
+    const { room, client } = await joinWithInventory("Healer", (id) => {
+      fake.giveItem({
+        id: potionId,
+        itemId: "potion_hp_s",
+        location: "inventory",
+        slot: 0,
+        quantity: 5,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const runtime = (
+      room as unknown as {
+        runtimes: Map<string, { progression: { hp: number } }>;
+      }
+    ).runtimes.get(client.sessionId)!;
+    runtime.progression.hp = 50;
+    const player = room.state.players.get(client.sessionId)!;
+    player.hp = 50;
+
+    const statsPromise = client.waitForMessage(MSG.selfStats, 2000);
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.useItem, { instanceId: potionId });
+    const stats = (await statsPromise) as SelfStatsPayload;
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(stats.hp).toBe(170);
+    expect(snapshot.items.find((item) => item.id === potionId)?.quantity).toBe(4);
+  });
+
+  it("refuses to drink at full HP and enforces the use cooldown", async () => {
+    const potionId = randomUUID();
+    const { room, client } = await joinWithInventory("Full", (id) => {
+      fake.giveItem({
+        id: potionId,
+        itemId: "potion_hp_s",
+        location: "inventory",
+        slot: 0,
+        quantity: 5,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const error = client.waitForMessage(MSG.inventoryError, 2000);
+    send(client, MSG.useItem, { instanceId: potionId });
+    expect(((await error) as { code: string }).code).toBe("at_full_health");
+
+    const runtime = (
+      room as unknown as {
+        runtimes: Map<string, { progression: { hp: number } }>;
+      }
+    ).runtimes.get(client.sessionId)!;
+    runtime.progression.hp = 50;
+    const first = client.waitForMessage(MSG.selfStats, 2000);
+    send(client, MSG.useItem, { instanceId: potionId });
+    await first;
+
+    const second = client.waitForMessage(MSG.inventoryError, 2000);
+    send(client, MSG.useItem, { instanceId: potionId });
+    expect(((await second) as { code: string }).code).toBe("cooldown");
+  });
+
+  it("opens NPC dialog and buys/sells only within shop range", async () => {
+    const { room, client } = await joinWithInventory("Shopper", (id) => {
+      fake.setGold(id.character.id, 500);
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 1,
+        quantity: 2,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const internals = room as unknown as {
+      runtimes: Map<string, { mover: { pos: { x: number; y: number } } }>;
+    };
+    const runtime = internals.runtimes.get(client.sessionId)!;
+    const player = room.state.players.get(client.sessionId)!;
+
+    // Out of range first: the spawn is more than 64 px from the shop NPC.
+    const rejected = client.waitForMessage(MSG.inventoryError, 2000);
+    send(client, MSG.shopBuy, { shopId: "general_goods", itemId: "potion_hp_s", quantity: 1 });
+    expect(((await rejected) as { code: string }).code).toBe("out_of_range");
+
+    const npcX = 38 * 32 + 16;
+    const npcY = 38 * 32 + 16;
+    runtime.mover.pos.x = npcX + 8;
+    runtime.mover.pos.y = npcY + 8;
+    player.x = npcX + 8;
+    player.y = npcY + 8;
+
+    const dialogPromise = client.waitForMessage(MSG.npcDialog, 2000);
+    send(client, MSG.interactNpc, { npcId: "general_goods" });
+    const dialog = (await dialogPromise) as NpcDialogPayload;
+    expect(dialog.kind).toBe("shop");
+    expect(dialog.shopId).toBe("general_goods");
+
+    const bought = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.shopBuy, { shopId: "general_goods", itemId: "potion_hp_s", quantity: 1 });
+    const afterBuy = (await bought) as InventorySnapshotPayload;
+    expect(afterBuy.gold).toBe(460);
+    expect(afterBuy.items).toHaveLength(2);
+    const fang = afterBuy.items.find((item) => item.itemId === "material_wolf_fang")!;
+
+    const sold = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.shopSell, { instanceId: fang.id, quantity: 2 });
+    const afterSell = (await sold) as InventorySnapshotPayload;
+    expect(afterSell.gold).toBe(460 + 24);
+    expect(afterSell.items.some((item) => item.itemId === "material_wolf_fang")).toBe(false);
   });
 
   it("serializes two quick moves so the second sees the first result", async () => {

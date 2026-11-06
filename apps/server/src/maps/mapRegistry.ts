@@ -9,6 +9,7 @@ import {
   type CollisionGrid,
   type MapId,
   type MobZone,
+  type NpcSpawn,
   type Vec2,
   type WarpZone,
 } from "@jadethrone/shared";
@@ -23,6 +24,7 @@ export interface MapAssets {
   grid: CollisionGrid;
   warps: WarpZone[];
   mobZones: MobZone[];
+  npcs: NpcSpawn[];
   spawn: Vec2;
   widthPx: number;
   heightPx: number;
@@ -51,6 +53,7 @@ export function loadMapAssets(mapId: MapId): MapAssets {
     grid: buildCollisionGrid(map),
     warps: objects.warps,
     mobZones: objects.mobZones,
+    npcs: objects.npcs,
     spawn: objects.spawn,
     widthPx: map.width * map.tilewidth,
     heightPx: map.height * map.tileheight,

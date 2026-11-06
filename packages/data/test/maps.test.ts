@@ -25,6 +25,7 @@ import {
   type TiledMapJson,
 } from "@jadethrone/shared";
 import { hasSpawnGroup } from "../src/spawnGroups";
+import { hasNpc } from "../src/npcs";
 
 const tile = 32;
 
@@ -150,6 +151,17 @@ describe("generateVillageMap", () => {
     expect(isSolidTile(village.grid, 24, 30)).toBe(true); // river north of the bridge
     expect(isSolidTile(village.grid, 24, 39)).toBe(false); // bridge deck
     expect(isSolidTile(village.grid, 24, 45)).toBe(true); // river south of the bridge
+  });
+
+  it("places every town NPC on walkable ground, in reach of the spawn", () => {
+    expect(village.objects.npcs).toHaveLength(5);
+    expect(new Set(village.objects.npcs.map((npc) => npc.npcId)).size).toBe(5);
+    for (const npc of village.objects.npcs) {
+      expect(hasNpc(npc.npcId)).toBe(true);
+      expect(isWalkableAt(village.grid, npc.x, npc.y)).toBe(true);
+      const distance = Math.hypot(npc.x - VILLAGE_SPAWN.x, npc.y - VILLAGE_SPAWN.y);
+      expect(distance).toBeLessThan(220);
+    }
   });
 
   it("warps to the fields and stays connected", () => {

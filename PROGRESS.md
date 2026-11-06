@@ -148,7 +148,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 13 — Drops, ground items and ownership
 - [ ] Task 14 — Pickup, gold credit and auto-loot support
 - [ ] Task 15 — Consumables and return scroll
-- [ ] Task 16 — NPC dialog and shops (server)
+- [x] Task 16 — NPC dialog and shops (server)
 - [ ] Task 17 — Warehouse (server)
 - [ ] Task 18 — Client store, item icons and inventory UI
 - [ ] Task 19 — Client equipment panel and visual layers

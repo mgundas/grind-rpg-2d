@@ -10,7 +10,7 @@
   "tileheight": 32,
   "infinite": false,
   "nextlayerid": 6,
-  "nextobjectid": 4,
+  "nextobjectid": 8,
   "layers": [
     {
       "id": 1,
@@ -25730,6 +25730,82 @@
               "name": "npcId",
               "type": "string",
               "value": "blacksmith"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "npc",
+          "x": 1232,
+          "y": 1232,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "general_goods"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "name": "npc",
+          "x": 1360,
+          "y": 1232,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "weaponsmith"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "name": "npc",
+          "x": 1360,
+          "y": 1360,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "armorer"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "name": "npc",
+          "x": 1232,
+          "y": 1360,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "warehouse_keeper"
             }
           ]
         }

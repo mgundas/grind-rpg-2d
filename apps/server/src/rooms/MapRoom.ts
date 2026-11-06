@@ -14,10 +14,13 @@ import {
   INTEREST_ADD_RADIUS_PX,
   INTEREST_INTERVAL_MS,
   INTEREST_RADIUS_PX,
+  ITEM_USE_COOLDOWN_MS,
   MAX_ASTAR_PER_TICK,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
+  NPC_INTERACT_RADIUS_PX,
+  PICKUP_RADIUS_PX,
   PATH_RETARGET_MIN_MS,
   RESPAWN_HERE_DELAY_MS,
   RESPAWN_HERE_HP_FRACTION,
@@ -39,12 +42,16 @@ import {
   facing4Index,
   findPath,
   inputMessageSchema,
+  interactNpcMessageSchema,
   isClassId,
   isWalkableAt,
   monsterXpGain,
   moveItemMessageSchema,
   nearestWalkable,
+  pickupMessageSchema,
   rollDrops,
+  shopBuyMessageSchema,
+  shopSellMessageSchema,
   requestInventoryMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
@@ -54,6 +61,7 @@ import {
   splitStackMessageSchema,
   stepMover,
   unequipItemMessageSchema,
+  useItemMessageSchema,
   type ChatMsgPayload,
   type CombatEventPayload,
   type CombatHit,
@@ -65,6 +73,8 @@ import {
   type LevelUpPayload,
   type MapId,
   type MonsterDiedPayload,
+  type NpcDialogPayload,
+  type PickupResultPayload,
   type RandomSource,
   type StatKey,
   type TargetClearedReason,
@@ -76,15 +86,29 @@ import { getClass } from "@jadethrone/data/classes";
 import { getDropTable } from "@jadethrone/data/dropTables";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getMonster } from "@jadethrone/data/monsters";
+import { getNpc } from "@jadethrone/data/npcs";
+import { getShop } from "@jadethrone/data/shops";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { equipmentBonusStats, equipmentVisualKeys } from "../items/equipment";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
-import { planEquip, planMove, planSplit, planUnequip } from "../items/planning";
+import { describeChanges } from "../items/itemChanges";
+import {
+  diffInventory,
+  planBuy,
+  planConsume,
+  planEquip,
+  planGoldPickup,
+  planMove,
+  planPickup,
+  planSell,
+  planSplit,
+  planUnequip,
+} from "../items/planning";
 import { buildInventorySnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
-import type { GroundItemRuntime } from "./groundItems";
+import { isOwnerLocked, type GroundItemRuntime } from "./groundItems";
 import { GroundItemState, PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
@@ -383,6 +407,87 @@ export class MapRoom extends Room {
           runtime.characterId,
           parsed.data.slot,
           null,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.pickup, (client, raw) => {
+      const parsed = pickupMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn(
+          {
+            session: client.sessionId,
+            issues: parsed.error.issues.map((issue) => issue.message),
+            payload: raw,
+          },
+          "dropped invalid pickup message",
+        );
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        try {
+          await this.pickupDrop(client, runtime, parsed.data.dropId);
+        } catch (error) {
+          await this.handlePickupFailure(client, runtime, parsed.data.dropId, error);
+        }
+      });
+    });
+
+    this.onMessage(MSG.useItem, (client, raw) => {
+      const parsed = useItemMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid useItem message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        await this.useItem(client, runtime, parsed.data.instanceId);
+      });
+    });
+
+    this.onMessage(MSG.interactNpc, (client, raw) => {
+      const parsed = interactNpcMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid interactNpc message");
+        return;
+      }
+      this.interactNpc(client, parsed.data.npcId);
+    });
+
+    this.onMessage(MSG.shopBuy, (client, raw) => {
+      const parsed = shopBuyMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid shopBuy message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        this.requireShopRange(runtime, parsed.data.shopId);
+        const result = planBuy(
+          runtime.inventory,
+          runtime.characterId,
+          runtime.gold,
+          parsed.data.shopId,
+          parsed.data.itemId,
+          parsed.data.quantity,
+          randomUUID,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.shopSell, (client, raw) => {
+      const parsed = shopSellMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid shopSell message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        this.requireAnyShopRange(runtime);
+        const result = planSell(
+          runtime.inventory,
+          runtime.characterId,
+          parsed.data.instanceId,
+          parsed.data.quantity,
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -1192,6 +1297,274 @@ export class MapRoom extends Room {
     player.helmetLayer = layers.helmetLayer;
     player.shieldLayer = layers.shieldLayer;
     this.sendSelfStats(sessionId);
+  }
+
+  private sendPickupResult(client: Client, payload: PickupResultPayload): void {
+    this.safeSend(client, MSG.pickupResult, payload);
+  }
+
+  private removeGroundItem(dropId: string): void {
+    this.groundItems.delete(dropId);
+    this.state.groundItems.delete(dropId);
+  }
+
+  private restoreGroundItem(item: GroundItemRuntime): void {
+    if (!this.groundItems.has(item.dropId)) {
+      this.addGroundItem(item);
+    }
+  }
+
+  /**
+   * Pick up an item or a gold pile. Gold is reserved by removing it from room
+   * state before the await; items are claimed by the DB conditional update.
+   */
+  private async pickupDrop(
+    client: Client,
+    runtime: PlayerRuntime,
+    dropId: string,
+  ): Promise<void> {
+    if (runtime.dead) {
+      throw new ItemError("dead", "Cannot pick up items while dead.");
+    }
+    const drop = this.groundItems.get(dropId);
+    if (!drop) {
+      throw new ItemError("already_taken", "That drop is gone.");
+    }
+    const now = Date.now();
+    const dx = runtime.mover.pos.x - drop.x;
+    const dy = runtime.mover.pos.y - drop.y;
+    const radius = PICKUP_RADIUS_PX * PICKUP_RADIUS_PX;
+    if (dx * dx + dy * dy > radius) {
+      throw new ItemError("out_of_range", "Walk closer to pick that up.");
+    }
+    if (
+      drop.ownerCharacterId &&
+      now < drop.ownerUntilMs &&
+      drop.ownerCharacterId !== runtime.characterId
+    ) {
+      throw new ItemError("not_owner", "That drop belongs to another player.");
+    }
+
+    if (drop.kind === "gold") {
+      this.removeGroundItem(dropId);
+      try {
+        const plan = planGoldPickup(runtime.characterId, drop.quantity, dropId);
+        const { gold } = await getServerServices().items.apply(
+          runtime.accountId,
+          runtime.characterId,
+          plan,
+        );
+        runtime.gold = gold;
+        runtime.inventoryRevision++;
+        this.sendInventory(client.sessionId);
+        this.sendPickupResult(client, {
+          dropId,
+          ok: true,
+          gold: drop.quantity,
+        });
+      } catch (error) {
+        this.restoreGroundItem(drop);
+        throw error;
+      }
+      return;
+    }
+
+    const plan = planPickup(
+      runtime.inventory,
+      runtime.characterId,
+      {
+        id: drop.dropId,
+        itemId: drop.itemId,
+        quantity: drop.quantity,
+        upgradeLevel: 0,
+        bonuses: [],
+        mapId: this.mapId,
+      },
+      randomUUID,
+    );
+    await this.applyItemPlan(runtime, plan.state, plan.plan);
+    this.removeGroundItem(dropId);
+    this.sendPickupResult(client, {
+      dropId,
+      ok: true,
+      itemId: drop.itemId,
+      quantity: drop.quantity,
+    });
+  }
+
+  private async useItem(
+    client: Client,
+    runtime: PlayerRuntime,
+    instanceId: string,
+  ): Promise<void> {
+    if (runtime.dead) {
+      throw new ItemError("dead", "Cannot use items while dead.");
+    }
+    if (runtime.warping) {
+      throw new ItemError("warping", "Cannot use items while warping.");
+    }
+    const now = Date.now();
+    if (now < runtime.itemUseReadyAtMs) {
+      throw new ItemError("cooldown", "Item use is on cooldown.");
+    }
+    const stack = runtime.inventory.items.find((item) => item.id === instanceId);
+    if (!stack) {
+      throw new ItemError("item_not_found", "Item is not in the inventory.");
+    }
+    const definition = getItem(stack.itemId);
+    const effect = definition.effect;
+    if (!effect) {
+      throw new ItemError("not_consumable", "That item cannot be used.");
+    }
+    if (effect.kind === "heal_hp" && runtime.progression.hp >= runtime.progression.maxHp) {
+      throw new ItemError("at_full_health", "HP is already full.");
+    }
+    if (effect.kind === "heal_mp" && runtime.progression.mp >= runtime.progression.maxMp) {
+      throw new ItemError("at_full_mana", "MP is already full.");
+    }
+
+    const before = runtime.inventory;
+    const consumed = planConsume(runtime.inventory, runtime.characterId, instanceId);
+    runtime.itemUseReadyAtMs = now + ITEM_USE_COOLDOWN_MS;
+    await this.applyItemPlan(runtime, consumed.state, consumed.plan);
+
+    if (effect.kind === "warp_town") {
+      const accepted = await this.beginWarp(client, defaultSpawn());
+      if (!accepted) {
+        await this.refundConsumedItem(runtime, before);
+      }
+      return;
+    }
+
+    if (effect.kind === "heal_hp") {
+      runtime.progression.hp = Math.min(
+        runtime.progression.maxHp,
+        runtime.progression.hp + effect.amount,
+      );
+    } else {
+      runtime.progression.mp = Math.min(
+        runtime.progression.maxMp,
+        runtime.progression.mp + effect.amount,
+      );
+    }
+    const player = this.state.players.get(client.sessionId);
+    if (player) {
+      player.hp = runtime.progression.hp;
+      player.mp = runtime.progression.mp;
+    }
+    this.sendSelfStats(client.sessionId);
+  }
+
+  private async refundConsumedItem(
+    runtime: PlayerRuntime,
+    before: InventoryState,
+  ): Promise<void> {
+    const changes = diffInventory(runtime.inventory, before, runtime.characterId, "refund");
+    if (changes.length === 0) {
+      return;
+    }
+    const plan: ItemPlan = {
+      changes,
+      logs: describeChanges(changes, "refund", { reason: "warp_failed" }),
+    };
+    await this.applyItemPlan(runtime, before, plan);
+  }
+
+  private isNearNpc(runtime: PlayerRuntime, npc: { x: number; y: number }): boolean {
+    const dx = runtime.mover.pos.x - npc.x;
+    const dy = runtime.mover.pos.y - npc.y;
+    return dx * dx + dy * dy <= NPC_INTERACT_RADIUS_PX * NPC_INTERACT_RADIUS_PX;
+  }
+
+  private interactNpc(client: Client, npcId: string): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    const point = this.assets.npcs.find((npc) => npc.npcId === npcId);
+    if (!point) {
+      this.sendItemError(client, "unknown_npc");
+      return;
+    }
+    if (!this.isNearNpc(runtime, point)) {
+      this.sendItemError(client, "out_of_range");
+      return;
+    }
+    let info;
+    try {
+      info = getNpc(npcId);
+    } catch {
+      this.sendItemError(client, "unknown_npc");
+      return;
+    }
+    const payload: NpcDialogPayload = {
+      npcId,
+      name: info.name,
+      kind: info.kind,
+      greeting: info.greeting,
+      shopId: info.shopId,
+    };
+    this.safeSend(client, MSG.npcDialog, payload);
+  }
+
+  private requireShopRange(runtime: PlayerRuntime, shopId: string): void {
+    let shop;
+    try {
+      shop = getShop(shopId);
+    } catch {
+      throw new ItemError("unknown_shop", `Unknown shop "${shopId}".`);
+    }
+    const point = this.assets.npcs.find((npc) => npc.npcId === shop.npcId);
+    if (!point || !this.isNearNpc(runtime, point)) {
+      throw new ItemError("out_of_range", "Walk closer to the shop.");
+    }
+  }
+
+  private requireAnyShopRange(runtime: PlayerRuntime): void {
+    for (const npc of this.assets.npcs) {
+      let info;
+      try {
+        info = getNpc(npc.npcId);
+      } catch {
+        continue;
+      }
+      if (info.kind === "shop" && this.isNearNpc(runtime, npc)) {
+        return;
+      }
+    }
+    throw new ItemError("out_of_range", "Walk closer to a shop.");
+  }
+
+  private async handlePickupFailure(
+    client: Client,
+    runtime: PlayerRuntime,
+    dropId: string,
+    error: unknown,
+  ): Promise<void> {
+    if (error instanceof ItemError) {
+      if (error.code === "already_taken") {
+        // Someone else won the row claim; remove the stale view entity.
+        this.removeGroundItem(dropId);
+      }
+      if (error.code === "stale") {
+        try {
+          await this.reloadRuntimeInventory(runtime);
+          this.sendInventory(client.sessionId);
+        } catch (reloadError) {
+          logger.error(
+            { roomId: this.roomId, session: client.sessionId, error: reloadError },
+            "inventory reload failed after pickup",
+          );
+        }
+      }
+      this.sendPickupResult(client, { dropId, ok: false, code: error.code });
+      return;
+    }
+    logger.error(
+      { roomId: this.roomId, session: client.sessionId, dropId, error },
+      "pickup failed",
+    );
+    this.sendPickupResult(client, { dropId, ok: false, code: "internal" });
   }
 
   private async reloadRuntimeInventory(runtime: PlayerRuntime): Promise<void> {

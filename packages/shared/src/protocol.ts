@@ -254,7 +254,12 @@ export type ItemActionErrorCode =
   | "cooldown"
   | "dead"
   | "warping"
-  | "warehouse_full";
+  | "warehouse_full"
+  | "not_usable"
+  /** The DB no longer matches the runtime snapshot; reload and resnapshot. */
+  | "stale"
+  /** Unexpected persistence failure; logged, never rethrown into the room tick. */
+  | "internal";
 
 export interface InventoryErrorPayload {
   code: ItemActionErrorCode;
