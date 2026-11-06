@@ -111,7 +111,7 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 5 — Server: schema (monsters, HP/MP/dead), runtime fields and RNG seam
 - [x] Task 6 — Server: monster AI state machine
 - [x] Task 7 — Server: spawn manager and deterministic placement
-- [ ] Task 8 — Server: wire monsters into MapRoom and interest
+- [x] Task 8 — Server: wire monsters into MapRoom and interest
 - [ ] Task 9 — Server: player arc attack and combat events
 - [ ] Task 10 — Server: monster attacks and player death
 - [ ] Task 11 — Server: regen and respawn options

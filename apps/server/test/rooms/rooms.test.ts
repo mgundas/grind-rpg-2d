@@ -49,6 +49,19 @@ function clientPlayers(client: unknown): { has: (key: string) => boolean } | und
   return (client as { state?: { players?: { has: (key: string) => boolean } } }).state?.players;
 }
 
+interface ClientMonster {
+  typeId: string;
+  name: string;
+  level: number;
+  hp: number;
+  maxHp: number;
+  isBoss: boolean;
+}
+
+function clientMonsters(client: unknown): Map<string, ClientMonster> | undefined {
+  return (client as { state?: { monsters?: Map<string, ClientMonster> } }).state?.monsters;
+}
+
 interface RuntimeProbe {
   pathComputations: number;
   droppedInputs: number;
@@ -747,5 +760,111 @@ describe("MapRoom warp", () => {
 
     const code = await Promise.race([leavePromise, sleep(4000).then(() => -1)]);
     expect(code).toBe(4000);
+  });
+});
+
+const WOLF_ZONE_CENTRE = { x: 1376, y: 1312 };
+
+describe("monster spawning", () => {
+  it("spawns the four field groups but nothing in the village", async () => {
+    const fields = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    expect(fields.state.monsters.size).toBe(21);
+
+    const village = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    expect(village.state.monsters.size).toBe(0);
+  });
+
+  it("spawns monsters with client-safe state fields", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const monsters = [...room.state.monsters.values()];
+    const boss = monsters.filter((monster) => monster.isBoss);
+    expect(boss).toHaveLength(1);
+    expect(boss[0]?.typeId).toBe("wolf_king");
+    expect(boss[0]?.hp).toBe(boss[0]?.maxHp);
+
+    for (const monster of monsters) {
+      expect(monster.name.length).toBeGreaterThan(0);
+      expect(monster.level).toBeGreaterThan(0);
+      expect(monster.hp).toBeGreaterThan(0);
+      expect(monster.maxHp).toBeGreaterThanOrEqual(monster.hp);
+    }
+  });
+});
+
+describe("monster interest management", () => {
+  it("delivers nearby monsters and hides the far groups", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Scout",
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+
+    const monsters = clientMonsters(client);
+    expect(monsters).toBeDefined();
+    expect(monsters!.size).toBe(6); // the wolf pack only
+    for (const monster of monsters!.values()) {
+      expect(monster.isBoss).toBe(false);
+      expect(monster.hp).toBeGreaterThan(0);
+    }
+  });
+
+  it("sends no monsters in the village", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Townie" });
+    await room.waitForNextPatch();
+    expect(clientMonsters(client)?.size ?? 0).toBe(0);
+  });
+});
+
+describe("monster AI in the room tick", () => {
+  it("chases a player standing in the wolf camp", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Bait",
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+
+    const before = new Map(
+      [...room.state.monsters].map(([id, monster]) => [id, { x: monster.x, y: monster.y }]),
+    );
+    const moved = () =>
+      [...room.state.monsters].some(([id, monster]) => {
+        const start = before.get(id)!;
+        return Math.abs(monster.x - start.x) + Math.abs(monster.y - start.y) > 1;
+      });
+
+    await waitUntil(moved, 2000);
+    expect(moved()).toBe(true);
+
+    const monsterRuntimes = (
+      room as unknown as { monsterRuntimes: Map<string, { targetSessionId: string | null }> }
+    ).monsterRuntimes;
+    expect(
+      [...monsterRuntimes.values()].some((monster) => monster.targetSessionId === client.sessionId),
+    ).toBe(true);
+  });
+
+  it("keeps far monsters asleep", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    await colyseus.connectTo(room, { name: "Far", map: ROOM_NAME_FIELDS });
+    await room.waitForNextPatch();
+
+    const before = new Map(
+      [...room.state.monsters].map(([id, monster]) => [id, { x: monster.x, y: monster.y }]),
+    );
+    await sleep(500);
+
+    for (const [id, monster] of room.state.monsters) {
+      const start = before.get(id)!;
+      expect(monster.x).toBeCloseTo(start.x, 4);
+      expect(monster.y).toBeCloseTo(start.y, 4);
+    }
+    expect(FIELDS_SPAWN.x).toBeLessThan(1000); // the player really is far west
   });
 });

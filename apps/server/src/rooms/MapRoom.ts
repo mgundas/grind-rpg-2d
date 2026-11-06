@@ -5,6 +5,7 @@ import {
   INTEREST_ADD_RADIUS_PX,
   INTEREST_INTERVAL_MS,
   INTEREST_RADIUS_PX,
+  MAX_ASTAR_PER_TICK,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
@@ -21,15 +22,19 @@ import {
   findPath,
   inputMessageSchema,
   isWalkableAt,
+  seededRandomSource,
+  seedFromString,
   stepMover,
   type ChatMsgPayload,
   type Dir8,
   type InputMessage,
   type MapId,
+  type RandomSource,
   type Vec2,
   type WarpPayload,
   type WarpZone,
 } from "@jadethrone/shared";
+import { getMonster } from "@jadethrone/data/monsters";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
@@ -37,6 +42,9 @@ import { PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { progressionFromCharacter } from "../characters/progression";
+import { stepMonsterAi, type AiPlayerSnapshot } from "./monsterAi";
+import type { MonsterRuntime } from "./monsterRuntime";
+import { createSpawnManager, spawnAllGroups, tickSpawns, type SpawnManager } from "./spawnManager";
 import type { JoinIdentity } from "../auth/joinAuth";
 
 /** Max queued input messages per player; older inputs are dropped. */
@@ -66,6 +74,9 @@ export class MapRoom extends Room {
   private mapId!: MapId;
   private assets!: MapAssets;
   private runtimes = new Map<string, PlayerRuntime>();
+  private monsterRuntimes = new Map<string, MonsterRuntime>();
+  private spawns!: SpawnManager;
+  private rng!: RandomSource;
 
   /**
    * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
@@ -85,6 +96,18 @@ export class MapRoom extends Room {
     }
     this.mapId = this.roomName;
     this.assets = loadMapAssets(this.mapId);
+    this.rng = getServerServices().createRandomSource();
+    this.spawns = createSpawnManager({
+      mapId: this.mapId,
+      grid: this.assets.grid,
+      state: this.state,
+      runtimes: this.monsterRuntimes,
+      mobZones: this.assets.mobZones,
+      // Deterministic per room: the room id is random, so two rooms never
+      // share a layout, but a single room always reproduces its own packs.
+      rngForGroup: (seed) => seededRandomSource(seedFromString(`${this.roomId}:${seed}`)),
+    });
+    spawnAllGroups(this.spawns, Date.now());
 
     this.onMessage(MSG.input, (client, raw) => {
       const parsed = inputMessageSchema.safeParse(raw);
@@ -248,6 +271,7 @@ export class MapRoom extends Room {
     const player = this.state.players.get(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
+    this.clearPlayerFromMonsters(client.sessionId);
 
     if (runtime) {
       getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
@@ -367,15 +391,30 @@ export class MapRoom extends Room {
           view.remove(player);
         }
       }
+
+      for (const monster of this.state.monsters.values()) {
+        const dx = monster.x - own.x;
+        const dy = monster.y - own.y;
+        const distanceSquared = dx * dx + dy * dy;
+        const visible = view.has(monster);
+        if (!visible && distanceSquared <= addSquared) {
+          view.add(monster);
+        } else if (visible && distanceSquared > removeSquared) {
+          view.remove(monster);
+        }
+      }
     }
   }
 
   /**
-   * Fixed 20 Hz step, in the GAME_DESIGN order `input -> movement -> ...`.
-   * Each queued intent advances exactly one tick, so delayed input still
-   * covers the same distance; path intents keep walking without new input.
+   * Fixed 20 Hz step in the GAME_DESIGN order
+   * `input -> movement -> ai -> (combat) -> (regen) -> spawns -> warps`.
+   * Combat and regen are added in later tasks; the stage boundaries are kept so
+   * each system observes the positions produced by the previous one.
    */
   private tick(): void {
+    const now = Date.now();
+    const players = this.playerSnapshots();
     for (const client of this.clients) {
       const runtime = this.runtimes.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
@@ -384,7 +423,76 @@ export class MapRoom extends Room {
       }
       this.stepPlayer(runtime, player);
     }
+    this.stepMonsters(now, players);
+    tickSpawns(
+      this.spawns,
+      now,
+      players.map((player) => player.pos),
+    );
     this.checkWarps();
+  }
+
+  /** One snapshot per tick for the AI; positions come from authoritative movers. */
+  private playerSnapshots(): AiPlayerSnapshot[] {
+    const snapshots: AiPlayerSnapshot[] = [];
+    for (const [sessionId, runtime] of this.runtimes) {
+      snapshots.push({
+        sessionId,
+        pos: runtime.mover.pos,
+        dead: runtime.dead,
+        warping: runtime.warping,
+      });
+    }
+    return snapshots;
+  }
+
+  private stepMonsters(now: number, players: readonly AiPlayerSnapshot[]): void {
+    let budget = MAX_ASTAR_PER_TICK;
+    const takeAstar = (): boolean => {
+      if (budget <= 0) {
+        return false;
+      }
+      budget--;
+      return true;
+    };
+
+    for (const [monsterId, runtime] of this.monsterRuntimes) {
+      if (runtime.hp <= 0) {
+        continue;
+      }
+      const monster = this.state.monsters.get(monsterId);
+      if (!monster) {
+        continue;
+      }
+      stepMonsterAi(
+        {
+          grid: this.assets.grid,
+          now,
+          players,
+          takeAstar,
+          rng: () => this.rng.next(),
+        },
+        runtime,
+        monster,
+        getMonster(runtime.typeId),
+      );
+    }
+  }
+
+  /** A player who leaves is no longer a valid monster target. */
+  private clearPlayerFromMonsters(sessionId: string): void {
+    for (const monster of this.monsterRuntimes.values()) {
+      if (monster.targetSessionId !== sessionId) {
+        continue;
+      }
+      monster.targetSessionId = null;
+      monster.mover.path = [];
+      monster.failedRepaths = 0;
+      monster.lastTargetTileKey = null;
+      if (monster.ai !== "return") {
+        monster.ai = "return";
+      }
+    }
   }
 
   /** Trigger any warp zone the player is standing on (after movement). */
@@ -442,6 +550,7 @@ export class MapRoom extends Room {
 
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
+    this.clearPlayerFromMonsters(client.sessionId);
     // The move is intentional; do not let the target join "kick" this session.
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
 
