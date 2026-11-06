@@ -14,7 +14,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 8 — docker-compose.yml (Pi deployment), .env.example, scripts/dev-db.mjs
 - [x] Task 9 — client: Vite + React + Phaser shell with Boot scene
 - [x] Task 10 — client: asset manifest with procedural placeholder fallback
-- [ ] Task 11 — client: demo world scene with placeholder character + server status overlay
+- [x] Task 11 — client: demo world scene with placeholder character + server status overlay
 - [ ] Task 12 — admin: theme styled login page skeleton
 - [ ] Task 13 — root dev orchestration and workspace scripts
 - [ ] Task 14 — CI workflow (.github/workflows/ci.yml)
