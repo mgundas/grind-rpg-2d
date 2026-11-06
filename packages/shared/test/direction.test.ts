@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   DIR8_VECTORS,
+  FACING4_ORDER,
   dir8FromAxes,
   dir8Towards,
   facing4FromDir8,
+  facing4FromIndex,
+  facing4Index,
   type Dir8,
 } from "../src/direction";
 import { INV_SQRT2, WALK_SPEED } from "../src/constants";
@@ -49,8 +52,20 @@ describe("facing4FromDir8", () => {
 
   it("covers every direction", () => {
     for (const dir of ALL_DIRS) {
-      expect(["down", "left", "right", "up"]).toContain(facing4FromDir8(dir));
+      expect(FACING4_ORDER).toContain(facing4FromDir8(dir));
     }
+  });
+});
+
+describe("facing4 index codec", () => {
+  it("round-trips every facing", () => {
+    for (const facing of FACING4_ORDER) {
+      expect(facing4FromIndex(facing4Index(facing))).toBe(facing);
+    }
+  });
+
+  it("defaults unknown indexes to down", () => {
+    expect(facing4FromIndex(9)).toBe("down");
   });
 });
 

@@ -27,7 +27,18 @@ export const DIR8_VECTORS: readonly Readonly<Vec2>[] = [
 ];
 
 /** LPC-visible facing, in the sheet's row order: down, left, right, up. */
-export type Facing4 = "down" | "left" | "right" | "up";
+export const FACING4_ORDER = ["down", "left", "right", "up"] as const;
+export type Facing4 = (typeof FACING4_ORDER)[number];
+
+/** Compact state/codec representation of a facing. */
+export function facing4Index(facing: Facing4): 0 | 1 | 2 | 3 {
+  const index = FACING4_ORDER.indexOf(facing);
+  return (index < 0 ? 0 : index) as 0 | 1 | 2 | 3;
+}
+
+export function facing4FromIndex(index: number): Facing4 {
+  return FACING4_ORDER[index] ?? "down";
+}
 
 /**
  * Sprite sheets only have 4 rows; diagonals use the closer horizontal

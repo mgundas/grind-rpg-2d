@@ -1,9 +1,8 @@
 import process from "node:process";
-import { matchMaker, defineRoom, defineServer } from "@colyseus/core";
+import { matchMaker } from "@colyseus/core";
 import { config } from "./config";
 import { logger } from "./logger";
-import { WorldRoom } from "./rooms/WorldRoom";
-import { healthHandler } from "./routes/health";
+import { createGameServer } from "./server";
 
 /**
  * The `@colyseus/core` typings were verified against 0.17.56 before writing
@@ -14,14 +13,7 @@ import { healthHandler } from "./routes/health";
  * `server.listen(...)` is chained (not awaited at top level) because the
  * production bundle is CJS, which cannot use top-level await (D8).
  */
-const server = defineServer({
-  rooms: {
-    world: defineRoom(WorldRoom),
-  },
-  express: (app) => {
-    app.get("/api/health", healthHandler);
-  },
-});
+const server = createGameServer();
 
 if (config.usingDefaultDbPassword) {
   logger.warn("POSTGRES_PASSWORD is not configured; using the built-in dev default.");

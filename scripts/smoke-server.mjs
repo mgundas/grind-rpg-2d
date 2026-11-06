@@ -65,7 +65,7 @@ try {
   try {
     // The 0.17 default router exposes matchmaking via POST joinOrCreate —
     // this proves the room is registered and matchmakeable.
-    const res = await fetch(`http://127.0.0.1:${port}/matchmake/joinOrCreate/world`, {
+    const res = await fetch(`http://127.0.0.1:${port}/matchmake/joinOrCreate/map_ember_village`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: "SmokeTester" }),

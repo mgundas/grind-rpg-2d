@@ -45,3 +45,7 @@ Two Windows-specific findings from verifying the endpoint against an unreachable
 ## D11 — Map files are Tiled JSON with a `.json` extension
 
 Maps are Tiled JSON (same format the spec calls `.tmj`) but named `*.json` so Vitest/Vite/tsx/esbuild all import them as typed JSON modules without extra loaders or runtime path resolution. Tiled opens `.json` maps normally. `resolveJsonModule` is enabled in `tsconfig.base.json`; both client and server parse the exact same bytes through `parseTiledMap`, which is what guarantees identical collision grids.
+
+## D12 — One room type per map, and map assets are memoized shared JSON
+
+`map_ember_village` and `map_ember_fields` are separate registrations of the same `MapRoom` class; `roomName` is the map id, so clients can never choose a map. Server and client import the same generated JSON and build the collision grid with the same shared parser; `apps/server/src/maps/mapRegistry.ts` memoizes parsed assets per map. `createGameServer()` builds the server without listening so `@colyseus/testing` can boot it for room tests.

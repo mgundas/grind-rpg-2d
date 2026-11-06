@@ -12,6 +12,7 @@
     "@colyseus/core": "catalog:",
     "@colyseus/schema": "catalog:",
     "@colyseus/ws-transport": "catalog:",
+    "@jadethrone/data": "workspace:*",
     "@jadethrone/shared": "workspace:*",
     "express": "catalog:",
     "pg": "catalog:",
@@ -19,10 +20,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@colyseus/testing": "catalog:",
     "@types/express": "catalog:",
     "@types/pg": "catalog:",
     "esbuild": "catalog:",
     "tsx": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

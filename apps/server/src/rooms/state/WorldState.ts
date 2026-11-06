@@ -4,14 +4,24 @@ import { MapSchema, Schema, type } from "@colyseus/schema";
  * Synchronized room state (schema 4 legacy decorators). Client-visible fields
  * only — private player data (inventory, XP, gold) will later travel through
  * StateView/direct messages (GAME_DESIGN.md §10.2).
+ *
+ * The `players` collection itself is view-tagged: each client's StateView
+ * controls which player instances it receives (interest management), and
+ * `view.add/remove` surfaces client-side as `onAdd`/`onRemove`.
  */
 export class PlayerState extends Schema {
   @type("string") name!: string;
-  @type("uint16") x!: number;
-  @type("uint16") y!: number;
   @type("string") kingdom!: string;
+  /** float32: exact enough (<< 0.01px) for smooth interpolation at map scale. */
+  @type("float32") x!: number;
+  @type("float32") y!: number;
+  /** 0=down, 1=left, 2=right, 3=up (LPC row order). */
+  @type("uint8") facing!: number;
+  @type("boolean") moving!: boolean;
+  /** Highest input sequence the server has applied for this player. */
+  @type("uint32") lastSeq!: number;
 }
 
 export class WorldState extends Schema {
-  @type({ map: PlayerState }) players = new MapSchema<PlayerState>();
+  @type({ map: PlayerState, view: true }) players = new MapSchema<PlayerState>();
 }
