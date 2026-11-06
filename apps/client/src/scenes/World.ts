@@ -20,11 +20,14 @@ import {
   type Vec2,
   type WarpPayload,
 } from "@jadethrone/shared";
+import { getMonster } from "@jadethrone/data/monsters";
 import { consumeWarp, getPingMs, getRoom, leave, sendInput } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
 import { RemoteRegistry, type RemoteEntity, type RemotePlayerData } from "../state/remotes";
+import { MonsterRegistry, type MonsterData, type MonsterEntity } from "../state/monsterRegistry";
 import { useUiStore } from "../ui/store";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
+import { monsterNameColor } from "../world/levelColors";
 import { ensureCharacterTexture } from "../assets/characterTextures";
 import type { CharacterLook } from "../assets/characterArt";
 
@@ -39,6 +42,7 @@ interface RemotePlayerState {
   gender: string;
   hairStyle: number;
   hairColor: number;
+  level: number;
   facing: number;
   x: number;
   y: number;
@@ -50,14 +54,29 @@ interface PlayersCollection {
   get(sessionId: string): RemotePlayerState | undefined;
 }
 
+type MonsterStateLike = MonsterData;
+
+interface MonstersCollection {
+  forEach(callback: (monster: MonsterStateLike, monsterId: string) => void): void;
+}
+
 interface RoomStateLike {
   players?: PlayersCollection;
+  monsters?: MonstersCollection;
 }
 
 interface RemoteVisual {
   sprite: Phaser.GameObjects.Sprite;
   shadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
+}
+
+interface MonsterVisual {
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  label: Phaser.GameObjects.Text;
+  barBackground: Phaser.GameObjects.Rectangle;
+  barFill: Phaser.GameObjects.Rectangle;
 }
 
 /**
@@ -86,6 +105,8 @@ export class WorldScene extends Phaser.Scene {
 
   private remoteRegistry = new RemoteRegistry();
   private remoteVisuals = new Map<string, RemoteVisual>();
+  private monsterRegistry = new MonsterRegistry();
+  private monsterVisuals = new Map<string, MonsterVisual>();
   private debugAccumMs = 0;
   private warping = false;
   private mapSwitchPending = false;
@@ -100,6 +121,8 @@ export class WorldScene extends Phaser.Scene {
     this.initializedFor = null;
     this.remoteRegistry = new RemoteRegistry();
     this.remoteVisuals.clear();
+    this.monsterRegistry = new MonsterRegistry();
+    this.monsterVisuals.clear();
     this.pathTarget = null;
     this.warping = false;
     this.mapSwitchPending = false;
@@ -195,6 +218,7 @@ export class WorldScene extends Phaser.Scene {
     this.arrow.setDepth(this.character.y + 1);
 
     this.updateRemotes();
+    this.updateMonsters();
 
     this.debugAccumMs += delta;
     if (this.debugAccumMs >= 250) {
@@ -224,7 +248,9 @@ export class WorldScene extends Phaser.Scene {
     const sessionId = room.sessionId;
     if (this.initializedFor !== sessionId) {
       this.clearRemoteVisuals();
+      this.clearMonsterVisuals();
       this.remoteRegistry = new RemoteRegistry();
+      this.monsterRegistry = new MonsterRegistry();
       this.pathTarget = null;
       this.pointerHeld = false;
       this.pointerWorld = null;
@@ -237,6 +263,7 @@ export class WorldScene extends Phaser.Scene {
     this.character.setPosition(own.x, own.y);
     this.setOwnVisible(true);
     this.syncRemotes(state, sessionId);
+    this.syncMonsters(state);
 
     room.onStateChange((next: unknown) => {
       const snapshot = next as RoomStateLike;
@@ -245,6 +272,7 @@ export class WorldScene extends Phaser.Scene {
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
       this.syncRemotes(snapshot, sessionId);
+      this.syncMonsters(snapshot);
     });
 
     room.onMessage("chatMsg", (payload: ChatMsgPayload) => {
@@ -272,6 +300,17 @@ export class WorldScene extends Phaser.Scene {
     this.remoteVisuals.clear();
   }
 
+  private clearMonsterVisuals(): void {
+    for (const visual of this.monsterVisuals.values()) {
+      visual.sprite.destroy();
+      visual.shadow.destroy();
+      visual.label.destroy();
+      visual.barBackground.destroy();
+      visual.barFill.destroy();
+    }
+    this.monsterVisuals.clear();
+  }
+
   /** Forget all room-scoped input/render state (logout, kick, session change). */
   private resetSessionState(): void {
     this.predictor = null;
@@ -283,6 +322,8 @@ export class WorldScene extends Phaser.Scene {
     this.facing = 2;
     this.remoteRegistry = new RemoteRegistry();
     this.clearRemoteVisuals();
+    this.monsterRegistry = new MonsterRegistry();
+    this.clearMonsterVisuals();
     this.setOwnVisible(false);
   }
 
@@ -429,6 +470,153 @@ export class WorldScene extends Phaser.Scene {
       visual.shadow.setDepth(pos.y - 1);
       visual.label.setPosition(pos.x, pos.y - 52);
       visual.label.setDepth(pos.y + 2);
+    }
+  }
+
+  private playerLevel(snapshot: RoomStateLike): number {
+    const sessionId = useUiStore.getState().sessionId;
+    return sessionId ? (snapshot.players?.get(sessionId)?.level ?? 1) : 1;
+  }
+
+  private syncMonsters(snapshot: RoomStateLike): void {
+    const entries: Array<[string, MonsterData]> = [];
+    snapshot.monsters?.forEach((monster, monsterId) => {
+      entries.push([
+        monsterId,
+        {
+          typeId: monster.typeId,
+          name: monster.name,
+          level: monster.level,
+          x: monster.x,
+          y: monster.y,
+          facing: monster.facing,
+          hp: monster.hp,
+          maxHp: monster.maxHp,
+          moving: monster.moving,
+          isBoss: monster.isBoss,
+        },
+      ]);
+    });
+
+    const { removed } = this.monsterRegistry.sync(entries, this.time.now);
+    for (const monsterId of removed) {
+      const visual = this.monsterVisuals.get(monsterId);
+      if (visual) {
+        visual.sprite.destroy();
+        visual.shadow.destroy();
+        visual.label.destroy();
+        visual.barBackground.destroy();
+        visual.barFill.destroy();
+        this.monsterVisuals.delete(monsterId);
+      }
+    }
+
+    const level = this.playerLevel(snapshot);
+    for (const entity of this.monsterRegistry.entities.values()) {
+      const visual = this.monsterVisuals.get(entity.id);
+      if (visual) {
+        visual.label.setColor(monsterNameColor(entity.level, level));
+      } else {
+        this.createMonsterVisual(entity, level);
+      }
+    }
+  }
+
+  private createMonsterVisual(entity: MonsterEntity, playerLevel: number): void {
+    const spec = getMonster(entity.typeId);
+    const scale = spec.isBoss
+      ? 1.4
+      : spec.size === "large"
+        ? 1.2
+        : spec.size === "small"
+          ? 0.85
+          : 1;
+    const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
+    const textureKey = this.textures.exists(spec.spriteKey) ? spec.spriteKey : KEY_CHARACTER;
+    const shadow = this.add
+      .ellipse(pos.x, pos.y + 6, 24 * scale, 9 * scale, 0x000000, 0.3)
+      .setDepth(pos.y - 1);
+    const sprite = this.add
+      .sprite(pos.x, pos.y, textureKey)
+      .setOrigin(0.5, 0.85)
+      .setScale(scale)
+      .setDepth(pos.y);
+    const label = this.add
+      .text(pos.x, pos.y - 52 * scale, entity.name, {
+        fontFamily: "monospace",
+        fontSize: `${spec.isBoss ? 11 : 10}px`,
+        color: monsterNameColor(entity.level, playerLevel),
+        stroke: "#0b0f0d",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(pos.y + 3);
+
+    const barWidth = 34 * scale;
+    const barBackground = this.add
+      .rectangle(pos.x, pos.y - 62 * scale, barWidth, 4, 0x0b0f0d, 0.75)
+      .setOrigin(0.5, 0.5)
+      .setDepth(pos.y + 2)
+      .setVisible(false);
+    const barFill = this.add
+      .rectangle(pos.x - barWidth / 2, pos.y - 62 * scale, barWidth, 3, 0xc0392b, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(pos.y + 2)
+      .setVisible(false);
+
+    this.monsterVisuals.set(entity.id, {
+      sprite,
+      shadow,
+      label,
+      barBackground,
+      barFill,
+    });
+  }
+
+  private updateMonsters(): void {
+    const now = this.time.now;
+    const sessionId = useUiStore.getState().sessionId;
+    const level = sessionId
+      ? ((getRoom()?.state as RoomStateLike | undefined)?.players?.get(sessionId)?.level ?? 1)
+      : 1;
+
+    for (const entity of this.monsterRegistry.entities.values()) {
+      const visual = this.monsterVisuals.get(entity.id);
+      if (!visual) {
+        continue;
+      }
+      const pos = this.monsterRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      const spec = getMonster(entity.typeId);
+      const scale = entity.isBoss
+        ? 1.4
+        : spec.size === "large"
+          ? 1.2
+          : spec.size === "small"
+            ? 0.85
+            : 1;
+      visual.sprite.setPosition(pos.x, pos.y);
+      visual.sprite.setDepth(pos.y);
+      visual.shadow.setPosition(pos.x, pos.y + 6);
+      visual.shadow.setDepth(pos.y - 1);
+      visual.label.setPosition(pos.x, pos.y - 52 * scale);
+      visual.label.setDepth(pos.y + 3);
+      visual.label.setColor(monsterNameColor(entity.level, level));
+
+      const ratio = entity.maxHp > 0 ? Math.max(0, Math.min(1, entity.hp / entity.maxHp)) : 0;
+      const showBar = ratio < 1;
+      const barWidth = 34 * scale;
+      visual.barBackground
+        .setPosition(pos.x, pos.y - 62 * scale)
+        .setDepth(pos.y + 2)
+        .setVisible(showBar);
+      visual.barFill
+        .setPosition(pos.x - barWidth / 2, pos.y - 62 * scale)
+        .setDisplaySize(barWidth * ratio, 3)
+        .setDepth(pos.y + 2)
+        .setVisible(showBar);
     }
   }
 

@@ -29,6 +29,46 @@
         "rarity": "common",
         "label": "Sw"
       }
+    },
+    "mob.wild_dog": {
+      "path": "sprites/monsters/wild-dog.png",
+      "placeholder": { "kind": "mob", "color": "#8a6a4a" }
+    },
+    "mob.gray_wolf": {
+      "path": "sprites/monsters/gray-wolf.png",
+      "placeholder": { "kind": "mob", "color": "#8d949c" }
+    },
+    "mob.alpha_wolf": {
+      "path": "sprites/monsters/alpha-wolf.png",
+      "placeholder": { "kind": "mob", "color": "#5b6470" }
+    },
+    "mob.wild_boar": {
+      "path": "sprites/monsters/wild-boar.png",
+      "placeholder": { "kind": "mob", "color": "#7c5a3e" }
+    },
+    "mob.brown_bear": {
+      "path": "sprites/monsters/brown-bear.png",
+      "placeholder": { "kind": "mob", "color": "#6b4a32" }
+    },
+    "mob.corrupted_deer": {
+      "path": "sprites/monsters/corrupted-deer.png",
+      "placeholder": { "kind": "mob", "color": "#7b6f8f" }
+    },
+    "mob.bandit_thug": {
+      "path": "sprites/monsters/bandit-thug.png",
+      "placeholder": { "kind": "mob", "color": "#7a4b3a" }
+    },
+    "mob.bandit_archer": {
+      "path": "sprites/monsters/bandit-archer.png",
+      "placeholder": { "kind": "mob", "color": "#6b6240" }
+    },
+    "mob.lesser_spirit": {
+      "path": "sprites/monsters/lesser-spirit.png",
+      "placeholder": { "kind": "mob", "color": "#6f8fa8" }
+    },
+    "mob.wolf_king": {
+      "path": "sprites/monsters/wolf-king.png",
+      "placeholder": { "kind": "mob", "color": "#4a4f5c" }
     }
   }
 }
