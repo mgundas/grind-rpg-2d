@@ -28,6 +28,8 @@ export interface MonsterRuntime {
   failedRepaths: number;
   generation: number;
   spawnIndex: number;
+  /** Damage dealt by each session since spawn; the top contributor owns drops. */
+  damageBy: Map<string, number>;
 }
 
 export function createMonsterRuntime(input: {
@@ -60,5 +62,6 @@ export function createMonsterRuntime(input: {
     failedRepaths: 0,
     generation: input.generation,
     spawnIndex: input.spawnIndex,
+    damageBy: new Map(),
   };
 }

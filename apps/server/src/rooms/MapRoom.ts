@@ -7,6 +7,10 @@ import {
   AUTO_WALK_GIVE_UP_MS,
   AUTO_WALK_MAX_EMPTY_PATHS,
   AUTO_WALK_TARGET_RANGE_PX,
+  DROP_OWNERSHIP_MS,
+  DROP_SCATTER_MAX_PX,
+  DROP_SCATTER_MIN_PX,
+  GROUND_ITEM_DESPAWN_MS,
   INTEREST_ADD_RADIUS_PX,
   INTEREST_INTERVAL_MS,
   INTEREST_RADIUS_PX,
@@ -39,6 +43,8 @@ import {
   isWalkableAt,
   monsterXpGain,
   moveItemMessageSchema,
+  nearestWalkable,
+  rollDrops,
   requestInventoryMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
@@ -67,6 +73,8 @@ import {
   type WarpZone,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
+import { getDropTable } from "@jadethrone/data/dropTables";
+import { getItem, hasItem } from "@jadethrone/data/items";
 import { getMonster } from "@jadethrone/data/monsters";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
@@ -76,7 +84,8 @@ import type { ItemPlan } from "../items/itemChanges";
 import { planEquip, planMove, planSplit, planUnequip } from "../items/planning";
 import { buildInventorySnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
-import { PlayerState, WorldState } from "./state/WorldState";
+import type { GroundItemRuntime } from "./groundItems";
+import { GroundItemState, PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { buildSelfStats } from "../characters/selfStats";
@@ -129,6 +138,7 @@ export class MapRoom extends Room {
   private assets!: MapAssets;
   private runtimes = new Map<string, PlayerRuntime>();
   private monsterRuntimes = new Map<string, MonsterRuntime>();
+  private groundItems = new Map<string, GroundItemRuntime>();
   private spawns!: SpawnManager;
   private rng!: RandomSource;
   /** Monotonic id for combat events, so clients can ignore stale arrivals. */
@@ -167,6 +177,19 @@ export class MapRoom extends Room {
       rngForGroup: (seed) => seededRandomSource(seedFromString(`${this.roomId}:${seed}`)),
     });
     spawnAllGroups(this.spawns, Date.now());
+
+    // Leftovers from a previous process are unreachable; remove them before
+    // this room starts producing new drops.
+    void getServerServices()
+      .items.deleteGroundItemsForMap(this.mapId)
+      .then((count) => {
+        if (count > 0) {
+          logger.info({ roomId: this.roomId, mapId: this.mapId, count }, "purged stale ground items");
+        }
+      })
+      .catch((error: unknown) => {
+        logger.error({ roomId: this.roomId, mapId: this.mapId, error }, "ground purge failed");
+      });
 
     this.onMessage(MSG.input, (client, raw) => {
       const parsed = inputMessageSchema.safeParse(raw);
@@ -713,6 +736,18 @@ export class MapRoom extends Room {
           view.remove(monster);
         }
       }
+
+      for (const drop of this.state.groundItems.values()) {
+        const dx = drop.x - own.x;
+        const dy = drop.y - own.y;
+        const distanceSquared = dx * dx + dy * dy;
+        const visible = view.has(drop);
+        if (!visible && distanceSquared <= addSquared) {
+          view.add(drop);
+        } else if (visible && distanceSquared > removeSquared) {
+          view.remove(drop);
+        }
+      }
     }
   }
 
@@ -748,6 +783,7 @@ export class MapRoom extends Room {
     if (spawned > 0) {
       this.updateInterest();
     }
+    this.tickGroundItems(now);
     this.checkWarps();
   }
 
@@ -831,7 +867,142 @@ export class MapRoom extends Room {
         this.clearAutoWalk(attacker, sessionId, "target_lost");
       }
       this.awardKillXp(sessionId, killed);
+      void this.spawnDrops(killed, sessionId, now);
     }
+  }
+
+  private tickGroundItems(now: number): void {
+    for (const [dropId, item] of this.groundItems) {
+      if (now < item.despawnAtMs) {
+        continue;
+      }
+      this.groundItems.delete(dropId);
+      this.state.groundItems.delete(dropId);
+      if (item.kind === "item") {
+        void getServerServices().items.deleteGroundItem(dropId);
+      }
+    }
+  }
+
+  private addGroundItem(item: GroundItemRuntime): void {
+    this.groundItems.set(item.dropId, item);
+    const state = new GroundItemState();
+    state.dropId = item.dropId;
+    state.kind = item.kind;
+    state.itemId = item.itemId;
+    state.quantity = item.quantity;
+    state.rarity = item.rarity;
+    state.x = item.x;
+    state.y = item.y;
+    state.ownerCharacterId = item.ownerCharacterId;
+    state.despawnAtMs = item.despawnAtMs;
+    this.state.groundItems.set(item.dropId, state);
+  }
+
+  private dropPosition(origin: Vec2): Vec2 {
+    const angle = this.rng.next() * Math.PI * 2;
+    const radius =
+      DROP_SCATTER_MIN_PX + this.rng.next() * (DROP_SCATTER_MAX_PX - DROP_SCATTER_MIN_PX);
+    const candidate = {
+      x: origin.x + Math.cos(angle) * radius,
+      y: origin.y + Math.sin(angle) * radius,
+    };
+    return (
+      nearestWalkable(this.assets.grid, candidate.x, candidate.y) ?? {
+        x: origin.x,
+        y: origin.y,
+      }
+    );
+  }
+
+  /**
+   * Roll the monster's table, persist item drops before exposing them, and add
+   * gold as an ephemeral ground pile. DB failures skip that item (retry once).
+   */
+  private async spawnDrops(
+    killed: KilledMonster,
+    killerSessionId: string,
+    now: number,
+  ): Promise<void> {
+    const spec = getMonster(killed.typeId);
+    if (!spec.dropTableId) {
+      return;
+    }
+    const ownerRuntime =
+      this.runtimes.get(killed.ownerSessionId) ?? this.runtimes.get(killerSessionId);
+    const ownerCharacterId = ownerRuntime?.characterId ?? "";
+    const rolled = rollDrops(
+      this.rng,
+      getDropTable(spec.dropTableId).drops,
+      spec.goldMin,
+      spec.goldMax,
+    );
+    const ownerUntilMs = now + DROP_OWNERSHIP_MS;
+    const despawnAtMs = now + GROUND_ITEM_DESPAWN_MS;
+
+    if (rolled.gold > 0) {
+      const position = this.dropPosition(killed);
+      this.addGroundItem({
+        dropId: randomUUID(),
+        kind: "gold",
+        itemId: "",
+        quantity: rolled.gold,
+        rarity: "common",
+        x: position.x,
+        y: position.y,
+        ownerCharacterId,
+        ownerUntilMs,
+        despawnAtMs,
+      });
+    }
+
+    for (const drop of rolled.items) {
+      const itemId = drop.itemId;
+      if (!hasItem(itemId)) {
+        logger.warn({ roomId: this.roomId, itemId }, "drop table references unknown item");
+        continue;
+      }
+      const dropId = randomUUID();
+      const position = this.dropPosition(killed);
+      const row = {
+        id: dropId,
+        definitionId: itemId,
+        location: "ground" as const,
+        quantity: drop.quantity,
+        upgradeLevel: 0,
+        bonuses: [],
+        createdBy: "drop",
+        mapId: this.mapId,
+        roomId: this.roomId,
+        x: position.x,
+        y: position.y,
+        dropOwnerCharacterId: ownerCharacterId || null,
+        ownerUntil: new Date(ownerUntilMs),
+        despawnAt: new Date(despawnAtMs),
+      };
+      let inserted = await getServerServices().items.insertGroundItem(row);
+      if (!inserted) {
+        inserted = await getServerServices().items.insertGroundItem(row);
+      }
+      if (!inserted) {
+        logger.error({ roomId: this.roomId, itemId, dropId }, "dropping item skipped");
+        continue;
+      }
+      this.addGroundItem({
+        dropId,
+        kind: "item",
+        itemId,
+        quantity: drop.quantity,
+        rarity: getItem(itemId).rarity,
+        x: position.x,
+        y: position.y,
+        ownerCharacterId,
+        ownerUntilMs,
+        despawnAtMs,
+      });
+    }
+
+    this.updateInterest();
   }
 
   private emitMonsterAttack(monsterId: string, hit: CombatHit): void {

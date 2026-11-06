@@ -354,6 +354,16 @@ export function createFakeServices(): FakeServices {
       itemRows.delete(id);
       return true;
     },
+    async deleteGroundItemsForMap(mapId) {
+      let deleted = 0;
+      for (const [id, row] of itemRows) {
+        if (row.location === "ground" && row.mapId === mapId) {
+          itemRows.delete(id);
+          deleted++;
+        }
+      }
+      return deleted;
+    },
   };
 
   function giveItem(row: {

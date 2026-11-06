@@ -57,6 +57,22 @@ export class MonsterState extends Schema {
   @type("boolean") isBoss!: boolean;
 }
 
+/** A dropped item or a pile of gold (GAME_DESIGN.md §6.3). */
+export class GroundItemState extends Schema {
+  @type("string") dropId!: string;
+  /** "item" | "gold" */
+  @type("string") kind!: string;
+  /** Empty for gold piles. */
+  @type("string") itemId!: string;
+  @type("uint32") quantity!: number;
+  @type("string") rarity!: string;
+  @type("float32") x!: number;
+  @type("float32") y!: number;
+  @type("string") ownerCharacterId!: string;
+  /** Absolute epoch ms; the client can hide a drop before the next patch. */
+  @type("float64") despawnAtMs!: number;
+}
+
 export class WorldState extends Schema {
   // `view: true` inside `@type()` is ignored by the installed schema build;
   // the separate `@view()` decorator is what tags the collection as filtered.
@@ -67,4 +83,8 @@ export class WorldState extends Schema {
   @view()
   @type({ map: MonsterState })
   monsters = new MapSchema<MonsterState>();
+
+  @view()
+  @type({ map: GroundItemState })
+  groundItems = new MapSchema<GroundItemState>();
 }

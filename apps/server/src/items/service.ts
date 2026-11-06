@@ -22,6 +22,8 @@ export interface ItemService {
   /** Ground drops are inserted before they enter room state (Task 13). */
   insertGroundItem(row: NewItemRow): Promise<boolean>;
   deleteGroundItem(id: string): Promise<boolean>;
+  /** Purge leftovers from a previous process when a room starts. */
+  deleteGroundItemsForMap(mapId: string): Promise<number>;
 }
 
 export function createItemService(db: Db): ItemService {
@@ -49,6 +51,18 @@ export function createItemService(db: Db): ItemService {
       } catch (error) {
         logger.error({ itemId: id, error }, "ground item delete failed");
         return false;
+      }
+    },
+    async deleteGroundItemsForMap(mapId) {
+      try {
+        const deleted = await db
+          .delete(items)
+          .where(and(eq(items.location, "ground"), eq(items.mapId, mapId)))
+          .returning({ id: items.id });
+        return deleted.length;
+      } catch (error) {
+        logger.error({ mapId, error }, "ground item map cleanup failed");
+        return 0;
       }
     },
   };

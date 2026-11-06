@@ -8,6 +8,7 @@ import {
   type SelfStatsPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
+import type { KilledMonster } from "../../src/rooms/combat";
 import type { MapRoom } from "../../src/rooms/MapRoom";
 import type { JoinIdentity } from "../../src/auth/joinAuth";
 import { createFakeServices, type FakeServices } from "./fakes";
@@ -192,6 +193,67 @@ describe("MapRoom inventory snapshots", () => {
     send(client, MSG.unequipItem, { slot: 1 });
     const withoutArmor = (await unequipped) as SelfStatsPayload;
     expect(withoutArmor.maxHp).toBe(316);
+  });
+
+  it("spawns owned gold and the guaranteed material drop on a kill", async () => {
+    const { room, client, identity } = await joinWithInventory("Hunter");
+    const spawnDrops = (
+      room as unknown as {
+        spawnDrops: (
+          killed: KilledMonster,
+          killerSessionId: string,
+          now: number,
+        ) => Promise<void>;
+      }
+    ).spawnDrops.bind(room);
+
+    await spawnDrops(
+      {
+        monsterId: "m0_g1_0",
+        typeId: "wild_dog",
+        x: 400,
+        y: 400,
+        ownerSessionId: client.sessionId,
+      },
+      client.sessionId,
+      Date.now(),
+    );
+
+    const dropList = [...room.state.groundItems.values()];
+    expect(dropList.some((drop) => drop.kind === "gold")).toBe(true);
+    expect(dropList.some((drop) => drop.itemId === "material_wolf_fang")).toBe(true);
+    expect(dropList.every((drop) => drop.ownerCharacterId === identity.character.id)).toBe(true);
+  });
+
+  it("despawns expired ground items", async () => {
+    const { room, client } = await joinWithInventory("Sweeper");
+    const internals = room as unknown as {
+      spawnDrops: (
+        killed: KilledMonster,
+        killerSessionId: string,
+        now: number,
+      ) => Promise<void>;
+      groundItems: Map<string, { despawnAtMs: number }>;
+      tickGroundItems: (now: number) => void;
+    };
+    await internals.spawnDrops(
+      {
+        monsterId: "m0_g2_0",
+        typeId: "wild_dog",
+        x: 400,
+        y: 400,
+        ownerSessionId: client.sessionId,
+      },
+      client.sessionId,
+      Date.now(),
+    );
+    expect(room.state.groundItems.size).toBeGreaterThan(0);
+    for (const drop of internals.groundItems.values()) {
+      drop.despawnAtMs = Date.now() - 1;
+    }
+    internals.tickGroundItems(Date.now());
+    expect(room.state.groundItems.size).toBe(0);
+    expect(internals.groundItems.size).toBe(0);
   });
 
   it("serializes two quick moves so the second sees the first result", async () => {

@@ -145,7 +145,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 10 — Service wiring and room-test fakes
 - [x] Task 11 — Runtime inventory, join load, snapshots and command queue
 - [x] Task 12 — Equipment stats and server-side visual keys
-- [ ] Task 13 — Drops, ground items and ownership
+- [x] Task 13 — Drops, ground items and ownership
 - [ ] Task 14 — Pickup, gold credit and auto-loot support
 - [ ] Task 15 — Consumables and return scroll
 - [ ] Task 16 — NPC dialog and shops (server)

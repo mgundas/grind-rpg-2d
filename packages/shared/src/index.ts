@@ -5,6 +5,7 @@ export * from "./collision";
 export * from "./combat";
 export * from "./constants";
 export * from "./direction";
+export * from "./drops";
 export * from "./formulas";
 export * from "./health";
 export * from "./inventory";

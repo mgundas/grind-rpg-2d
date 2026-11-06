@@ -201,3 +201,7 @@ Every item change is a pure plan over the runtime's `InventoryState` (`{ changes
 ## D50 — Loaded items are repaired, never silently deleted
 
 `loadInventory` locks the character row, reads gold and item rows in one snapshot, and repairs overlaps, obsolete equipment slots, quantity corruption and unknown definitions before returning. Repairs are written with an `item_log` row (`action = "repair"`) so a hidden data problem leaves an audit trail. An unknown `definitionId` is treated as a size-1 material and kept; a misplaced equipment item moves to the first free inventory cell. New characters receive their starter weapon, potions and 500 gold inside the existing character-creation transaction, so a failed create leaves no orphan item or gold-log rows.
+
+## D51 — Drops are DB rows; coins are ephemeral room state
+
+Item drops are inserted into `items` as `location='ground'` before the room adds them to the view-tagged `groundItems` collection, so a pickup always has a row to claim with a conditional update. Gold piles are memory-only: they despawn with the room and are credited through `gold_log` on pickup. Drop ownership comes from a per-monster `damageBy` map (highest contributor, falling back to the killing blow); the owner has 30 s of exclusivity and items despawn after 2 min. Drop-table rolling is a shared pure function with a fixed draw order (gold, then table order) so seeded tests reproduce it. A room purges stale ground rows for its map at creation.

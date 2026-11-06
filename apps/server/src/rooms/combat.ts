@@ -43,6 +43,8 @@ export interface KilledMonster {
   typeId: string;
   x: number;
   y: number;
+  /** Highest damage contributor (fallback: the killing blow). */
+  ownerSessionId: string;
 }
 
 export interface SwingOutcome {
@@ -146,12 +148,33 @@ export function resolvePlayerSwing(
 
     monsterRuntime.hp = Math.max(0, monsterRuntime.hp - damage);
     monster.hp = monsterRuntime.hp;
+    monsterRuntime.damageBy.set(
+      sessionId,
+      (monsterRuntime.damageBy.get(sessionId) ?? 0) + damage,
+    );
     hits.push({ target, x, y, miss: false, crit, damage });
     damagedMonsterIds.push(monsterId);
     runtime.lastCombatAtMs = ctx.now;
 
     if (monsterRuntime.hp === 0) {
-      killed.push({ monsterId, typeId: monsterRuntime.typeId, x, y });
+      let ownerSessionId = sessionId;
+      let bestDamage = -1;
+      for (const [contributor, amount] of monsterRuntime.damageBy) {
+        if (!ctx.runtimes.has(contributor)) {
+          continue;
+        }
+        if (amount > bestDamage) {
+          bestDamage = amount;
+          ownerSessionId = contributor;
+        }
+      }
+      killed.push({
+        monsterId,
+        typeId: monsterRuntime.typeId,
+        x,
+        y,
+        ownerSessionId,
+      });
     }
   }
 
