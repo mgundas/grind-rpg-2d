@@ -1,0 +1,252 @@
+import { describe, expect, it } from "vitest";
+import type { RandomSource, Vec2 } from "@jadethrone/shared";
+import { getMonster } from "@jadethrone/data/monsters";
+import { MonsterState, PlayerState, WorldState } from "../../src/rooms/state/WorldState";
+import { createPlayerRuntime, type PlayerRuntime } from "../../src/rooms/playerRuntime";
+import { createMonsterRuntime, type MonsterRuntime } from "../../src/rooms/monsterRuntime";
+import { resolvePlayerSwing, type CombatContext } from "../../src/rooms/combat";
+
+const PLAYER_POS: Vec2 = { x: 200, y: 200 };
+
+function fixed(values: number[]): RandomSource {
+  let index = 0;
+  return {
+    next: () => values[Math.min(index++, values.length - 1)] ?? 0,
+  };
+}
+
+function makePlayer(
+  state: WorldState,
+  options: { classId?: string; pos?: Vec2; dead?: boolean; warping?: boolean } = {},
+): PlayerRuntime {
+  const pos = options.pos ?? PLAYER_POS;
+  const runtime = createPlayerRuntime(pos, {
+    accountId: "a1",
+    characterId: "c1",
+    tokenVersion: 0,
+    progression: {
+      hp: 316,
+      maxHp: 316,
+      mp: 92,
+      maxMp: 92,
+      level: 1,
+      xp: 0,
+      stats: { vit: 4, int: 3, str: 6, dex: 3 },
+      statPoints: 0,
+    },
+  });
+  runtime.dead = options.dead ?? false;
+  runtime.warping = options.warping ?? false;
+
+  const player = new PlayerState();
+  player.characterId = "c1";
+  player.name = "Hero";
+  player.kingdom = "ember";
+  player.classId = options.classId ?? "warrior";
+  player.gender = "male";
+  player.hairStyle = 0;
+  player.hairColor = 0;
+  player.level = 1;
+  player.x = pos.x;
+  player.y = pos.y;
+  player.facing = 2;
+  player.moving = false;
+  player.lastSeq = 0;
+  player.hp = 316;
+  player.maxHp = 316;
+  player.mp = 92;
+  player.maxMp = 92;
+  player.dead = false;
+  state.players.set("s1", player);
+  return runtime;
+}
+
+function addMonster(
+  state: WorldState,
+  runtimes: Map<string, MonsterRuntime>,
+  id: string,
+  typeId: string,
+  pos: Vec2,
+  hp?: number,
+): MonsterRuntime {
+  const spec = getMonster(typeId);
+  const runtime = createMonsterRuntime({
+    id,
+    typeId,
+    groupId: "field_wolves",
+    home: pos,
+    maxHp: spec.hp,
+    generation: 0,
+    spawnIndex: 0,
+    now: 0,
+  });
+  runtime.mover.pos = { x: pos.x, y: pos.y };
+  if (hp !== undefined) {
+    runtime.hp = hp;
+  }
+
+  const monster = new MonsterState();
+  monster.typeId = spec.id;
+  monster.name = spec.name;
+  monster.level = spec.level;
+  monster.x = pos.x;
+  monster.y = pos.y;
+  monster.facing = 0;
+  monster.hp = runtime.hp;
+  monster.maxHp = spec.hp;
+  monster.moving = false;
+  monster.isBoss = spec.isBoss;
+  state.monsters.set(id, monster);
+  runtimes.set(id, runtime);
+  return runtime;
+}
+
+function context(
+  state: WorldState,
+  runtimes: Map<string, PlayerRuntime>,
+  monsters: Map<string, MonsterRuntime>,
+  values: number[],
+  now = 0,
+): CombatContext {
+  return { now, rng: fixed(values), state, runtimes, monsterRuntimes: monsters };
+}
+
+describe("resolvePlayerSwing", () => {
+  it("hits the nearest target and mirrors HP into the schema", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+
+    const outcome = resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0.9]), "s1", 0);
+
+    expect(outcome).not.toBeNull();
+    expect(outcome!.hits).toHaveLength(1);
+    expect(outcome!.hits[0]).toMatchObject({
+      target: { kind: "monster", monsterId: "m1" },
+      miss: false,
+      crit: false,
+      damage: 14,
+    });
+    expect(monsters.get("m1")!.hp).toBe(14);
+    expect(state.monsters.get("m1")!.hp).toBe(14);
+    expect(outcome!.damagedMonsterIds).toEqual(["m1"]);
+    expect(runtimes.get("s1")!.lastCombatAtMs).toBe(0);
+  });
+
+  it("records a miss without damage or combat time", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+
+    const outcome = resolvePlayerSwing(context(state, runtimes, monsters, [0.99]), "s1", 0);
+
+    expect(outcome!.hits[0]?.miss).toBe(true);
+    expect(outcome!.hits[0]?.damage).toBe(0);
+    expect(monsters.get("m1")!.hp).toBe(28);
+    expect(outcome!.damagedMonsterIds).toEqual([]);
+    expect(runtimes.get("s1")!.lastCombatAtMs).toBe(0);
+  });
+
+  it("doubles crit damage and reports a kill at zero HP", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    const monster = addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 }, 20);
+
+    const outcome = resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0]), "s1", 0);
+
+    expect(outcome!.hits[0]).toMatchObject({ crit: true, damage: 28 });
+    expect(monster.hp).toBe(0);
+    expect(state.monsters.get("m1")!.hp).toBe(0);
+    expect(outcome!.killed).toEqual([{ monsterId: "m1", typeId: "wild_dog", x: 230, y: 200 }]);
+  });
+
+  it("enforces the class cooldown and only sets it on accepted swings", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const runtime = makePlayer(state);
+    runtimes.set("s1", runtime);
+    addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+
+    const first = resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0.9], 0), "s1", 0);
+    expect(first).not.toBeNull();
+    expect(runtime.attackReadyAtMs).toBe(900);
+
+    expect(
+      resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0.9], 100), "s1", 0),
+    ).toBeNull();
+    expect(
+      resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0.9], 900), "s1", 0),
+    ).not.toBeNull();
+  });
+
+  it("rejects dead, warping and unknown players", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const runtime = makePlayer(state);
+    runtimes.set("s1", runtime);
+
+    runtime.dead = true;
+    expect(resolvePlayerSwing(context(state, runtimes, monsters, [0]), "s1", 0)).toBeNull();
+
+    runtime.dead = false;
+    runtime.warping = true;
+    expect(resolvePlayerSwing(context(state, runtimes, monsters, [0]), "s1", 0)).toBeNull();
+
+    expect(resolvePlayerSwing(context(state, runtimes, monsters, [0]), "nope", 0)).toBeNull();
+  });
+
+  it("skips returning monsters and monsters already at zero HP", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    addMonster(state, monsters, "returning", "wild_dog", { x: 220, y: 200 }).ai = "return";
+    addMonster(state, monsters, "dead", "wild_dog", { x: 225, y: 200 }, 0);
+
+    const outcome = resolvePlayerSwing(context(state, runtimes, monsters, [0, 0.5, 0.9]), "s1", 0);
+
+    expect(outcome!.hits).toEqual([]);
+    expect(outcome!.killed).toEqual([]);
+  });
+
+  it("selects every target in the arc but not the one behind", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    addMonster(state, monsters, "near", "wild_dog", { x: 230, y: 200 });
+    addMonster(state, monsters, "far", "wild_dog", { x: 250, y: 210 });
+    addMonster(state, monsters, "behind", "wild_dog", { x: 160, y: 200 });
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, monsters, [0, 0.5, 0.9, 0, 0.5, 0.9]),
+      "s1",
+      0,
+    );
+
+    const ids = outcome!.hits.map((hit) =>
+      hit.target.kind === "monster" ? hit.target.monsterId : "player",
+    );
+    expect(ids).toEqual(["near", "far"]);
+    expect(outcome!.damagedMonsterIds).toEqual(["near", "far"]);
+  });
+
+  it("sets the supplied direction as the visible facing", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    runtimes.set("s1", makePlayer(state));
+
+    resolvePlayerSwing(context(state, runtimes, monsters, [0], 0), "s1", 6);
+
+    expect(state.players.get("s1")!.facing).toBe(3); // up
+  });
+});

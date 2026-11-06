@@ -2,6 +2,7 @@ import { matchMaker, type AuthContext, type Client, Room } from "@colyseus/core"
 import { StateView } from "@colyseus/schema";
 import {
   CHAT_COOLDOWN_MS,
+  COMBAT_EVENT_RADIUS_PX,
   INTEREST_ADD_RADIUS_PX,
   INTEREST_INTERVAL_MS,
   INTEREST_RADIUS_PX,
@@ -14,6 +15,7 @@ import {
   TICK_MS,
   TILE_SIZE,
   WARP_COOLDOWN_MS,
+  attackMessageSchema,
   chatMessageSchema,
   chatRecipients,
   facing4FromDelta,
@@ -26,9 +28,11 @@ import {
   seedFromString,
   stepMover,
   type ChatMsgPayload,
+  type CombatEventPayload,
   type Dir8,
   type InputMessage,
   type MapId,
+  type MonsterDiedPayload,
   type RandomSource,
   type Vec2,
   type WarpPayload,
@@ -42,9 +46,17 @@ import { PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { progressionFromCharacter } from "../characters/progression";
+import { resolvePlayerSwing, type SwingOutcome } from "./combat";
 import { stepMonsterAi, type AiPlayerSnapshot } from "./monsterAi";
 import type { MonsterRuntime } from "./monsterRuntime";
-import { createSpawnManager, spawnAllGroups, tickSpawns, type SpawnManager } from "./spawnManager";
+import {
+  aggroGroup,
+  createSpawnManager,
+  notifyMonsterDeath,
+  spawnAllGroups,
+  tickSpawns,
+  type SpawnManager,
+} from "./spawnManager";
 import type { JoinIdentity } from "../auth/joinAuth";
 
 /** Max queued input messages per player; older inputs are dropped. */
@@ -77,6 +89,8 @@ export class MapRoom extends Room {
   private monsterRuntimes = new Map<string, MonsterRuntime>();
   private spawns!: SpawnManager;
   private rng!: RandomSource;
+  /** Monotonic id for combat events, so clients can ignore stale arrivals. */
+  private eventSeq = 0;
 
   /**
    * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
@@ -169,6 +183,22 @@ export class MapRoom extends Room {
           otherClient.send(MSG.chatMsg, payload);
         }
       }
+    });
+
+    this.onMessage(MSG.attack, (client, raw) => {
+      const parsed = attackMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid attack message");
+        return;
+      }
+      const runtime = this.runtimes.get(client.sessionId);
+      if (!runtime) {
+        return;
+      }
+      // One pending swing per tick: spamming collapses into a single attack.
+      runtime.pendingAttack = {
+        dir: parsed.data.dir === undefined ? null : (parsed.data.dir as Dir8),
+      };
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);
@@ -424,12 +454,95 @@ export class MapRoom extends Room {
       this.stepPlayer(runtime, player);
     }
     this.stepMonsters(now, players);
-    tickSpawns(
+    this.runCombatPhase(now);
+    const spawned = tickSpawns(
       this.spawns,
       now,
       players.map((player) => player.pos),
     );
+    if (spawned > 0) {
+      this.updateInterest();
+    }
     this.checkWarps();
+  }
+
+  /** Resolve queued swings; players act before monster intents (Task 10). */
+  private runCombatPhase(now: number): void {
+    for (const [sessionId, runtime] of this.runtimes) {
+      const pending = runtime.pendingAttack;
+      if (!pending) {
+        continue;
+      }
+      runtime.pendingAttack = null;
+      const outcome = resolvePlayerSwing(
+        {
+          now,
+          rng: this.rng,
+          state: this.state,
+          runtimes: this.runtimes,
+          monsterRuntimes: this.monsterRuntimes,
+        },
+        sessionId,
+        pending.dir,
+      );
+      if (outcome) {
+        this.emitSwing(sessionId, outcome, now);
+      }
+    }
+  }
+
+  private emitSwing(sessionId: string, outcome: SwingOutcome, now: number): void {
+    const attacker = this.runtimes.get(sessionId);
+    if (!attacker) {
+      return;
+    }
+    const origin = attacker.mover.pos;
+    const radiusSquared = COMBAT_EVENT_RADIUS_PX * COMBAT_EVENT_RADIUS_PX;
+    const recipients = this.clients.filter((client) => {
+      const runtime = this.runtimes.get(client.sessionId);
+      if (!runtime) {
+        return false;
+      }
+      const dx = runtime.mover.pos.x - origin.x;
+      const dy = runtime.mover.pos.y - origin.y;
+      return dx * dx + dy * dy <= radiusSquared;
+    });
+
+    const payload: CombatEventPayload = {
+      eventSeq: ++this.eventSeq,
+      attacker: { kind: "player", sessionId },
+      hits: outcome.hits,
+    };
+    for (const client of recipients) {
+      this.safeSend(client, MSG.combat, payload);
+    }
+
+    // Aggro before cleanup: killing a monster must still wake the rest of its
+    // pack (notifyMonsterDeath removes the group lookup).
+    for (const monsterId of outcome.damagedMonsterIds) {
+      aggroGroup(this.spawns, monsterId, sessionId);
+    }
+
+    for (const killed of outcome.killed) {
+      this.state.monsters.delete(killed.monsterId);
+      this.monsterRuntimes.delete(killed.monsterId);
+      notifyMonsterDeath(this.spawns, killed.monsterId, now);
+      const died: MonsterDiedPayload = { ...killed, killerSessionId: sessionId };
+      for (const client of recipients) {
+        this.safeSend(client, MSG.monsterDied, died);
+      }
+    }
+  }
+
+  private safeSend(client: Client, type: string, payload: unknown): void {
+    try {
+      client.send(type, payload);
+    } catch (error) {
+      logger.debug(
+        { roomId: this.roomId, session: client.sessionId, type, error },
+        "failed to send room message",
+      );
+    }
   }
 
   /** One snapshot per tick for the AI; positions come from authoritative movers. */

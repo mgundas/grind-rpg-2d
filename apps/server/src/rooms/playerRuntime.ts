@@ -1,5 +1,6 @@
 import {
   createMover,
+  type Dir8,
   type InputMessage,
   type MoveIntent,
   type MoverState,
@@ -54,6 +55,8 @@ export interface PlayerRuntime {
 
   /** Basic-attack cooldown gate. */
   attackReadyAtMs: number;
+  /** Attack requested by the client, resolved once on the next tick. */
+  pendingAttack: { dir: Dir8 | null } | null;
   /** Last damage dealt or taken; drives in-combat regen. */
   lastCombatAtMs: number;
   /** Accumulator for the 3 s regen interval. */
@@ -117,6 +120,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     dirty: false,
     saveChain: null,
     attackReadyAtMs: 0,
+    pendingAttack: null,
     lastCombatAtMs: 0,
     regenAccumMs: 0,
     dead: false,

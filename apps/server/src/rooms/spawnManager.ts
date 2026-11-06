@@ -308,17 +308,21 @@ export function spawnAllGroups(
   }
 }
 
-/** Respawn groups whose last member died long enough ago. */
+/** Respawn groups whose last member died long enough ago. Returns how many
+ * groups spawned so the room can refresh interest immediately. */
 export function tickSpawns(
   manager: SpawnManager,
   now: number,
   players: readonly Vec2[] = [],
-): void {
+): number {
+  let spawned = 0;
   for (const group of manager.groups) {
     if (group.respawnAtMs !== null && now >= group.respawnAtMs) {
       spawnGroup(manager, group, now, players);
+      spawned++;
     }
   }
+  return spawned;
 }
 
 /**

@@ -6,9 +6,12 @@ import {
   ROOM_NAME_VILLAGE,
   TICK_MS,
   createMover,
+  dir8Towards,
   isWalkableAt,
   stepMover,
+  type CombatEventPayload,
   type InputMessage,
+  type MonsterDiedPayload,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
@@ -62,6 +65,49 @@ function clientMonsters(client: unknown): Map<string, ClientMonster> | undefined
   return (client as { state?: { monsters?: Map<string, ClientMonster> } }).state?.monsters;
 }
 
+function sendAttack(client: unknown, dir?: number): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(
+    MSG.attack,
+    dir === undefined ? {} : { dir },
+  );
+}
+
+function captureMessages(client: unknown, type: string): unknown[] {
+  const messages: unknown[] = [];
+  (client as { onMessage: (type: string, callback: (payload: unknown) => void) => void }).onMessage(
+    type,
+    (payload) => messages.push(payload),
+  );
+  return messages;
+}
+
+interface MonsterRuntimeProbe {
+  hp: number;
+  ai: string;
+  targetSessionId: string | null;
+  mover: { pos: { x: number; y: number } };
+}
+
+function monsterRuntimes(room: MapRoom): Map<string, MonsterRuntimeProbe> {
+  return (room as unknown as { monsterRuntimes: Map<string, MonsterRuntimeProbe> }).monsterRuntimes;
+}
+
+function nearestMonsterId(room: MapRoom, sessionId: string): string {
+  const player = room.state.players.get(sessionId)!;
+  let bestId = "";
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const [id, monster] of room.state.monsters) {
+    const dx = monster.x - player.x;
+    const dy = monster.y - player.y;
+    const distance = dx * dx + dy * dy;
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestId = id;
+    }
+  }
+  return bestId;
+}
+
 interface RuntimeProbe {
   pathComputations: number;
   droppedInputs: number;
@@ -83,6 +129,13 @@ beforeAll(async () => {
       joinAuthenticator: fake.joinAuthenticator,
       savePosition: fake.savePosition,
       savePositions: fake.savePositions,
+      // Hit, neutral damage roll, no crit; cycles per target. AI wander is not
+      // due during these tests, so combat draws stay predictable.
+      createRandomSource: () => {
+        const values = [0, 0.5, 0.9];
+        let index = 0;
+        return { next: () => values[index++ % values.length]! };
+      },
     }),
   );
 }, 30_000);
@@ -866,5 +919,117 @@ describe("monster AI in the room tick", () => {
       expect(monster.y).toBeCloseTo(start.y, 4);
     }
     expect(FIELDS_SPAWN.x).toBeLessThan(1000); // the player really is far west
+  });
+});
+
+describe("player attack", () => {
+  async function joinAtWolfCamp(room: MapRoom, name: string) {
+    const client = await colyseus.connectTo(room, {
+      name,
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+    return { client, events: captureMessages(client, MSG.combat) };
+  }
+
+  it("damages an arc target and emits one combat event", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const { client, events } = await joinAtWolfCamp(room, "Fighter");
+
+    const targetId = nearestMonsterId(room, client.sessionId);
+    const runtime = monsterRuntimes(room).get(targetId)!;
+    runtime.hp = 20;
+    room.state.monsters.get(targetId)!.hp = 20;
+
+    const player = room.state.players.get(client.sessionId)!;
+    const monster = room.state.monsters.get(targetId)!;
+    const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
+    sendAttack(client, dir);
+    await waitUntil(() => events.length > 0);
+
+    const event = events[0] as CombatEventPayload;
+    expect(event.attacker).toEqual({ kind: "player", sessionId: client.sessionId });
+    expect(event.eventSeq).toBe(1);
+    const hit = event.hits.find(
+      (candidate) => candidate.target.kind === "monster" && candidate.target.monsterId === targetId,
+    );
+    expect(hit).toBeDefined();
+    expect(hit!.miss).toBe(false);
+    expect(hit!.damage).toBeGreaterThan(0);
+
+    await room.waitForNextPatch();
+    expect(room.state.monsters.get(targetId)!.hp).toBeLessThan(20);
+  });
+
+  it("enforces the attack cooldown", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const { client, events } = await joinAtWolfCamp(room, "Spammer");
+
+    sendAttack(client, 0);
+    await waitUntil(() => events.length === 1, 2000);
+
+    sendAttack(client, 0);
+    sendAttack(client, 0);
+    await sleep(200);
+    expect(events.length).toBe(1);
+
+    await sleep(800);
+    sendAttack(client, 0);
+    await waitUntil(() => events.length === 2, 2000);
+    expect(events.length).toBe(2);
+  });
+
+  it("removes a killed monster and broadcasts monsterDied", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const { client } = await joinAtWolfCamp(room, "Killer");
+    const deaths = captureMessages(client, MSG.monsterDied);
+
+    const targetId = nearestMonsterId(room, client.sessionId);
+    const runtime = monsterRuntimes(room).get(targetId)!;
+    runtime.hp = 1;
+    const monster = room.state.monsters.get(targetId)!;
+    monster.hp = 1;
+    const player = room.state.players.get(client.sessionId)!;
+    const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
+
+    sendAttack(client, dir);
+    await waitUntil(() => deaths.length > 0);
+
+    const death = deaths[0] as MonsterDiedPayload;
+    expect(death.monsterId).toBe(targetId);
+    expect(death.killerSessionId).toBe(client.sessionId);
+    expect(room.state.monsters.has(targetId)).toBe(false);
+    expect(monsterRuntimes(room).has(targetId)).toBe(false);
+  });
+
+  it("only sends combat events to clients within the event radius", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const { client: near, events: nearEvents } = await joinAtWolfCamp(room, "Near");
+    const far = await colyseus.connectTo(room, { name: "Far", map: ROOM_NAME_FIELDS });
+    await room.waitForNextPatch();
+    const farEvents = captureMessages(far, MSG.combat);
+
+    const targetId = nearestMonsterId(room, near.sessionId);
+    const player = room.state.players.get(near.sessionId)!;
+    const monster = room.state.monsters.get(targetId)!;
+    const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
+    sendAttack(near, dir);
+
+    await waitUntil(() => nearEvents.length > 0);
+    expect(farEvents.length).toBe(0);
+  });
+
+  it("emits an empty-hit event for a whiff in the village", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Swing" });
+    await room.waitForNextPatch();
+    const events = captureMessages(client, MSG.combat);
+
+    sendAttack(client, 0);
+    await waitUntil(() => events.length > 0);
+
+    expect((events[0] as CombatEventPayload).hits).toEqual([]);
   });
 });
