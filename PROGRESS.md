@@ -72,7 +72,7 @@ Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typ
 
 - [x] Task 1 — Dependencies, config, DB schema, migration
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
-- [ ] Task 3 — Password hashing and JWT helpers
+- [x] Task 3 — Password hashing and JWT helpers
 - [ ] Task 4 — Account and character services (DB)
 - [ ] Task 5 — Session registry, warp token extension, static join authenticator
 - [ ] Task 6 — REST routes, middleware, server dependency wiring
