@@ -118,7 +118,7 @@ Plan: `docs/plans/phase-3.md` (verified against the installed Colyseus schema an
 - [x] Task 12 — Server: XP, level-up and stat allocation
 - [x] Task 13 — Server: full character-state persistence
 - [x] Task 14 — Client: monster rendering and interpolation
-- [ ] Task 15 — Client: targeting, attack input and server-driven auto-walk
+- [x] Task 15 — Client: targeting, attack input and server-driven auto-walk
 - [ ] Task 16 — Client: HUD, target frame, character window and death screen
 - [ ] Task 17 — Client: combat feel (numbers, flash, knockback, shake, corpses)
 - [ ] Task 18 — Phase gate: verification, reviewer, report

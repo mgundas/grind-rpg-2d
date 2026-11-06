@@ -3,6 +3,9 @@ import { StateView } from "@colyseus/schema";
 import {
   CHAT_COOLDOWN_MS,
   COMBAT_EVENT_RADIUS_PX,
+  AUTO_WALK_GIVE_UP_MS,
+  AUTO_WALK_MAX_EMPTY_PATHS,
+  AUTO_WALK_TARGET_RANGE_PX,
   INTEREST_ADD_RADIUS_PX,
   INTEREST_INTERVAL_MS,
   INTEREST_RADIUS_PX,
@@ -24,6 +27,7 @@ import {
   chatMessageSchema,
   chatRecipients,
   deathXpLoss,
+  dir8Towards,
   facing4FromDelta,
   facing4FromIndex,
   facing4Index,
@@ -36,6 +40,7 @@ import {
   respawnMessageSchema,
   seededRandomSource,
   seedFromString,
+  setTargetMessageSchema,
   stepMover,
   type ChatMsgPayload,
   type CombatEventPayload,
@@ -48,10 +53,12 @@ import {
   type MonsterDiedPayload,
   type RandomSource,
   type StatKey,
+  type TargetClearedReason,
   type Vec2,
   type WarpPayload,
   type WarpZone,
 } from "@jadethrone/shared";
+import { getClass } from "@jadethrone/data/classes";
 import { getMonster } from "@jadethrone/data/monsters";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
@@ -224,6 +231,15 @@ export class MapRoom extends Room {
       runtime.pendingAttack = {
         dir: parsed.data.dir === undefined ? null : (parsed.data.dir as Dir8),
       };
+    });
+
+    this.onMessage(MSG.setTarget, (client, raw) => {
+      const parsed = setTargetMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid target message");
+        return;
+      }
+      this.setAutoWalkTarget(client, parsed.data.monsterId);
     });
 
     this.onMessage(MSG.respawn, (client, raw) => {
@@ -559,7 +575,7 @@ export class MapRoom extends Room {
         }
         continue;
       }
-      this.stepPlayer(runtime, player);
+      this.stepPlayer(runtime, player, client.sessionId, now);
     }
     this.stepMonsters(now, players);
     this.runCombatPhase(now);
@@ -652,6 +668,9 @@ export class MapRoom extends Room {
       for (const client of recipients) {
         this.safeSend(client, MSG.monsterDied, died);
       }
+      if (attacker.targetMonsterId === killed.monsterId) {
+        this.clearAutoWalk(attacker, sessionId, "target_lost");
+      }
       this.awardKillXp(sessionId, killed);
     }
   }
@@ -689,6 +708,7 @@ export class MapRoom extends Room {
       return;
     }
 
+    this.clearAutoWalk(runtime, sessionId, "target_lost");
     runtime.dead = true;
     runtime.diedAtMs = now;
     runtime.pending.length = 0;
@@ -1158,7 +1178,12 @@ export class MapRoom extends Room {
     });
   }
 
-  private stepPlayer(runtime: PlayerRuntime, player: PlayerState): void {
+  private stepPlayer(
+    runtime: PlayerRuntime,
+    player: PlayerState,
+    sessionId: string,
+    now: number,
+  ): void {
     const from = { x: runtime.mover.pos.x, y: runtime.mover.pos.y };
     let applied = false;
 
@@ -1170,13 +1195,15 @@ export class MapRoom extends Room {
         continue; // stale or duplicated input
       }
       runtime.lastSeq = message.seq;
-      this.applyMessage(runtime, message);
+      this.applyMessage(runtime, sessionId, message);
       applied = true;
       break;
     }
 
     if (!applied) {
-      if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
+      if (runtime.targetMonsterId) {
+        this.autoWalkStep(runtime, sessionId, now);
+      } else if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
         // Click-to-move keeps following its path (speed-bounded by movement).
         runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
       } else if (runtime.lastIntent.kind === "dir" && runtime.graceTicksRemaining > 0) {
@@ -1210,7 +1237,11 @@ export class MapRoom extends Room {
   }
 
   /** Convert a validated intent into mover state and step it once. */
-  private applyMessage(runtime: PlayerRuntime, message: InputMessage): void {
+  private applyMessage(runtime: PlayerRuntime, sessionId: string, message: InputMessage): void {
+    // Any deliberate movement cancels click-to-attack.
+    if (runtime.targetMonsterId) {
+      this.clearAutoWalk(runtime, sessionId, "cancelled");
+    }
     switch (message.kind) {
       case "dir":
         runtime.mover.path = [];
@@ -1234,6 +1265,125 @@ export class MapRoom extends Room {
         break;
     }
     runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+  }
+
+  private attackRangeFor(player: PlayerState): number {
+    const classId = isClassId(player.classId) ? player.classId : "warrior";
+    return getClass(classId).attack.rangePx;
+  }
+
+  /** Click-to-attack: accept a live monster and switch the client to server-driven walking. */
+  private setAutoWalkTarget(client: Client, monsterId: string): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    const monsterRuntime = this.monsterRuntimes.get(monsterId);
+    const monster = this.state.monsters.get(monsterId);
+    if (!runtime || !player || runtime.dead || runtime.warping) {
+      return;
+    }
+    if (!monsterRuntime || !monster || monsterRuntime.hp <= 0 || monsterRuntime.ai === "return") {
+      this.notifyTargetCleared(client, "target_lost");
+      return;
+    }
+    const dx = monsterRuntime.mover.pos.x - runtime.mover.pos.x;
+    const dy = monsterRuntime.mover.pos.y - runtime.mover.pos.y;
+    if (dx * dx + dy * dy > AUTO_WALK_TARGET_RANGE_PX * AUTO_WALK_TARGET_RANGE_PX) {
+      this.notifyTargetCleared(client, "target_lost");
+      return;
+    }
+
+    const now = Date.now();
+    runtime.targetMonsterId = monsterId;
+    runtime.nextChaseRepathAtMs = now;
+    runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
+    runtime.noProgressSinceMs = now;
+    runtime.emptyChasePaths = 0;
+    runtime.mover.path = [];
+    runtime.graceTicksRemaining = 0;
+    runtime.lastIntent = { kind: "none" };
+    this.safeSend(client, MSG.autoWalk, { active: true, targetMonsterId: monsterId });
+  }
+
+  /** One server-driven step toward (or attack on) the auto-walk target. */
+  private autoWalkStep(runtime: PlayerRuntime, sessionId: string, now: number): void {
+    const monsterId = runtime.targetMonsterId;
+    if (!monsterId) {
+      return;
+    }
+    const monsterRuntime = this.monsterRuntimes.get(monsterId);
+    const monster = this.state.monsters.get(monsterId);
+    const player = this.state.players.get(sessionId);
+    if (!monsterRuntime || !monster || monsterRuntime.hp <= 0 || !player) {
+      this.clearAutoWalk(runtime, sessionId, "target_lost");
+      return;
+    }
+
+    const dx = monsterRuntime.mover.pos.x - runtime.mover.pos.x;
+    const dy = monsterRuntime.mover.pos.y - runtime.mover.pos.y;
+    const distanceSquared = dx * dx + dy * dy;
+    if (distanceSquared < runtime.bestTargetDistSq) {
+      runtime.bestTargetDistSq = distanceSquared;
+      runtime.noProgressSinceMs = now;
+    } else if (now - runtime.noProgressSinceMs > AUTO_WALK_GIVE_UP_MS) {
+      this.clearAutoWalk(runtime, sessionId, "unreachable");
+      return;
+    }
+
+    const range = this.attackRangeFor(player);
+    if (distanceSquared <= range * range) {
+      runtime.mover.path = [];
+      runtime.lastIntent = { kind: "none" };
+      runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
+      if (now >= runtime.attackReadyAtMs) {
+        runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, monsterRuntime.mover.pos) };
+      }
+      return;
+    }
+
+    if (now >= runtime.nextChaseRepathAtMs || runtime.mover.path.length === 0) {
+      runtime.nextChaseRepathAtMs = now + 250;
+      const path = findPath(this.assets.grid, runtime.mover.pos, monsterRuntime.mover.pos);
+      runtime.mover.path = path;
+      if (path.length === 0) {
+        runtime.emptyChasePaths++;
+        if (runtime.emptyChasePaths >= AUTO_WALK_MAX_EMPTY_PATHS) {
+          this.clearAutoWalk(runtime, sessionId, "unreachable");
+          return;
+        }
+      } else {
+        runtime.emptyChasePaths = 0;
+      }
+    }
+
+    runtime.graceTicksRemaining = 0;
+    runtime.lastIntent = { kind: "path" };
+    runtime.mover = stepMover(runtime.mover, { kind: "path" }, this.assets.grid, TICK_MS);
+  }
+
+  private clearAutoWalk(
+    runtime: PlayerRuntime,
+    sessionId: string,
+    reason: TargetClearedReason,
+  ): void {
+    if (!runtime.targetMonsterId) {
+      return;
+    }
+    runtime.targetMonsterId = null;
+    runtime.mover.path = [];
+    runtime.nextChaseRepathAtMs = 0;
+    runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
+    runtime.noProgressSinceMs = 0;
+    runtime.emptyChasePaths = 0;
+    const client = this.clients.find((candidate) => candidate.sessionId === sessionId);
+    if (!client) {
+      return;
+    }
+    this.notifyTargetCleared(client, reason);
+  }
+
+  private notifyTargetCleared(client: Client, reason: TargetClearedReason): void {
+    this.safeSend(client, MSG.autoWalk, { active: false });
+    this.safeSend(client, MSG.targetCleared, { reason });
   }
 
   /**

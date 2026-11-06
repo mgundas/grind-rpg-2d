@@ -248,4 +248,18 @@ describe("LocalPredictor", () => {
     expect(predictor.position.x).toBeCloseTo(target.x, 0);
     expect(predictor.position.y).toBeCloseTo(target.y, 0);
   });
+
+  it("reseeds the input sequence after server-driven auto-walk", () => {
+    const grid = openGrid();
+    const server = createVirtualServer(grid, { x: 100, y: 100 });
+    const predictor = new LocalPredictor(grid, { x: 100, y: 100 }, (m) => server.send(m));
+    predictor.update(TICK_MS, { kind: "none" });
+    expect(server.sent[0]?.seq).toBe(1);
+
+    predictor.resetAt({ x: 250, y: 100 }, 42);
+    predictor.update(TICK_MS, { kind: "dir", dir: 0 });
+
+    expect(server.sent[server.sent.length - 1]?.seq).toBe(43);
+    expect(predictor.position.x).toBeGreaterThan(250);
+  });
 });

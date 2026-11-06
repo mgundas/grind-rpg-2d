@@ -4,6 +4,7 @@ import type {
   CharacterSummary,
   ChatMsgPayload,
   MapId,
+  SelfStatsPayload,
   SessionKickReason,
 } from "@jadethrone/shared";
 
@@ -59,6 +60,20 @@ interface UiState {
 
   chatLog: ChatMsgPayload[];
   pushChat: (message: ChatMsgPayload) => void;
+
+  /** Owner-only progression snapshot from the server. */
+  selfStats: SelfStatsPayload | null;
+  setSelfStats: (stats: SelfStatsPayload | null) => void;
+
+  /** Selected monster (click/Tab) and server-driven walk mode. */
+  targetMonsterId: string | null;
+  setTargetMonster: (monsterId: string | null) => void;
+  autoWalk: boolean;
+  setAutoWalk: (active: boolean) => void;
+
+  dead: boolean;
+  respawnHereAtMs: number;
+  setDeath: (dead: boolean, respawnHereAtMs?: number) => void;
 
   debugVisible: boolean;
   toggleDebug: () => void;
@@ -128,6 +143,18 @@ export const useUiStore = create<UiState>((set) => ({
 
   chatLog: [],
   pushChat: (message) => set((state) => ({ chatLog: [...state.chatLog, message].slice(-100) })),
+
+  selfStats: null,
+  setSelfStats: (selfStats) => set({ selfStats }),
+
+  targetMonsterId: null,
+  setTargetMonster: (targetMonsterId) => set({ targetMonsterId }),
+  autoWalk: false,
+  setAutoWalk: (autoWalk) => set({ autoWalk }),
+
+  dead: false,
+  respawnHereAtMs: 0,
+  setDeath: (dead, respawnHereAtMs = 0) => set({ dead, respawnHereAtMs }),
 
   debugVisible: false,
   toggleDebug: () => set((state) => ({ debugVisible: !state.debugVisible })),

@@ -2,9 +2,15 @@ import { Client, type Room } from "@colyseus/sdk";
 import {
   MSG,
   SESSION_KICK_CODE,
+  type AutoWalkPayload,
+  type DeathPayload,
   type InputMessage,
   type MapId,
+  type MonsterDiedPayload,
+  type RespawnOption,
+  type SelfStatsPayload,
   type SessionKickedPayload,
+  type StatKey,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { useUiStore } from "../ui/store";
@@ -134,7 +140,11 @@ export async function consumeWarp(payload: WarpPayload): Promise<Room> {
 export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   const current = room;
   room = null;
-  useUiStore.getState().setChatFocused(false);
+  const leaving = useUiStore.getState();
+  leaving.setChatFocused(false);
+  leaving.setAutoWalk(false);
+  leaving.setTargetMonster(null);
+  leaving.setDeath(false, 0);
   if (!current) {
     return;
   }
@@ -169,6 +179,26 @@ export function sendChat(text: string): void {
   room?.send(MSG.chat, { text });
 }
 
+export function sendAttack(dir?: number): void {
+  room?.send(MSG.attack, dir === undefined ? {} : { dir });
+}
+
+export function sendSetTarget(monsterId: string): void {
+  room?.send(MSG.setTarget, { monsterId });
+}
+
+export function sendRespawn(option: RespawnOption): void {
+  room?.send(MSG.respawn, { option });
+}
+
+export function sendAllocStat(stat: StatKey): void {
+  room?.send(MSG.allocStat, { stat });
+}
+
+export function requestStats(): void {
+  room?.send(MSG.requestStats, {});
+}
+
 function bindSessionEvents(current: Room): void {
   current.onError((code, message) => {
     if (room !== current) {
@@ -190,11 +220,50 @@ function bindSessionEvents(current: Room): void {
     store.setConnectionPhase("left");
   });
 
+  current.onMessage(MSG.selfStats, (payload: SelfStatsPayload) => {
+    const store = useUiStore.getState();
+    store.setSelfStats(payload);
+    if (payload.hp > 0) {
+      store.setDeath(false, 0);
+    }
+  });
+
+  current.onMessage(MSG.death, (payload: DeathPayload) => {
+    const store = useUiStore.getState();
+    store.setDeath(true, payload.respawnHereAtMs);
+    store.setAutoWalk(false);
+    store.setTargetMonster(null);
+  });
+
+  current.onMessage(MSG.autoWalk, (payload: AutoWalkPayload) => {
+    const store = useUiStore.getState();
+    store.setAutoWalk(payload.active);
+    if (!payload.active) {
+      store.setTargetMonster(null);
+    }
+  });
+
+  current.onMessage(MSG.targetCleared, () => {
+    useUiStore.getState().setTargetMonster(null);
+  });
+
+  current.onMessage(MSG.monsterDied, (payload: MonsterDiedPayload) => {
+    const store = useUiStore.getState();
+    if (store.targetMonsterId === payload.monsterId) {
+      store.setTargetMonster(null);
+    }
+  });
+
+  // The join-time snapshot can arrive before the SDK listener is bound.
+  current.send(MSG.requestStats, {});
+
   current.onLeave((code) => {
     if (room === current) {
       room = null;
       const store = useUiStore.getState();
       store.setChatFocused(false);
+      store.setAutoWalk(false);
+      store.setTargetMonster(null);
       store.setConnectionPhase("left");
       // The message can be lost; the close code is the fallback. Keep tokens
       // (a duplicate join here is not a credential problem).

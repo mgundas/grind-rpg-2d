@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import {
   KINGDOMS,
+  REMOTE_INTERP_DELAY_MS,
   TILE_SIZE,
   buildCollisionGrid,
   dir8FromAxes,
@@ -21,9 +22,23 @@ import {
   type WarpPayload,
 } from "@jadethrone/shared";
 import { getMonster } from "@jadethrone/data/monsters";
-import { consumeWarp, getPingMs, getRoom, leave, sendInput } from "../network/session";
+import { getClass } from "@jadethrone/data/classes";
+import {
+  consumeWarp,
+  getPingMs,
+  getRoom,
+  leave,
+  sendAttack,
+  sendInput,
+  sendSetTarget,
+} from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
-import { RemoteRegistry, type RemoteEntity, type RemotePlayerData } from "../state/remotes";
+import {
+  RemoteRegistry,
+  SampleBuffer,
+  type RemoteEntity,
+  type RemotePlayerData,
+} from "../state/remotes";
 import { MonsterRegistry, type MonsterData, type MonsterEntity } from "../state/monsterRegistry";
 import { useUiStore } from "../ui/store";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
@@ -107,6 +122,10 @@ export class WorldScene extends Phaser.Scene {
   private remoteVisuals = new Map<string, RemoteVisual>();
   private monsterRegistry = new MonsterRegistry();
   private monsterVisuals = new Map<string, MonsterVisual>();
+  private ownWalkBuffer = new SampleBuffer(32);
+  private lastServerPosition = { x: 0, y: 0, lastSeq: 0 };
+  private autoWalkPrev = false;
+  private attackReadyAtMs = 0;
   private debugAccumMs = 0;
   private warping = false;
   private mapSwitchPending = false;
@@ -123,6 +142,9 @@ export class WorldScene extends Phaser.Scene {
     this.remoteVisuals.clear();
     this.monsterRegistry = new MonsterRegistry();
     this.monsterVisuals.clear();
+    this.ownWalkBuffer = new SampleBuffer(32);
+    this.autoWalkPrev = false;
+    this.attackReadyAtMs = 0;
     this.pathTarget = null;
     this.warping = false;
     this.mapSwitchPending = false;
@@ -136,6 +158,15 @@ export class WorldScene extends Phaser.Scene {
     this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
       event.preventDefault();
       useUiStore.getState().toggleDebug();
+    });
+
+    this.input.keyboard?.off("keydown-TAB");
+    this.input.keyboard?.on("keydown-TAB", (event: KeyboardEvent) => {
+      if (useUiStore.getState().chatFocused) {
+        return;
+      }
+      event.preventDefault();
+      this.cycleTarget();
     });
 
     const keyboard = this.input.keyboard;
@@ -197,17 +228,45 @@ export class WorldScene extends Phaser.Scene {
 
     this.ensurePredictor();
 
+    const autoWalk = ui.autoWalk;
+    if (this.autoWalkPrev && !autoWalk && this.predictor) {
+      this.predictor.resetAt(
+        { x: this.lastServerPosition.x, y: this.lastServerPosition.y },
+        this.lastServerPosition.lastSeq,
+      );
+      this.pathTarget = null;
+    }
+    this.autoWalkPrev = autoWalk;
+
+    const own = (room.state as RoomStateLike).players?.get(room.sessionId);
     if (this.predictor) {
       if (this.initializedFor !== room.sessionId) {
         return; // wait for the new session's first patch
       }
-      const desired = this.resolveInput();
-      this.predictor.update(delta, desired);
-      if (this.pathTarget && !this.predictor.isFollowingPath) {
-        this.pathTarget = null;
+      if (autoWalk) {
+        const visual = this.ownWalkBuffer.sample(this.time.now - REMOTE_INTERP_DELAY_MS);
+        if (visual) {
+          this.character.setPosition(visual.x, visual.y);
+        }
+      } else {
+        const desired = this.resolveInput();
+        this.predictor.update(delta, desired);
+        if (this.pathTarget && !this.predictor.isFollowingPath) {
+          this.pathTarget = null;
+        }
+        const visual = this.predictor.visualPosition;
+        this.character.setPosition(visual.x, visual.y);
       }
-      const visual = this.predictor.visualPosition;
-      this.character.setPosition(visual.x, visual.y);
+    }
+
+    if (
+      !autoWalk &&
+      !ui.dead &&
+      !ui.chatFocused &&
+      this.cursors &&
+      Phaser.Input.Keyboard.JustDown(this.cursors.space)
+    ) {
+      this.tryAttack(own);
     }
 
     this.shadow.setPosition(this.character.x, this.character.y + 6);
@@ -269,6 +328,10 @@ export class WorldScene extends Phaser.Scene {
       const snapshot = next as RoomStateLike;
       const me = snapshot.players?.get(sessionId);
       if (me) {
+        this.lastServerPosition = { x: me.x, y: me.y, lastSeq: me.lastSeq };
+        if (useUiStore.getState().autoWalk) {
+          this.ownWalkBuffer.push(this.time.now, me.x, me.y);
+        }
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
       this.syncRemotes(snapshot, sessionId);
@@ -289,6 +352,67 @@ export class WorldScene extends Phaser.Scene {
     this.character.setVisible(visible);
     this.shadow.setVisible(visible);
     this.arrow.setVisible(visible);
+  }
+
+  private tryAttack(own: RemotePlayerState | undefined): void {
+    if (!own || this.time.now < this.attackReadyAtMs || this.warping) {
+      return;
+    }
+    const classId = isClassId(own.classId) ? own.classId : "warrior";
+    this.attackReadyAtMs = this.time.now + getClass(classId).attack.cooldownMs;
+    sendAttack(this.facing);
+    // Optimistic swing; damage feedback arrives from the server event.
+    this.tweens.add({
+      targets: this.character,
+      scaleX: 1.12,
+      scaleY: 0.94,
+      duration: 60,
+      yoyo: true,
+    });
+  }
+
+  /** Tab cycles visible monsters by distance from the player. */
+  private cycleTarget(): void {
+    const now = this.time.now;
+    const candidates: Array<{ id: string; distance: number }> = [];
+    for (const entity of this.monsterRegistry.entities.values()) {
+      const pos = this.monsterRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      const dx = pos.x - this.character.x;
+      const dy = pos.y - this.character.y;
+      candidates.push({ id: entity.id, distance: dx * dx + dy * dy });
+    }
+    if (candidates.length === 0) {
+      useUiStore.getState().setTargetMonster(null);
+      return;
+    }
+    candidates.sort((a, b) => a.distance - b.distance);
+    const current = useUiStore.getState().targetMonsterId;
+    const index = candidates.findIndex((candidate) => candidate.id === current);
+    useUiStore.getState().setTargetMonster(candidates[(index + 1) % candidates.length]!.id);
+  }
+
+  /** Which monster (if any) the pointer is over, using render positions. */
+  private monsterAtPointer(worldX: number, worldY: number): string | null {
+    const now = this.time.now;
+    let bestId: string | null = null;
+    let bestDistance = 24 * 24;
+    for (const entity of this.monsterRegistry.entities.values()) {
+      const pos = this.monsterRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      const dx = pos.x - worldX;
+      const dy = pos.y - worldY;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = entity.id;
+      }
+    }
+    return bestId;
   }
 
   private clearRemoteVisuals(): void {
@@ -324,6 +448,9 @@ export class WorldScene extends Phaser.Scene {
     this.clearRemoteVisuals();
     this.monsterRegistry = new MonsterRegistry();
     this.clearMonsterVisuals();
+    this.ownWalkBuffer = new SampleBuffer(32);
+    this.autoWalkPrev = false;
+    this.attackReadyAtMs = 0;
     this.setOwnVisible(false);
   }
 
@@ -696,6 +823,22 @@ export class WorldScene extends Phaser.Scene {
       }
       const heldMs = this.time.now - this.pointerDownAt;
       if (this.pointerHeld && heldMs <= CLICK_MAX_MS) {
+        const monsterId = this.monsterAtPointer(pointer.worldX, pointer.worldY);
+        if (monsterId) {
+          this.pathTarget = null;
+          useUiStore.getState().setTargetMonster(monsterId);
+          sendSetTarget(monsterId);
+          if (this.predictor) {
+            const entity = this.monsterRegistry.entities.get(monsterId);
+            const pos = entity ? this.monsterRegistry.renderPosition(entity, this.time.now) : null;
+            const facing = pos ? dir8Towards(this.predictor.position, pos) : null;
+            if (facing !== null) {
+              this.facing = facing;
+            }
+          }
+          this.pointerHeld = false;
+          return;
+        }
         this.pathTarget = { x: pointer.worldX, y: pointer.worldY };
         if (this.predictor) {
           const facing = dir8Towards(this.predictor.position, this.pathTarget);

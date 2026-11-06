@@ -65,6 +65,24 @@ export class LocalPredictor {
     return { x: this.mover.pos.x, y: this.mover.pos.y };
   }
 
+  /**
+   * Re-seed after server-driven movement (auto-walk). The server's `lastSeq`
+   * is already ahead of anything this predictor sent, so the next intent must
+   * continue from it instead of restarting at 1 (which would be discarded as
+   * stale).
+   */
+  resetAt(spawn: Vec2, ackSeq: number): void {
+    this.mover = createMover(spawn);
+    this.previousPosition = { x: spawn.x, y: spawn.y };
+    this.history = [];
+    this.seq = ackSeq;
+    this.lastAck = ackSeq;
+    this.accumulatorMs = 0;
+    this.visualOffset = { x: 0, y: 0 };
+    this.correctionMs = 0;
+    this.lastSentKind = null;
+  }
+
   /** Position to render (interpolated simulation + decaying correction offset). */
   get visualPosition(): Vec2 {
     const interpolated = this.interpolatedPosition();

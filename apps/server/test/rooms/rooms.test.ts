@@ -13,6 +13,7 @@ import {
   type InputMessage,
   type MonsterDiedPayload,
   type SelfStatsPayload,
+  type TargetClearedPayload,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
@@ -75,6 +76,12 @@ function sendAttack(client: unknown, dir?: number): void {
 
 function sendRespawn(client: unknown, option: "here" | "town"): void {
   (client as { send: (type: string, payload: unknown) => void }).send(MSG.respawn, { option });
+}
+
+function sendSetTarget(client: unknown, monsterId: string): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(MSG.setTarget, {
+    monsterId,
+  });
 }
 
 function sendAllocStat(client: unknown, stat: "vit" | "int" | "str" | "dex"): void {
@@ -1230,5 +1237,54 @@ describe("progression and stat allocation", () => {
     expect(snapshot.stats.vit).toBe(before + 1);
     expect(snapshot.maxHp).toBe(356); // warrior base 120 + (vit 5)*40 + level*36
     expect(player.maxHp).toBe(356);
+  });
+});
+
+describe("click-to-attack", () => {
+  it("walks to and attacks the selected monster, then cancels on movement input", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Clicker",
+      map: ROOM_NAME_FIELDS,
+      spawnX: WOLF_ZONE_CENTRE.x - 220,
+      spawnY: WOLF_ZONE_CENTRE.y,
+    });
+    await room.waitForNextPatch();
+    const autoWalks = captureMessages(client, MSG.autoWalk);
+    const cleared = captureMessages(client, MSG.targetCleared);
+    const combat = captureMessages(client, MSG.combat);
+
+    const targetId = nearestMonsterId(room, client.sessionId);
+    const runtime = monsterRuntimes(room).get(targetId)!;
+    runtime.hp = 500;
+    room.state.monsters.get(targetId)!.hp = 500;
+
+    sendSetTarget(client, targetId);
+    await waitUntil(
+      () => autoWalks.some((message) => (message as { active: boolean }).active === true),
+      2000,
+    );
+
+    await waitUntil(
+      () =>
+        combat.some(
+          (message) =>
+            (message as CombatEventPayload).attacker.kind === "player" &&
+            (message as CombatEventPayload).hits.some(
+              (hit) => hit.target.kind === "monster" && hit.target.monsterId === targetId,
+            ),
+        ),
+      4000,
+    );
+    expect(room.state.monsters.get(targetId)!.hp).toBeLessThan(500);
+
+    sendInput(client, { seq: 1, kind: "none" });
+    await waitUntil(
+      () => cleared.some((message) => (message as TargetClearedPayload).reason === "cancelled"),
+      2000,
+    );
+    expect(
+      cleared.some((message) => (message as TargetClearedPayload).reason === "cancelled"),
+    ).toBe(true);
   });
 });
