@@ -138,8 +138,16 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
         auth: false,
       })) as AuthResponse;
       return storeAuth(payload);
-    } catch {
-      tokenStore.clear();
+    } catch (error) {
+      // Only clear credentials for a terminal auth failure, and only if this
+      // is still the stored refresh token (another tab may have rotated it).
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403) &&
+        tokenStore.getRefresh() === refreshToken
+      ) {
+        tokenStore.clear();
+      }
       return null;
     }
   }

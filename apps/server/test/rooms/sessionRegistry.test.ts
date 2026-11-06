@@ -6,6 +6,7 @@ function makeHandle(
   accountId: string,
   characterId: string,
   sessionId: string,
+  tokenVersion = 0,
 ): SessionHandle & {
   saveForKick: Mock<() => Promise<void>>;
   send: Mock<(type: string, payload: unknown) => void>;
@@ -15,6 +16,7 @@ function makeHandle(
     accountId,
     characterId,
     sessionId,
+    tokenVersion,
     saveForKick: vi.fn<() => Promise<void>>(async () => undefined),
     send: vi.fn<(type: string, payload: unknown) => void>(),
     leave: vi.fn<(code: number) => void>(),
@@ -98,5 +100,43 @@ describe("SessionRegistry", () => {
     await registry.kickCharacter("char-1", "login");
     expect(handle.leave).toHaveBeenCalledWith(SESSION_KICK_CODE);
     expect(registry.isCharacterOnline("char-1")).toBe(false);
+  });
+
+  it("rejects a reservation older than the account's current generation", async () => {
+    registry.noteAccount("acc-1", 2);
+    const stale = makeHandle("acc-1", "char-1", "session-old", 1);
+    await expect(registry.register(stale)).resolves.toBe(false);
+    expect(stale.leave).toHaveBeenCalledWith(SESSION_KICK_CODE);
+    expect(registry.isCharacterOnline("char-1")).toBe(false);
+  });
+
+  it("does not let a stale registration kick the newer session", async () => {
+    const current = makeHandle("acc-1", "char-1", "session-new", 2);
+    await registry.register(current);
+    const accepted = await registry.register(makeHandle("acc-1", "char-1", "session-old", 1));
+    expect(accepted).toBe(false);
+    expect(current.leave).not.toHaveBeenCalled();
+    expect(registry.getActive("acc-1")).toBe(current);
+  });
+
+  it("serializes three concurrent registrations into one live session", async () => {
+    const first = makeHandle("acc-1", "char-1", "session-1");
+    first.saveForKick.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const second = makeHandle("acc-1", "char-1", "session-2");
+    const third = makeHandle("acc-1", "char-1", "session-3");
+    await Promise.all([
+      registry.register(first),
+      registry.register(second),
+      registry.register(third),
+    ]);
+
+    const active = registry.getActive("acc-1");
+    expect(active).toBeDefined();
+    expect(active).not.toBe(first);
+    const undone = [first, second, third].filter((handle) => handle.leave.mock.calls.length === 0);
+    expect(undone).toHaveLength(1);
+    expect(registry.isCharacterOnline("char-1")).toBe(true);
   });
 });

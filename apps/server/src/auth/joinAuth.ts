@@ -82,6 +82,9 @@ export async function authenticateJoin(
     if (isBanned(account.bannedUntil)) {
       return reject("account_banned", context.ip);
     }
+    if (warp.tokenVersion === undefined || warp.tokenVersion !== account.tokenVersion) {
+      return reject("warp_token_stale", context.ip);
+    }
     const character = await deps.getCharacterForAccount(account.id, parsed.characterId);
     if (!character || character.map !== parsed.map) {
       return reject("warp_character_mismatch", context.ip);

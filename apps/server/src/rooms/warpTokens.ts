@@ -13,6 +13,7 @@ import type { MapId } from "@jadethrone/shared";
 export interface WarpTokenBinding {
   accountId: string;
   characterId: string;
+  tokenVersion: number;
 }
 
 export interface WarpTokenPayload {
@@ -21,6 +22,7 @@ export interface WarpTokenPayload {
   y: number;
   accountId?: string;
   characterId?: string;
+  tokenVersion?: number;
 }
 
 interface WarpTokenData extends WarpTokenPayload {
@@ -53,6 +55,7 @@ export function issueWarpToken(
     y,
     accountId: binding?.accountId,
     characterId: binding?.characterId,
+    tokenVersion: binding?.tokenVersion,
     expiresAt: Date.now() + WARP_TOKEN_TTL_MS,
   });
   return token;
@@ -84,6 +87,7 @@ export function checkWarpToken(
     y: data.y,
     accountId: data.accountId,
     characterId: data.characterId,
+    tokenVersion: data.tokenVersion,
   };
 }
 

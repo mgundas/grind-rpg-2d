@@ -180,7 +180,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 
 - Join: load, validate position with `nearestWalkable`, mark dirty if corrected.
 - Tick: mark dirty only when the authoritative position changes.
-- 60 s autosave: only dirty, non-warping players; `Promise.allSettled`; errors logged.
+- 60 s autosave: only dirty, non-warping players; per-player ordered saves; errors logged.
 - Leave: save if dirty; always after a kick that already saved (so skipped).
 - Warp: explicit save, as above.
 - Server crash: at most 60 s of movement lost.
@@ -208,7 +208,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 | `apps/server/test/auth/tokens.test.ts`           | Access/refresh sign/verify, expiry, wrong type/secret/issuer, malformed claims                                                                                              |
 | `apps/server/test/http/rateLimit.test.ts`        | Window, per-key isolation, reset, over-limit                                                                                                                                |
 | `apps/server/test/db/persistence.test.ts`        | Real DB: register/login/refresh/logout, duplicates, ban, token version, sessions, character CRUD, 4-slot race, case-insensitive names, ownership, save/load, spawn snapping |
-| `apps/server/test/api/routes.test.ts`            | HTTP status codes/shapes with fake services, auth required, no hash leakage, kick on login, 429, 503                                                                        |
+| `apps/server/test/api/routes.test.ts`            | HTTP status codes/shapes against the real services + test Postgres, auth required, no hash leakage, kick on login, 429                                                      |
 | `apps/server/test/rooms/joinAuth.test.ts`        | JWT path, warp-token path, map/ownership/version/ban checks                                                                                                                 |
 | `apps/server/test/rooms/sessionRegistry.test.ts` | register/unregister, save-before-kick, duplicate-session handling                                                                                                           |
 | `apps/server/test/rooms/warpTokens.test.ts`      | Extended token binding, single use, TTL, wrong map/character                                                                                                                |

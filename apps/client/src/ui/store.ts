@@ -99,6 +99,7 @@ export const useUiStore = create<UiState>((set) => ({
       characters,
       selectedCharacterId: characters[0]?.id ?? null,
       authError: null,
+      sessionKickedReason: null,
     }),
   setCharacters: (characters) =>
     set((state) => ({

@@ -54,14 +54,16 @@ export function CharacterSelect() {
     setError(null);
     try {
       await api.deleteCharacter(character.id);
-      setCharacters(characters.filter((candidate) => candidate.id !== character.id));
+      const current = useUiStore.getState().characters;
+      setCharacters(current.filter((candidate) => candidate.id !== character.id));
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : String(caught));
     }
   };
 
   const created = (character: CharacterSummary) => {
-    setCharacters([...characters, character]);
+    const current = useUiStore.getState().characters;
+    setCharacters([...current, character]);
     setSelected(character.id);
     setCreating(false);
   };

@@ -51,6 +51,8 @@ export interface AuthResult {
   account: AccountPublic;
   characters: CharacterSummary[];
   tokens: AuthTokens;
+  /** Server-only: the account's current token generation (stripped by routes). */
+  tokenVersion: number;
 }
 
 export interface AccountAuthRecord {
@@ -213,6 +215,7 @@ export async function registerAccount(
       accessToken: accessToken(deps, accountId, 0),
       refreshToken: prepared.refreshToken,
     },
+    tokenVersion: 0,
   };
 }
 
@@ -292,6 +295,7 @@ export async function loginAccount(
         accessToken: accessToken(deps, outcome.account.id, outcome.tokenVersion),
         refreshToken: prepared.refreshToken,
       },
+      tokenVersion: outcome.tokenVersion,
     };
   } catch (error) {
     throw toServiceError(error);
@@ -371,6 +375,7 @@ export async function refreshSession(
         accessToken: accessToken(deps, outcome.account.id, outcome.account.tokenVersion),
         refreshToken: prepared.refreshToken,
       },
+      tokenVersion: outcome.account.tokenVersion,
     };
   } catch (error) {
     throw toServiceError(error);
@@ -380,7 +385,7 @@ export async function refreshSession(
 export async function logoutAccount(
   deps: AuthDeps,
   refreshToken: string,
-): Promise<{ accountId: string } | null> {
+): Promise<{ accountId: string; tokenVersion: number } | null> {
   const verified = verifyRefreshToken(refreshToken, deps.refreshSecret);
   if (!verified.ok) {
     throw invalidSession();
@@ -388,7 +393,10 @@ export async function logoutAccount(
   const claims = verified.claims;
   const now = new Date();
   const tokenHash = hashToken(refreshToken);
-  const result: { accountId: string | null } = { accountId: null };
+  const result: { accountId: string | null; tokenVersion: number | null } = {
+    accountId: null,
+    tokenVersion: null,
+  };
 
   try {
     await deps.db.transaction(async (tx) => {
@@ -418,17 +426,21 @@ export async function logoutAccount(
       }
 
       await tx.update(sessions).set({ revokedAt: now }).where(eq(sessions.id, row.id));
-      await tx
+      const [updated] = await tx
         .update(accounts)
         .set({ tokenVersion: sql`${accounts.tokenVersion} + 1` })
-        .where(eq(accounts.id, locked.id));
+        .where(eq(accounts.id, locked.id))
+        .returning({ tokenVersion: accounts.tokenVersion });
       result.accountId = locked.id;
+      result.tokenVersion = updated?.tokenVersion ?? null;
     });
   } catch (error) {
     throw toServiceError(error);
   }
 
-  return result.accountId ? { accountId: result.accountId } : null;
+  return result.accountId && result.tokenVersion !== null
+    ? { accountId: result.accountId, tokenVersion: result.tokenVersion }
+    : null;
 }
 
 /** Safe account read for static `onAuth` / `/api/auth/me`. */

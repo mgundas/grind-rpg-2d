@@ -161,13 +161,23 @@ export async function deleteCharacter(
   characterId: string,
   options: DeleteCharacterOptions = {},
 ): Promise<void> {
-  if (options.isOnline?.(characterId)) {
-    throw new ServiceError(
-      "character_online",
-      "That character is currently online. Log out first.",
-    );
-  }
   try {
+    // Ownership first: never reveal another account's character state.
+    const [owned] = await db
+      .select({ id: characters.id })
+      .from(characters)
+      .where(and(eq(characters.id, characterId), eq(characters.accountId, accountId)))
+      .limit(1);
+    if (!owned) {
+      throw new ServiceError("not_found", "Character not found.");
+    }
+    if (options.isOnline?.(characterId)) {
+      throw new ServiceError(
+        "character_online",
+        "That character is currently online. Log out first.",
+      );
+    }
+
     const rows = await db
       .delete(characters)
       .where(and(eq(characters.id, characterId), eq(characters.accountId, accountId)))

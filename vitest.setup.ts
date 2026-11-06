@@ -14,7 +14,9 @@ if (testUrl) {
   if (!/test/i.test(testUrl)) {
     throw new Error("TEST_DATABASE_URL must contain 'test' (refusing to run against dev data)");
   }
-  process.env.DATABASE_URL ??= testUrl;
+  // Force (not default) the test database: a developer's DATABASE_URL must
+  // never be written to by the DB-backed tests.
+  process.env.DATABASE_URL = testUrl;
 }
 
 process.env.JWT_ACCESS_SECRET ??= "test-access-secret-at-least-32-characters";

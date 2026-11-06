@@ -140,11 +140,7 @@ export function drawCharacter(
 }
 
 /** Draw the composite into a fresh canvas (used by the React preview). */
-export function drawCharacterToCanvas(
-  canvas: HTMLCanvasElement,
-  look: CharacterLook,
-  scale = 1,
-): void {
+export function drawCharacterToCanvas(canvas: HTMLCanvasElement, look: CharacterLook): void {
   const ctx = canvas.getContext("2d");
   if (!ctx) {
     return;
@@ -159,5 +155,5 @@ export function drawCharacterToCanvas(
   drawCharacter(frameCtx, look);
   ctx.imageSmoothingEnabled = false;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height * scale);
+  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
 }

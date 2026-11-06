@@ -63,6 +63,11 @@ export async function connect(options: ConnectOptions): Promise<Room> {
   if (connectPromise) {
     return connectPromise;
   }
+  if (room) {
+    // A previous failed attempt may have left a socket; never join a second
+    // room on top of it (the server would kick the old session later anyway).
+    await leave({ silent: true });
+  }
   const ui = useUiStore.getState();
   ui.setConnectionPhase("connecting");
   ui.setConnectionError(null);
@@ -143,16 +148,17 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
 export async function logout(): Promise<void> {
   try {
     await leave({ silent: true });
-  } finally {
-    try {
-      await api.logout();
-    } catch {
-      // The local session is cleared regardless of network/server errors.
-    }
-    const store = useUiStore.getState();
-    store.setSessionKicked(null);
-    store.setAnonymous();
+  } catch {
+    // The socket may already be gone; local cleanup still proceeds.
   }
+  try {
+    await api.logout();
+  } catch {
+    // The local session is cleared regardless of network/server errors.
+  }
+  const store = useUiStore.getState();
+  store.setSessionKicked(null);
+  store.setAnonymous();
 }
 
 export function sendInput(message: InputMessage): void {
@@ -177,8 +183,8 @@ function bindSessionEvents(current: Room): void {
   current.onMessage(MSG.sessionKicked, (payload: SessionKickedPayload) => {
     const store = useUiStore.getState();
     store.setSessionKicked(payload.reason);
-    if (payload.reason === "login") {
-      // The token version was bumped by the new login; these tokens are dead.
+    if (payload.reason !== "duplicate") {
+      // Login/logout bumped the token version; these tokens are dead.
       tokens.clear();
     }
     store.setConnectionPhase("left");

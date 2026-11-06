@@ -270,7 +270,7 @@ describe("MapRoom join", () => {
     const autosave = (room as unknown as { autosave: () => Promise<void> }).autosave;
     await autosave.call(room);
 
-    expect(fake.savePositions).toHaveBeenCalledOnce();
+    expect(fake.savePosition).toHaveBeenCalledTimes(2);
     const savedIds = fake.saved.map((save) => save.characterId);
     expect(savedIds).toContain(room.state.players.get(alice.sessionId)!.characterId);
     expect(savedIds).toContain(room.state.players.get(bob.sessionId)!.characterId);

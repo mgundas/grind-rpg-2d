@@ -137,6 +137,7 @@ describe("authenticateJoin (warp token)", () => {
     y: 400,
     accountId: ACCOUNT_ID,
     characterId: CHARACTER_ID,
+    tokenVersion: 2,
   };
 
   it("accepts a bound warp token without a JWT and exposes the spawn", async () => {
@@ -173,6 +174,15 @@ describe("authenticateJoin (warp token)", () => {
         warpToken: "nope",
       }),
     ).toBeNull();
+  });
+
+  it("rejects a warp token minted before a login/logout bump", async () => {
+    const identity = await authenticateJoin(
+      deps({ consumeWarpToken: vi.fn(() => ({ ...warp, tokenVersion: 1 })) }),
+      undefined,
+      { characterId: CHARACTER_ID, map: ROOM_NAME_FIELDS, warpToken: "warp-token" },
+    );
+    expect(identity).toBeNull();
   });
 
   it("rejects a banned account even with a valid warp token", async () => {

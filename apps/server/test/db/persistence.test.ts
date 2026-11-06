@@ -296,6 +296,7 @@ describeDb("persistence services (real Postgres)", () => {
       const accountId = result.account.id;
       await expect(logoutAccount(deps(db), result.tokens.refreshToken)).resolves.toEqual({
         accountId,
+        tokenVersion: 1,
       });
 
       const [row] = await db.select().from(accounts).where(eq(accounts.id, accountId));

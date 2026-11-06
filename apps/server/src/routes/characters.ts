@@ -18,6 +18,11 @@ export interface CharacterRouteDeps {
 export function createCharactersRouter(deps: CharacterRouteDeps): Router {
   const router = Router();
 
+  router.use((_req, res, next) => {
+    res.set("Cache-Control", "no-store");
+    next();
+  });
+
   router.get("/", requireAuth(deps), async (_req, res) => {
     const account = authedAccount(res);
     const characters = await listCharacters(deps.db, account.id);

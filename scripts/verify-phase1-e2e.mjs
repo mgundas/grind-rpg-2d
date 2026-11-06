@@ -75,7 +75,7 @@ async function makePlayer(label) {
   }
   const client = new Client(URL);
   client.auth.token = registered.data.tokens.accessToken;
-  return { client, character: created.data.character };
+  return { client, character: created.data.character, creds };
 }
 
 const rooms = [];
@@ -193,6 +193,24 @@ try {
     check(
       "arrived back in the village",
       Boolean(villageRoom?.state.players.get(villageRoom.sessionId)),
+    );
+
+    // Persistence across a warp: leave, log in again, and read the saved map.
+    await villageRoom?.leave();
+    await wait(500);
+    const relogin = await api("/api/auth/login", {
+      method: "POST",
+      body: { login: gamma.creds.email, password: gamma.creds.password },
+    });
+    const listed = await api("/api/characters", {
+      token: relogin.data.tokens.accessToken,
+    });
+    const saved = listed.data.characters.find((candidate) => candidate.id === gamma.character.id);
+    check("warp destination is persisted", saved?.map === VILLAGE);
+    check(
+      "post-warp position is persisted",
+      saved && Math.abs(saved.x - 1296) < 2 && Math.abs(saved.y - 1296) < 2,
+      `${saved?.x?.toFixed?.(1)}, ${saved?.y?.toFixed?.(1)}`,
     );
   }
 

@@ -39,8 +39,11 @@ export function createMemoryStorage(): TokenStorage {
 }
 
 function browserStorage(): TokenStorage {
-  if (typeof localStorage !== "undefined") {
-    return localStorage;
+  // Per-tab storage: two tabs can each hold a session (the server still allows
+  // only one active session per account). `localStorage` is deliberately not
+  // used, otherwise a kicked tab could clear the surviving tab's tokens.
+  if (typeof sessionStorage !== "undefined") {
+    return sessionStorage;
   }
   return createMemoryStorage();
 }

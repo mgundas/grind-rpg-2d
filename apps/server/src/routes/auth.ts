@@ -52,38 +52,43 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
 
   router.post("/register", rateLimit(registerLimiter), async (req, res) => {
     const input = parseBody(registerRequestSchema, req.body);
-    const result = await registerAccount(deps.authDeps, input, {
+    const { tokenVersion, ...payload } = await registerAccount(deps.authDeps, input, {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-    res.status(201).json(result);
+    deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
+    res.status(201).json(payload);
   });
 
   router.post("/login", rateLimit(loginLimiter), async (req, res) => {
     const input = parseBody(loginRequestSchema, req.body);
-    const result = await loginAccount(deps.authDeps, input, {
+    const { tokenVersion, ...payload } = await loginAccount(deps.authDeps, input, {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-    // The token version is already bumped/committed; kick the old socket now.
-    await deps.sessionRegistry.kickAccount(result.account.id, "login");
-    res.json(result);
+    // The token version is already bumped/committed; record the generation
+    // before kicking so a stale in-flight reservation cannot win.
+    deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
+    await deps.sessionRegistry.kickAccount(payload.account.id, "login");
+    res.json(payload);
   });
 
   router.post("/refresh", rateLimit(refreshLimiter), async (req, res) => {
     const input = parseBody(refreshRequestSchema, req.body);
-    const result = await refreshSession(deps.authDeps, input.refreshToken, {
+    const { tokenVersion, ...payload } = await refreshSession(deps.authDeps, input.refreshToken, {
       ip: req.ip,
       userAgent: req.headers["user-agent"],
     });
-    res.json(result);
+    deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
+    res.json(payload);
   });
 
   router.post("/logout", async (req, res) => {
     const input = parseBody(logoutRequestSchema, req.body);
     const revoked = await logoutAccount(deps.authDeps, input.refreshToken);
     if (revoked) {
-      await deps.sessionRegistry.kickAccount(revoked.accountId, "login");
+      deps.sessionRegistry.noteAccount(revoked.accountId, revoked.tokenVersion);
+      await deps.sessionRegistry.kickAccount(revoked.accountId, "logout");
     }
     res.status(204).end();
   });

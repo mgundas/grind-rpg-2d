@@ -20,7 +20,7 @@ export const MSG = {
  */
 export const SESSION_KICK_CODE = 4100;
 
-export type SessionKickReason = "login" | "duplicate";
+export type SessionKickReason = "login" | "logout" | "duplicate";
 
 /** Sent just before the socket closes with SESSION_KICK_CODE. */
 export interface SessionKickedPayload {

@@ -31,6 +31,7 @@ describe("warp tokens", () => {
     const token = issueWarpToken(ROOM_NAME_FIELDS, 10, 20, {
       accountId: "acc-1",
       characterId: "char-1",
+      tokenVersion: 3,
     });
     expect(checkWarpToken(token, ROOM_NAME_FIELDS)).toEqual({
       map: ROOM_NAME_FIELDS,
@@ -38,6 +39,7 @@ describe("warp tokens", () => {
       y: 20,
       accountId: "acc-1",
       characterId: "char-1",
+      tokenVersion: 3,
     });
     expect(checkWarpToken(token, ROOM_NAME_FIELDS)).not.toBeNull();
     expect(consumeWarpToken(token, ROOM_NAME_FIELDS)).toEqual({ x: 10, y: 20 });

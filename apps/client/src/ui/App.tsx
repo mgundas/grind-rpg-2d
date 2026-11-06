@@ -75,8 +75,14 @@ export function App() {
   // A login elsewhere invalidates this session's tokens; return to the login
   // screen. A duplicate join keeps the tokens and shows the character list.
   useEffect(() => {
-    if (sessionKickedReason === "login") {
-      useUiStore.getState().setAnonymous("Signed in from another session.");
+    if (sessionKickedReason === "login" || sessionKickedReason === "logout") {
+      useUiStore
+        .getState()
+        .setAnonymous(
+          sessionKickedReason === "login"
+            ? "Signed in from another session."
+            : "Logged out from another session.",
+        );
     }
   }, [sessionKickedReason]);
 

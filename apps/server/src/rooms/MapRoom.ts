@@ -167,6 +167,7 @@ export class MapRoom extends Room {
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
       characterId: auth.character.id,
+      tokenVersion: auth.account.tokenVersion,
     });
     runtime.dirty =
       Math.abs(spawn.x - auth.character.x) > 0.01 || Math.abs(spawn.y - auth.character.y) > 0.01;
@@ -197,15 +198,24 @@ export class MapRoom extends Room {
     this.updateInterest();
 
     // Replacing a session saves and closes the previous one first (duplicate
-    // join or a login that did not go through the HTTP kick path).
-    await getServerServices().sessionRegistry.register({
+    // join or a login that did not go through the HTTP kick path). A stale
+    // reservation (older token version than the account's current generation)
+    // is rejected instead of kicking the newer session.
+    const accepted = await getServerServices().sessionRegistry.register({
       accountId: auth.account.id,
       characterId: auth.character.id,
       sessionId: client.sessionId,
+      tokenVersion: auth.account.tokenVersion,
       saveForKick: () => this.savePlayerNow(client.sessionId),
       send: (type, payload) => client.send(type, payload),
       leave: (code) => client.leave(code),
     });
+    if (!accepted) {
+      this.state.players.delete(client.sessionId);
+      this.runtimes.delete(client.sessionId);
+      this.updateInterest();
+      return;
+    }
 
     logger.info(
       {
@@ -230,19 +240,11 @@ export class MapRoom extends Room {
       // A kick already saved and cleared `dirty`; a warp already persisted
       // the destination and removed the runtime.
       if (runtime.dirty && player) {
-        try {
-          await getServerServices().savePosition(runtime.characterId, {
-            mapId: this.mapId,
-            x: player.x,
-            y: player.y,
-          });
-          runtime.dirty = false;
-        } catch (error) {
-          logger.error(
-            { roomId: this.roomId, session: client.sessionId, error },
-            "failed to save character on leave",
-          );
-        }
+        await this.enqueueSave(runtime, {
+          mapId: this.mapId,
+          x: player.x,
+          y: player.y,
+        });
       }
     }
 
@@ -256,18 +258,48 @@ export class MapRoom extends Room {
     if (!runtime || !player || !runtime.dirty) {
       return;
     }
-    await getServerServices().savePosition(runtime.characterId, {
+    await this.enqueueSave(runtime, {
       mapId: this.mapId,
       x: player.x,
       y: player.y,
     });
-    runtime.dirty = false;
   }
 
-  /** Periodic dirty-position flush; one statement for every moved player. */
+  /**
+   * All position writes for one runtime go through a promise chain, so an
+   * autosave snapshot can never land after a newer kick/leave/warp write.
+   * `dirty` is cleared only when the runtime has not moved since the snapshot.
+   */
+  private enqueueSave(
+    runtime: PlayerRuntime,
+    snapshot: { mapId: MapId; x: number; y: number },
+  ): Promise<boolean> {
+    const run = async (): Promise<boolean> => {
+      try {
+        const saved = await getServerServices().savePosition(runtime.characterId, snapshot);
+        if (saved && runtime.mover.pos.x === snapshot.x && runtime.mover.pos.y === snapshot.y) {
+          runtime.dirty = false;
+        }
+        return saved;
+      } catch (error) {
+        logger.error(
+          { roomId: this.roomId, characterId: runtime.characterId, error },
+          "character save failed",
+        );
+        return false;
+      }
+    };
+    const next = (runtime.saveChain ?? Promise.resolve()).then(run, run);
+    runtime.saveChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
+  /** Periodic dirty-position flush (ordered per player by `enqueueSave`). */
   private async autosave(): Promise<void> {
-    const saves: Array<{ characterId: string; mapId: MapId; x: number; y: number }> = [];
-    const runtimes: PlayerRuntime[] = [];
+    const pending: Array<Promise<boolean>> = [];
     for (const [sessionId, runtime] of this.runtimes) {
       if (!runtime.dirty || runtime.warping) {
         continue;
@@ -276,24 +308,16 @@ export class MapRoom extends Room {
       if (!player) {
         continue;
       }
-      saves.push({
-        characterId: runtime.characterId,
-        mapId: this.mapId,
-        x: player.x,
-        y: player.y,
-      });
-      runtimes.push(runtime);
+      pending.push(
+        this.enqueueSave(runtime, {
+          mapId: this.mapId,
+          x: player.x,
+          y: player.y,
+        }),
+      );
     }
-    if (saves.length === 0) {
-      return;
-    }
-    try {
-      await getServerServices().savePositions(saves);
-      for (const runtime of runtimes) {
-        runtime.dirty = false;
-      }
-    } catch (error) {
-      logger.error({ roomId: this.roomId, error }, "autosave failed");
+    if (pending.length > 0) {
+      await Promise.allSettled(pending);
     }
   }
 
@@ -385,37 +409,33 @@ export class MapRoom extends Room {
     }
     runtime.warping = true;
     const services = getServerServices();
+    const source = { mapId: this.mapId, x: player.x, y: player.y };
 
-    try {
-      const saved = await services.savePosition(runtime.characterId, {
-        mapId: warp.targetMap,
-        x: warp.targetX,
-        y: warp.targetY,
-      });
-      if (!saved) {
-        throw new Error("character row missing");
-      }
-      runtime.dirty = false;
-    } catch (error) {
+    const saved = await this.enqueueSave(runtime, {
+      mapId: warp.targetMap,
+      x: warp.targetX,
+      y: warp.targetY,
+    });
+    if (!saved) {
       runtime.warping = false;
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
       logger.error(
-        { roomId: this.roomId, session: client.sessionId, error },
+        { roomId: this.roomId, session: client.sessionId },
         "warp destination save failed",
       );
       return;
     }
 
-    const source = { mapId: this.mapId, x: player.x, y: player.y };
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     // The move is intentional; do not let the target join "kick" this session.
-    getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
+    services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
 
     try {
       const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY, {
         accountId: runtime.accountId,
         characterId: runtime.characterId,
+        tokenVersion: runtime.tokenVersion,
       });
       const reservation = await this.reserveSeat(warp.targetMap, {
         characterId: runtime.characterId,
@@ -423,7 +443,9 @@ export class MapRoom extends Room {
         warpToken: token,
       });
       if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
-        // Client left during the reservation; its seat expires on its own.
+        // Client left before receiving the reservation; undo the destination
+        // write so the next login does not spawn on a map it never reached.
+        void this.enqueueSave(runtime, source);
         return;
       }
       const payload: WarpPayload = {
@@ -442,6 +464,7 @@ export class MapRoom extends Room {
             { roomId: this.roomId, session: client.sessionId },
             "client did not leave after warp; disconnecting",
           );
+          void this.enqueueSave(runtime, source);
           client.leave(4000);
         }
       }, WARP_CLIENT_LEAVE_TIMEOUT_MS);
@@ -468,22 +491,20 @@ export class MapRoom extends Room {
         this.runtimes.set(client.sessionId, runtime);
         // The destination write succeeded; put the source position back.
         runtime.dirty = true;
-        void services
-          .savePosition(runtime.characterId, source)
-          .catch((saveError: unknown) =>
-            logger.error(
-              { roomId: this.roomId, session: client.sessionId, error: saveError },
-              "failed to restore source position after failed warp",
-            ),
-          );
-        await services.sessionRegistry.register({
+        void this.enqueueSave(runtime, source);
+        const accepted = await services.sessionRegistry.register({
           accountId: runtime.accountId,
           characterId: runtime.characterId,
           sessionId: client.sessionId,
+          tokenVersion: runtime.tokenVersion,
           saveForKick: () => this.savePlayerNow(client.sessionId),
           send: (type, payload) => client.send(type, payload),
           leave: (code) => client.leave(code),
         });
+        if (!accepted) {
+          this.state.players.delete(client.sessionId);
+          this.runtimes.delete(client.sessionId);
+        }
         this.updateInterest();
       }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");

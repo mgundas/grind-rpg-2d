@@ -14,6 +14,8 @@ export interface PlayerRuntime {
   /** Authenticated account/character this session belongs to. */
   accountId: string;
   characterId: string;
+  /** Account token generation captured at authentication. */
+  tokenVersion: number;
   mover: MoverState;
   /** Inputs received since the last tick, applied in seq order. */
   pending: InputMessage[];
@@ -41,17 +43,21 @@ export interface PlayerRuntime {
   droppedInputs: number;
   /** True when the authoritative position has changed since the last save. */
   dirty: boolean;
+  /** Serialized save chain so autosave/kick/leave/warp writes cannot reorder. */
+  saveChain: Promise<unknown> | null;
 }
 
 export interface PlayerIdentity {
   accountId: string;
   characterId: string;
+  tokenVersion: number;
 }
 
 export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): PlayerRuntime {
   return {
     accountId: identity.accountId,
     characterId: identity.characterId,
+    tokenVersion: identity.tokenVersion,
     mover: createMover(spawn),
     pending: [],
     lastSeq: 0,
@@ -66,5 +72,6 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     pathComputations: 0,
     droppedInputs: 0,
     dirty: false,
+    saveChain: null,
   };
 }

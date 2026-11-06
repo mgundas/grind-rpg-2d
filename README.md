@@ -25,7 +25,8 @@ pnpm dev         # DB reachability check + server :2567 + client :5173 + admin :
 
 Phase 2 (accounts and characters) is current: register on the client, create up to
 four characters, and the server saves/restores their position and map. `pnpm seed`
-prints the configured admin/test credentials (see `.env.example`).
+creates an admin and a dev test player and logs their configured emails (see
+`.env.example` for the credentials).
 
 All commands must always work:
 

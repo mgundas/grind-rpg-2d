@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { GAME_NAME, KINGDOMS, type KingdomId } from "@jadethrone/shared";
+import { GAME_NAME, KINGDOMS, isValidCharacterName, type KingdomId } from "@jadethrone/shared";
 import { ApiError, api } from "../network/api";
 import { useUiStore } from "./store";
 import { Field, Panel, styles, theme } from "./theme";
@@ -9,6 +9,8 @@ type Mode = "login" | "register";
 /** Login and registration (GAME_DESIGN.md §12 Phase 2). */
 export function AuthScreen() {
   const setAuthenticated = useUiStore((state) => state.setAuthenticated);
+  const authError = useUiStore((state) => state.authError);
+  const setAuthError = useUiStore((state) => state.setAuthError);
   const [mode, setMode] = useState<Mode>("login");
   const [login, setLogin] = useState("");
   const [email, setEmail] = useState("");
@@ -23,7 +25,7 @@ export function AuthScreen() {
     password.length > 0 &&
     (mode === "login"
       ? login.trim().length > 0
-      : email.trim().length > 0 && username.trim().length >= 3 && password.length >= 8);
+      : email.includes("@") && isValidCharacterName(username.trim()) && password.length >= 8);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -32,6 +34,7 @@ export function AuthScreen() {
     }
     setBusy(true);
     setError(null);
+    setAuthError(null);
     try {
       const result =
         mode === "login"
@@ -53,6 +56,7 @@ export function AuthScreen() {
   const switchMode = (next: Mode) => {
     setMode(next);
     setError(null);
+    setAuthError(null);
   };
 
   return (
@@ -171,7 +175,7 @@ export function AuthScreen() {
         <button type="submit" disabled={!canSubmit} style={{ ...styles.button, width: "100%" }}>
           {busy ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}
         </button>
-        {error ? <p style={styles.error}>{error}</p> : null}
+        {error || authError ? <p style={styles.error}>{error ?? authError}</p> : null}
       </form>
     </Panel>
   );

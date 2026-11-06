@@ -3,6 +3,7 @@ import { ColyseusTestServer } from "@colyseus/testing";
 import { createGameServer } from "../../src/server";
 import { SessionRegistry, type SessionHandle } from "../../src/auth/sessionRegistry";
 import { closeDb } from "../../src/db/client";
+import { runMigrations } from "../../src/db/migrate";
 import type { AuthResponse, CharacterSummary } from "@jadethrone/shared";
 
 /**
@@ -64,6 +65,7 @@ describeApi("auth and character routes", () => {
   }
 
   beforeAll(async () => {
+    await runMigrations();
     registry = new SessionRegistry();
     const server = createGameServer({
       sessionRegistry: registry,
@@ -139,6 +141,7 @@ describeApi("auth and character routes", () => {
       accountId: account.account.id,
       characterId: "11111111-1111-4111-8111-111111111111",
       sessionId: "old-session",
+      tokenVersion: 0,
       saveForKick: vi.fn<() => Promise<void>>(async () => undefined),
       send: vi.fn<(type: string, payload: unknown) => void>(),
       leave: vi.fn<(code: number) => void>(),

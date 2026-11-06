@@ -155,20 +155,29 @@ export class WorldScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const ui = useUiStore.getState();
-    if (ui.connectionPhase === "connected" && ui.mapId && ui.mapId !== this.mapId) {
+    const room = getRoom();
+    if (ui.connectionPhase !== "connected" || !room) {
+      this.setOwnVisible(false);
+      if (this.predictor || this.initializedFor || this.pathTarget || this.pointerHeld) {
+        this.resetSessionState();
+      }
+      return;
+    }
+
+    if (ui.mapId && ui.mapId !== this.mapId) {
       if (!this.mapSwitchPending) {
         this.mapSwitchPending = true;
         this.scene.restart();
       }
       return;
     }
-    if (ui.connectionPhase !== "connected") {
-      this.setOwnVisible(false);
-    }
 
     this.ensurePredictor();
 
     if (this.predictor) {
+      if (this.initializedFor !== room.sessionId) {
+        return; // wait for the new session's first patch
+      }
       const desired = this.resolveInput();
       this.predictor.update(delta, desired);
       if (this.pathTarget && !this.predictor.isFollowingPath) {
@@ -213,6 +222,15 @@ export class WorldScene extends Phaser.Scene {
     }
 
     const sessionId = room.sessionId;
+    if (this.initializedFor !== sessionId) {
+      this.clearRemoteVisuals();
+      this.remoteRegistry = new RemoteRegistry();
+      this.pathTarget = null;
+      this.pointerHeld = false;
+      this.pointerWorld = null;
+      this.pointerDownAt = 0;
+      this.facing = 2;
+    }
     this.predictor = new LocalPredictor(this.grid, { x: own.x, y: own.y }, sendInput);
     this.initializedFor = sessionId;
     this.character.setTexture(ensureCharacterTexture(this, lookFromPlayer(own)));
@@ -245,6 +263,29 @@ export class WorldScene extends Phaser.Scene {
     this.arrow.setVisible(visible);
   }
 
+  private clearRemoteVisuals(): void {
+    for (const visual of this.remoteVisuals.values()) {
+      visual.sprite.destroy();
+      visual.shadow.destroy();
+      visual.label.destroy();
+    }
+    this.remoteVisuals.clear();
+  }
+
+  /** Forget all room-scoped input/render state (logout, kick, session change). */
+  private resetSessionState(): void {
+    this.predictor = null;
+    this.initializedFor = null;
+    this.pathTarget = null;
+    this.pointerHeld = false;
+    this.pointerWorld = null;
+    this.pointerDownAt = 0;
+    this.facing = 2;
+    this.remoteRegistry = new RemoteRegistry();
+    this.clearRemoteVisuals();
+    this.setOwnVisible(false);
+  }
+
   /** Fade out, consume the reservation, then rebuild the scene on the new map. */
   private async handleWarp(payload: WarpPayload): Promise<void> {
     if (this.warping) {
@@ -261,7 +302,9 @@ export class WorldScene extends Phaser.Scene {
       await leave({ silent: true });
       await consumeWarp(payload);
       // consumeWarp sets the store's map id only after the reservation is
-      // accepted; restart rebuilds the map/collision grid for that id.
+      // accepted; restart rebuilds the map/collision grid for that id. Mark the
+      // switch first so update() does not queue a second restart.
+      this.mapSwitchPending = true;
       this.scene.restart();
     } catch (error) {
       this.warping = false;
@@ -392,7 +435,7 @@ export class WorldScene extends Phaser.Scene {
   /** Input precedence: chat focus > WASD > hold-to-steer > click path > idle. */
   private resolveInput(): DesiredInput {
     const ui = useUiStore.getState();
-    if (ui.chatFocused || this.warping) {
+    if (ui.connectionPhase !== "connected" || ui.chatFocused || this.warping) {
       return { kind: "none" };
     }
 
@@ -436,17 +479,33 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private setupInput(): void {
+    // Scene restarts re-enter create(); remove the previous listeners so a
+    // click is not handled twice.
+    this.input.off("pointerdown");
+    this.input.off("pointermove");
+    this.input.off("pointerup");
+
+    const connected = () =>
+      useUiStore.getState().connectionPhase === "connected" && getRoom() !== null;
+
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      if (!connected()) {
+        return;
+      }
       this.pointerHeld = true;
       this.pointerDownAt = this.time.now;
       this.pointerWorld = { x: pointer.worldX, y: pointer.worldY };
     });
     this.input.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (this.pointerHeld) {
+      if (this.pointerHeld && connected()) {
         this.pointerWorld = { x: pointer.worldX, y: pointer.worldY };
       }
     });
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (!connected()) {
+        this.pointerHeld = false;
+        return;
+      }
       const heldMs = this.time.now - this.pointerDownAt;
       if (this.pointerHeld && heldMs <= CLICK_MAX_MS) {
         this.pathTarget = { x: pointer.worldX, y: pointer.worldY };
