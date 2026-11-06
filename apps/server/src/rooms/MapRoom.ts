@@ -61,7 +61,7 @@ import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { buildSelfStats } from "../characters/selfStats";
 import { progressionFromCharacter, recomputeMaxima } from "../characters/progression";
-import { defaultSpawn } from "../characters/spawn";
+import { defaultSpawn, type CharacterSave } from "../characters/spawn";
 import {
   resolveMonsterAttack,
   resolvePlayerSwing,
@@ -353,7 +353,6 @@ export class MapRoom extends Room {
 
   async onLeave(client: Client, code: number): Promise<void> {
     const runtime = this.runtimes.get(client.sessionId);
-    const player = this.state.players.get(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
@@ -362,45 +361,58 @@ export class MapRoom extends Room {
       getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
       // A kick already saved and cleared `dirty`; a warp already persisted
       // the destination and removed the runtime.
-      if (runtime.dirty && player) {
-        await this.enqueueSave(runtime, {
-          mapId: this.mapId,
-          x: player.x,
-          y: player.y,
-        });
+      if (runtime.dirty) {
+        await this.enqueueSave(runtime, this.deathAwareDestination(runtime));
       }
     }
 
     logger.info({ roomId: this.roomId, session: client.sessionId, closeCode: code }, "player left");
   }
 
+  /**
+   * A dead player who disconnects or is kicked restarts in town: save the
+   * village spawn at full HP/MP so the next login is not a death screen.
+   */
+  private deathAwareDestination(runtime: PlayerRuntime): {
+    mapId: MapId;
+    x: number;
+    y: number;
+  } {
+    if (!runtime.dead) {
+      return {
+        mapId: this.mapId,
+        x: runtime.mover.pos.x,
+        y: runtime.mover.pos.y,
+      };
+    }
+    runtime.progression.hp = runtime.progression.maxHp;
+    runtime.progression.mp = runtime.progression.maxMp;
+    return defaultSpawn();
+  }
+
   /** Save one player before a session is replaced (kick path). */
   private async savePlayerNow(sessionId: string): Promise<void> {
     const runtime = this.runtimes.get(sessionId);
-    const player = this.state.players.get(sessionId);
-    if (!runtime || !player || !runtime.dirty) {
+    if (!runtime || !runtime.dirty) {
       return;
     }
-    await this.enqueueSave(runtime, {
-      mapId: this.mapId,
-      x: player.x,
-      y: player.y,
-    });
+    await this.enqueueSave(runtime, this.deathAwareDestination(runtime));
   }
 
   /**
-   * All position writes for one runtime go through a promise chain, so an
-   * autosave snapshot can never land after a newer kick/leave/warp write.
-   * `dirty` is cleared only when the runtime has not moved since the snapshot.
+   * All writes for one runtime go through a promise chain, so an autosave
+   * snapshot can never land after a newer kick/leave/warp write. `dirty` is
+   * cleared only when the runtime still matches every saved field.
    */
   private enqueueSave(
     runtime: PlayerRuntime,
-    snapshot: { mapId: MapId; x: number; y: number },
+    destination: { mapId: MapId; x: number; y: number },
   ): Promise<boolean> {
+    const snapshot = this.characterSave(runtime, destination);
     const run = async (): Promise<boolean> => {
       try {
-        const saved = await getServerServices().savePosition(runtime.characterId, snapshot);
-        if (saved && runtime.mover.pos.x === snapshot.x && runtime.mover.pos.y === snapshot.y) {
+        const saved = await getServerServices().saveCharacter(runtime.characterId, snapshot);
+        if (saved && this.saveSnapshotMatches(runtime, snapshot)) {
           runtime.dirty = false;
         }
         return saved;
@@ -420,11 +432,49 @@ export class MapRoom extends Room {
     return next;
   }
 
-  /** Periodic dirty-position flush (ordered per player by `enqueueSave`). */
+  private characterSave(
+    runtime: PlayerRuntime,
+    destination: { mapId: MapId; x: number; y: number },
+  ): CharacterSave {
+    const progression = runtime.progression;
+    return {
+      mapId: destination.mapId,
+      x: destination.x,
+      y: destination.y,
+      hp: progression.hp,
+      mp: progression.mp,
+      xp: progression.xp,
+      level: progression.level,
+      statVit: progression.stats.vit,
+      statInt: progression.stats.int,
+      statStr: progression.stats.str,
+      statDex: progression.stats.dex,
+      statPoints: progression.statPoints,
+    };
+  }
+
+  private saveSnapshotMatches(runtime: PlayerRuntime, snapshot: CharacterSave): boolean {
+    const progression = runtime.progression;
+    return (
+      runtime.mover.pos.x === snapshot.x &&
+      runtime.mover.pos.y === snapshot.y &&
+      progression.hp === snapshot.hp &&
+      progression.mp === snapshot.mp &&
+      progression.xp === snapshot.xp &&
+      progression.level === snapshot.level &&
+      progression.stats.vit === snapshot.statVit &&
+      progression.stats.int === snapshot.statInt &&
+      progression.stats.str === snapshot.statStr &&
+      progression.stats.dex === snapshot.statDex &&
+      progression.statPoints === snapshot.statPoints
+    );
+  }
+
+  /** Periodic dirty-character flush (ordered per player by `enqueueSave`). */
   private async autosave(): Promise<void> {
     const pending: Array<Promise<boolean>> = [];
     for (const [sessionId, runtime] of this.runtimes) {
-      if (!runtime.dirty || runtime.warping) {
+      if (!runtime.dirty || runtime.warping || runtime.dead) {
         continue;
       }
       const player = this.state.players.get(sessionId);

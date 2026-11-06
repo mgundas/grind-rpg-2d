@@ -19,8 +19,9 @@ import {
   deleteCharacter,
   getCharacterForAccount,
   listCharacters,
-  saveCharacterPosition,
-  saveCharacterPositions,
+  saveCharacterState,
+  saveCharacterStates,
+  type CharacterSave,
 } from "../../src/characters/characterService";
 import type { Db } from "../../src/db/client";
 import { accounts, characters, sessions } from "../../src/db/schema";
@@ -60,6 +61,24 @@ function characterInput(overrides: Partial<CreateCharacterRequest> = {}): Create
     gender: "male",
     hairStyle: 0,
     hairColor: 0,
+    ...overrides,
+  };
+}
+
+function characterSave(overrides: Partial<CharacterSave> = {}): CharacterSave {
+  return {
+    mapId: "map_ember_fields",
+    x: 123.5,
+    y: 456.25,
+    hp: 250,
+    mp: 80,
+    xp: 119,
+    level: 2,
+    statVit: 5,
+    statInt: 3,
+    statStr: 7,
+    statDex: 4,
+    statPoints: 3,
     ...overrides,
   };
 }
@@ -444,37 +463,62 @@ describeDb("persistence services (real Postgres)", () => {
     });
   });
 
-  describe("position persistence", () => {
-    it("saves position/map, bumps updated_at and reports missing rows", async () => {
+  describe("character persistence", () => {
+    it("saves position, vitals and progression, bumps updated_at and reports missing rows", async () => {
       const { result } = await register(db);
       const summary = await createCharacter(db, result.account.id, characterInput());
       const [before] = await db.select().from(characters).where(eq(characters.id, summary.id));
 
       await new Promise((resolve) => setTimeout(resolve, 5));
-      const saved = await saveCharacterPosition(db, summary.id, {
-        mapId: "map_ember_fields",
-        x: 123.5,
-        y: 456.25,
-      });
+      const saved = await saveCharacterState(db, summary.id, characterSave());
       expect(saved).toBe(true);
 
       const [after] = await db.select().from(characters).where(eq(characters.id, summary.id));
       expect(after!.mapId).toBe("map_ember_fields");
       expect(after!.x).toBeCloseTo(123.5, 2);
       expect(after!.y).toBeCloseTo(456.25, 2);
+      expect(after!.hp).toBe(250);
+      expect(after!.mp).toBe(80);
+      expect(after!.xp).toBe(119);
+      expect(after!.level).toBe(2);
+      expect(after!.statVit).toBe(5);
+      expect(after!.statInt).toBe(3);
+      expect(after!.statStr).toBe(7);
+      expect(after!.statDex).toBe(4);
+      expect(after!.statPoints).toBe(3);
       expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
 
       await deleteCharacter(db, result.account.id, summary.id);
       expect(
-        await saveCharacterPosition(db, summary.id, {
-          mapId: "map_ember_village",
-          x: 1,
-          y: 1,
-        }),
+        await saveCharacterState(db, summary.id, characterSave({ mapId: "map_ember_village" })),
       ).toBe(false);
     });
 
-    it("saves several characters in one bulk statement", async () => {
+    it("clamps hostile/out-of-range values before writing", async () => {
+      const { result } = await register(db);
+      const summary = await createCharacter(db, result.account.id, characterInput());
+
+      await saveCharacterState(
+        db,
+        summary.id,
+        characterSave({
+          hp: -50,
+          mp: 999_999,
+          level: 500,
+          statVit: 500,
+          statPoints: -10,
+        }),
+      );
+
+      const [row] = await db.select().from(characters).where(eq(characters.id, summary.id));
+      expect(row!.hp).toBe(0);
+      expect(row!.mp).toBe(65_535);
+      expect(row!.level).toBe(99);
+      expect(row!.statVit).toBe(90);
+      expect(row!.statPoints).toBe(0);
+    });
+
+    it("saves several full characters in one bulk statement", async () => {
       const { result } = await register(db);
       const prefix = suffix();
       const created = await Promise.all(
@@ -483,13 +527,11 @@ describeDb("persistence services (real Postgres)", () => {
         ),
       );
 
-      await saveCharacterPositions(
+      await saveCharacterStates(
         db,
         created.map((summary, index) => ({
           characterId: summary.id,
-          mapId: "map_ember_fields" as const,
-          x: 100 + index,
-          y: 200 + index,
+          ...characterSave({ x: 100 + index, y: 200 + index, hp: 100 + index }),
         })),
       );
 
@@ -500,9 +542,12 @@ describeDb("persistence services (real Postgres)", () => {
           .where(eq(characters.id, created[index]!.id));
         expect(row!.mapId).toBe("map_ember_fields");
         expect(row!.x).toBeCloseTo(100 + index, 2);
+        expect(row!.hp).toBe(100 + index);
+        expect(row!.level).toBe(2);
+        expect(row!.statPoints).toBe(3);
       }
 
-      await expect(saveCharacterPositions(db, [])).resolves.toBeUndefined();
+      await expect(saveCharacterStates(db, [])).resolves.toBeUndefined();
     });
   });
 });

@@ -2,7 +2,7 @@ import type { RandomSource } from "@jadethrone/shared";
 import type { AuthDeps } from "./auth/accountService";
 import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
-import type { BulkPositionSave, PositionSave } from "./characters/characterService";
+import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
 import type { Db } from "./db/client";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
@@ -22,8 +22,8 @@ export interface ServerServices {
   authDeps: AuthDeps;
   joinAuthenticator: JoinAuthenticator;
   sessionRegistry: SessionRegistry;
-  savePosition: (characterId: string, save: PositionSave) => Promise<boolean>;
-  savePositions: (saves: ReadonlyArray<BulkPositionSave>) => Promise<void>;
+  saveCharacter: (characterId: string, save: CharacterSave) => Promise<boolean>;
+  saveCharacters: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   /** Fresh per-room RNG stream: crypto in production, seeded in tests. */
   createRandomSource: () => RandomSource;
   combatTuning: CombatTuning;

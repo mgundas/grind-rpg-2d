@@ -10,6 +10,19 @@ export interface PositionSave {
   y: number;
 }
 
+/** Everything the room persists on autosave, leave, kick, warp and level-up. */
+export interface CharacterSave extends PositionSave {
+  hp: number;
+  mp: number;
+  xp: number;
+  level: number;
+  statVit: number;
+  statInt: number;
+  statStr: number;
+  statDex: number;
+  statPoints: number;
+}
+
 export function defaultSpawn(): PositionSave {
   const { spawn } = loadMapAssets(DEFAULT_SPAWN_MAP);
   return { mapId: DEFAULT_SPAWN_MAP, x: spawn.x, y: spawn.y };

@@ -12,10 +12,10 @@ import { getAccountById, type AuthDeps } from "./auth/accountService";
 import { SessionRegistry } from "./auth/sessionRegistry";
 import {
   getCharacterForAccount,
-  saveCharacterPosition,
-  saveCharacterPositions,
-  type BulkPositionSave,
-  type PositionSave,
+  saveCharacterState,
+  saveCharacterStates,
+  type BulkCharacterSave,
+  type CharacterSave,
 } from "./characters/characterService";
 import { getDb, type Db } from "./db/client";
 import { consumeWarpTokenPayload } from "./rooms/warpTokens";
@@ -41,8 +41,8 @@ export interface ServerDeps {
   authDeps?: AuthDeps;
   sessionRegistry?: SessionRegistry;
   joinAuthenticator?: JoinAuthenticator;
-  savePosition?: (characterId: string, save: PositionSave) => Promise<boolean>;
-  savePositions?: (saves: ReadonlyArray<BulkPositionSave>) => Promise<void>;
+  saveCharacter?: (characterId: string, save: CharacterSave) => Promise<boolean>;
+  saveCharacters?: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   createRandomSource?: () => RandomSource;
   combatTuning?: CombatTuning;
   rateLimits?: {
@@ -82,17 +82,17 @@ export function createGameServer(deps: ServerDeps = {}) {
   const sessionRegistry = deps.sessionRegistry ?? new SessionRegistry();
   const joinAuthenticator =
     deps.joinAuthenticator ?? defaultJoinAuthenticator(db, authDeps.accessSecret);
-  const savePosition =
-    deps.savePosition ?? ((characterId, save) => saveCharacterPosition(db, characterId, save));
-  const savePositions = deps.savePositions ?? ((saves) => saveCharacterPositions(db, saves));
+  const saveCharacter =
+    deps.saveCharacter ?? ((characterId, save) => saveCharacterState(db, characterId, save));
+  const saveCharacters = deps.saveCharacters ?? ((saves) => saveCharacterStates(db, saves));
 
   setServerServices({
     db,
     authDeps,
     joinAuthenticator,
     sessionRegistry,
-    savePosition,
-    savePositions,
+    saveCharacter,
+    saveCharacters,
     createRandomSource: deps.createRandomSource ?? createCryptoRandomSource,
     combatTuning: deps.combatTuning ?? {},
   });

@@ -11,7 +11,7 @@ import {
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
 import type { AccountAuthRecord } from "../../src/auth/accountService";
 import type { JoinAuthenticator, JoinIdentity } from "../../src/auth/joinAuth";
-import type { BulkPositionSave, PositionSave } from "../../src/characters/characterService";
+import type { BulkCharacterSave, CharacterSave } from "../../src/characters/characterService";
 import type { CharacterRecord } from "../../src/characters/characterMappers";
 import { consumeWarpTokenPayload, type WarpTokenPayload } from "../../src/rooms/warpTokens";
 
@@ -42,10 +42,10 @@ export interface FakeJoinOptions {
 
 export interface FakeServices {
   joinAuthenticator: JoinAuthenticator;
-  savePosition: Mock<(characterId: string, save: PositionSave) => Promise<boolean>>;
-  savePositions: Mock<(saves: ReadonlyArray<BulkPositionSave>) => Promise<void>>;
+  saveCharacter: Mock<(characterId: string, save: CharacterSave) => Promise<boolean>>;
+  saveCharacters: Mock<(saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>>;
   identities: Map<string, JoinIdentity>;
-  saved: BulkPositionSave[];
+  saved: BulkCharacterSave[];
   prepare: (options?: FakeJoinOptions) => JoinIdentity;
   reset: () => void;
 }
@@ -104,24 +104,38 @@ function makeCharacter(
 
 export function createFakeServices(): FakeServices {
   const identities = new Map<string, JoinIdentity>();
-  const saved: BulkPositionSave[] = [];
+  const saved: BulkCharacterSave[] = [];
 
-  function applySaved(save: BulkPositionSave): void {
+  function applySaved(save: BulkCharacterSave): void {
     saved.push(save);
     const identity = identities.get(save.characterId);
     if (identity) {
       identities.set(save.characterId, {
         ...identity,
-        character: { ...identity.character, map: save.mapId, x: save.x, y: save.y },
+        character: {
+          ...identity.character,
+          map: save.mapId,
+          x: save.x,
+          y: save.y,
+          hp: save.hp,
+          mp: save.mp,
+          xp: save.xp,
+          level: save.level,
+          statVit: save.statVit,
+          statInt: save.statInt,
+          statStr: save.statStr,
+          statDex: save.statDex,
+          statPoints: save.statPoints,
+        },
       });
     }
   }
 
-  const savePosition = vi.fn(async (characterId: string, save: PositionSave) => {
+  const saveCharacter = vi.fn(async (characterId: string, save: CharacterSave) => {
     applySaved({ characterId, ...save });
     return true;
   });
-  const savePositions = vi.fn(async (saves: ReadonlyArray<BulkPositionSave>) => {
+  const saveCharacters = vi.fn(async (saves: ReadonlyArray<BulkCharacterSave>) => {
     for (const save of saves) {
       applySaved(save);
     }
@@ -183,8 +197,8 @@ export function createFakeServices(): FakeServices {
 
   return {
     joinAuthenticator,
-    savePosition,
-    savePositions,
+    saveCharacter,
+    saveCharacters,
     identities,
     saved,
     prepare,

@@ -104,6 +104,7 @@ function monsterRuntimes(room: MapRoom): Map<string, MonsterRuntimeProbe> {
 interface PlayerRuntimeProbe {
   dead: boolean;
   diedAtMs: number;
+  dirty: boolean;
   progression: {
     hp: number;
     maxHp: number;
@@ -157,8 +158,8 @@ beforeAll(async () => {
   colyseus = await boot(
     createGameServer({
       joinAuthenticator: fake.joinAuthenticator,
-      savePosition: fake.savePosition,
-      savePositions: fake.savePositions,
+      saveCharacter: fake.saveCharacter,
+      saveCharacters: fake.saveCharacters,
       // Hit, neutral damage roll, no crit; cycles per target. AI wander is not
       // due during these tests, so combat draws stay predictable.
       createRandomSource: () => {
@@ -367,7 +368,7 @@ describe("MapRoom join", () => {
     const autosave = (room as unknown as { autosave: () => Promise<void> }).autosave;
     await autosave.call(room);
 
-    expect(fake.savePosition).toHaveBeenCalledTimes(2);
+    expect(fake.saveCharacter).toHaveBeenCalledTimes(2);
     const savedIds = fake.saved.map((save) => save.characterId);
     expect(savedIds).toContain(room.state.players.get(alice.sessionId)!.characterId);
     expect(savedIds).toContain(room.state.players.get(bob.sessionId)!.characterId);
@@ -1126,6 +1127,7 @@ describe("player damage, death and respawn", () => {
     const runtime = playerRuntimeOf(room, client.sessionId);
     runtime.dead = true;
     runtime.diedAtMs = Date.now();
+    runtime.dirty = true;
     runtime.progression.hp = 0;
     player.dead = true;
     player.hp = 0;
@@ -1140,6 +1142,30 @@ describe("player damage, death and respawn", () => {
     const lastSave = fake.saved[fake.saved.length - 1]!;
     expect(lastSave.mapId).toBe(ROOM_NAME_VILLAGE);
     expect(lastSave.x).toBe(VILLAGE_SPAWN.x);
+    expect(lastSave.y).toBe(VILLAGE_SPAWN.y);
+    expect(lastSave.hp).toBe(player.maxHp);
+    expect(lastSave.mp).toBe(player.maxMp);
+  });
+
+  it("saves the village at full HP when a dead player disconnects", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, { name: "Fallen", map: ROOM_NAME_FIELDS });
+    await room.waitForNextPatch();
+    const player = room.state.players.get(client.sessionId)!;
+    const runtime = playerRuntimeOf(room, client.sessionId);
+    runtime.dead = true;
+    runtime.diedAtMs = Date.now();
+    runtime.dirty = true;
+    runtime.progression.hp = 0;
+    player.dead = true;
+    player.hp = 0;
+
+    await client.leave();
+    await waitUntil(() => fake.saved.some((save) => save.characterId === player.characterId), 2000);
+    const saved = fake.saved[fake.saved.length - 1]!;
+    expect(saved.mapId).toBe(ROOM_NAME_VILLAGE);
+    expect(saved.hp).toBe(runtime.progression.maxHp);
+    expect(saved.mp).toBe(runtime.progression.maxMp);
   });
 });
 
@@ -1173,6 +1199,15 @@ describe("progression and stat allocation", () => {
     expect(snapshot.statPoints).toBe(3);
     expect(player.level).toBe(2);
     expect(player.hp).toBe(player.maxHp);
+
+    await waitUntil(
+      () => fake.saved.some((save) => save.characterId === player.characterId && save.level === 2),
+      2000,
+    );
+    const saved = fake.saved[fake.saved.length - 1]!;
+    expect(saved.xp).toBe(snapshot.xp);
+    expect(saved.hp).toBe(player.maxHp);
+    expect(saved.statPoints).toBe(3);
   });
 
   it("spends a stat point and recomputes max HP", async () => {
