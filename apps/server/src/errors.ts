@@ -12,6 +12,8 @@ export const ERROR_STATUS: Record<ApiErrorCode, number> = {
   slots_full: 409,
   character_online: 409,
   not_found: 404,
+  forbidden: 403,
+  conflict: 409,
   rate_limited: 429,
   database_unavailable: 503,
   internal: 500,

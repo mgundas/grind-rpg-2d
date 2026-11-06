@@ -44,6 +44,7 @@ export const MSG = {
   warehouse: "warehouse",
   warehouseDeposit: "warehouseDeposit",
   warehouseWithdraw: "warehouseWithdraw",
+  announcement: "announcement",
 } as const;
 
 /**
@@ -52,7 +53,7 @@ export const MSG = {
  */
 export const SESSION_KICK_CODE = 4100;
 
-export type SessionKickReason = "login" | "logout" | "duplicate";
+export type SessionKickReason = "login" | "logout" | "duplicate" | "admin" | "ban";
 
 /** Sent just before the socket closes with SESSION_KICK_CODE. */
 export interface SessionKickedPayload {
@@ -295,6 +296,16 @@ export interface ShopViewPayload {
   shopId: string;
   name: string;
   items: ShopStockEntry[];
+}
+
+export type AnnouncementKind = "admin" | "scheduled" | "shutdown";
+
+/** Server-wide banner (admin panel / scheduled announcement / shutdown countdown). */
+export interface AnnouncementPayload {
+  id?: string;
+  message: string;
+  kind: AnnouncementKind;
+  sentAtMs?: number;
 }
 
 /** Identifies a combatant in a combat event. */

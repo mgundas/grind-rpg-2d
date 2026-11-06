@@ -111,6 +111,8 @@ export type ApiErrorCode =
   | "slots_full"
   | "not_found"
   | "character_online"
+  | "forbidden"
+  | "conflict"
   | "rate_limited"
   | "database_unavailable"
   | "internal";
