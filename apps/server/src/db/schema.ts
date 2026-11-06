@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm";
+import type { ItemBonus } from "@jadethrone/shared";
 import {
   bigint,
   index,
   integer,
+  jsonb,
   pgTable,
   real,
   smallint,
@@ -103,6 +105,104 @@ export const sessions = pgTable(
   ],
 );
 
+/**
+ * Item instances (GAME_DESIGN.md §7.2). `location` decides which owner column
+ * is authoritative: inventory/equipment use the character, warehouse uses the
+ * account, and ground rows use the map columns. A UUID is never reused.
+ */
+export const items = pgTable(
+  "items",
+  {
+    id: uuid("id").primaryKey(),
+    definitionId: text("definition_id").notNull(),
+    ownerCharacterId: uuid("owner_character_id").references(() => characters.id, {
+      onDelete: "cascade",
+    }),
+    ownerAccountId: uuid("owner_account_id").references(() => accounts.id, {
+      onDelete: "cascade",
+    }),
+    /** inventory | equipment | warehouse | ground */
+    location: text("location").notNull(),
+    /** Top-left inventory/warehouse cell, equipment index, or null on ground. */
+    slot: integer("slot"),
+    quantity: integer("quantity").notNull().default(1),
+    upgradeLevel: smallint("upgrade_level").notNull().default(0),
+    bonuses: jsonb("bonuses").$type<ItemBonus[]>().notNull().default(sql`'[]'::jsonb`),
+    /** drop | shop | starter | admin | craft | quest */
+    createdBy: text("created_by").notNull().default("unknown"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Ground-only fields. They remain null for owned rows.
+    mapId: text("map_id"),
+    roomId: text("room_id"),
+    x: real("x"),
+    y: real("y"),
+    dropOwnerCharacterId: uuid("drop_owner_character_id"),
+    ownerUntil: timestamp("owner_until", { withTimezone: true }),
+    despawnAt: timestamp("despawn_at", { withTimezone: true }),
+  },
+  (table) => [
+    index("items_character_idx").on(table.ownerCharacterId, table.location),
+    index("items_account_idx").on(table.ownerAccountId, table.location),
+    index("items_ground_idx").on(table.mapId, table.despawnAt),
+    // Only the top-left cell is stored, so one slot can hold one item. Overlap
+    // of taller items is prevented by the application inside a transaction.
+    uniqueIndex("items_inventory_slot_uq")
+      .on(table.ownerCharacterId, table.slot)
+      .where(sql`${table.location} = 'inventory'`),
+    uniqueIndex("items_equipment_slot_uq")
+      .on(table.ownerCharacterId, table.slot)
+      .where(sql`${table.location} = 'equipment'`),
+    uniqueIndex("items_warehouse_slot_uq")
+      .on(table.ownerAccountId, table.slot)
+      .where(sql`${table.location} = 'warehouse'`),
+  ],
+);
+
+/** Every item-changing operation writes one row here (GAME_DESIGN.md §7.2). */
+export const itemLog = pgTable(
+  "item_log",
+  {
+    id: uuid("id").primaryKey(),
+    itemId: uuid("item_id").notNull(),
+    actorCharacterId: uuid("actor_character_id"),
+    accountId: uuid("account_id"),
+    action: text("action").notNull(),
+    definitionId: text("definition_id").notNull(),
+    quantity: integer("quantity").notNull().default(1),
+    fromLocation: text("from_location"),
+    fromSlot: integer("from_slot"),
+    toLocation: text("to_location"),
+    toSlot: integer("to_slot"),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("item_log_item_idx").on(table.itemId),
+    index("item_log_character_idx").on(table.actorCharacterId, table.createdAt),
+  ],
+);
+
+/** Currency ledger; `characters.gold` is the current balance (GAME_DESIGN.md §7.6). */
+export const goldLog = pgTable(
+  "gold_log",
+  {
+    id: uuid("id").primaryKey(),
+    characterId: uuid("character_id").notNull(),
+    accountId: uuid("account_id"),
+    delta: bigint("delta", { mode: "number" }).notNull(),
+    balanceAfter: bigint("balance_after", { mode: "number" }).notNull(),
+    /** kill | pickup | shop_buy | shop_sell | admin */
+    reason: text("reason").notNull(),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("gold_log_character_idx").on(table.characterId, table.createdAt)],
+);
+
 export type AccountRow = typeof accounts.$inferSelect;
 export type CharacterRow = typeof characters.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
+export type ItemRow = typeof items.$inferSelect;
+export type NewItemRow = typeof items.$inferInsert;
+export type ItemLogRow = typeof itemLog.$inferSelect;
+export type GoldLogRow = typeof goldLog.$inferSelect;
