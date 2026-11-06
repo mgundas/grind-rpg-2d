@@ -66,6 +66,8 @@ import {
   stepMover,
   unequipItemMessageSchema,
   useItemMessageSchema,
+  type AdminGiveItemRequest,
+  type AdminUpdateCharacterRequest,
   type ChatMsgPayload,
   type CombatEventPayload,
   type CombatHit,
@@ -74,6 +76,7 @@ import {
   type InputMessage,
   type InventoryState,
   type ItemActionErrorCode,
+  type ItemInstanceDto,
   type LevelUpPayload,
   type MapId,
   type MonsterDiedPayload,
@@ -89,17 +92,22 @@ import {
 import { getClass } from "@jadethrone/data/classes";
 import { getDropTable } from "@jadethrone/data/dropTables";
 import { getItem, hasItem } from "@jadethrone/data/items";
-import { getMonster } from "@jadethrone/data/monsters";
+import { getMonster, hasMonster } from "@jadethrone/data/monsters";
 import { getNpc } from "@jadethrone/data/npcs";
 import { getShop } from "@jadethrone/data/shops";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
+import { isGmRole, parseGmCommand } from "../admin/gmCommands";
+import type { AdminLiveActions, AdminRoomHandle } from "../admin/liveBus";
 import { equipmentBonusStats, equipmentVisualKeys } from "../items/equipment";
+import { toItemDto } from "../items/itemMappers";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
 import {
   diffInventory,
+  planAdminGive,
+  planAdminRemove,
   planBuy,
   planConsume,
   planDeposit,
@@ -118,6 +126,8 @@ import type { GroundItemRuntime } from "./groundItems";
 import { GroundItemState, PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
+import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
+import { ServiceError } from "../errors";
 import { buildSelfStats } from "../characters/selfStats";
 import { progressionFromCharacter, recomputeMaxima } from "../characters/progression";
 import { defaultSpawn, type CharacterSave } from "../characters/spawn";
@@ -134,6 +144,7 @@ import {
   aggroGroup,
   createSpawnManager,
   notifyMonsterDeath,
+  spawnAdminMonsters,
   spawnAllGroups,
   tickSpawns,
   type SpawnManager,
@@ -169,6 +180,9 @@ export class MapRoom extends Room {
   private runtimes = new Map<string, PlayerRuntime>();
   private monsterRuntimes = new Map<string, MonsterRuntime>();
   private groundItems = new Map<string, GroundItemRuntime>();
+  private adminActions = new Map<string, AdminLiveActions>();
+  private adminRoom: AdminRoomHandle | null = null;
+  private shuttingDown = false;
   private spawns!: SpawnManager;
   private rng!: RandomSource;
   /** Monotonic id for combat events, so clients can ignore stale arrivals. */
@@ -254,6 +268,10 @@ export class MapRoom extends Room {
       if (!runtime || !player) {
         return;
       }
+      if (parsed.data.text.startsWith("/") && isGmRole(runtime.role)) {
+        this.handleGmCommand(client, runtime, parsed.data.text);
+        return;
+      }
       const now = Date.now();
       if (now < runtime.chatReadyAtMs) {
         return;
@@ -281,6 +299,15 @@ export class MapRoom extends Room {
           otherClient.send(MSG.chatMsg, payload);
         }
       }
+      void getServerServices()
+        .logChat({
+          characterId: runtime.characterId,
+          name: player.name,
+          kingdom: player.kingdom,
+          mapId: this.mapId,
+          text: parsed.data.text,
+        })
+        .catch(() => undefined);
     });
 
     this.onMessage(MSG.attack, (client, raw) => {
@@ -562,6 +589,24 @@ export class MapRoom extends Room {
     // Interest management runs at 4 Hz, not every tick (GAME_DESIGN.md §5.1).
     this.clock.setInterval(() => this.updateInterest(), INTEREST_INTERVAL_MS);
     this.clock.setInterval(() => void this.autosave(), AUTOSAVE_INTERVAL_MS);
+
+    this.adminRoom = {
+      roomId: this.roomId,
+      mapId: this.mapId,
+      startedAtMs: Date.now(),
+      maxClients: this.maxClients,
+      playerCount: () => this.runtimes.size,
+      announce: (payload) => {
+        let sent = 0;
+        for (const client of this.clients) {
+          this.safeSend(client, MSG.announcement, payload);
+          sent++;
+        }
+        return sent;
+      },
+      saveAllForShutdown: () => this.saveAllForShutdown(),
+    };
+    getServerServices().adminBus.registerRoom(this.adminRoom);
     logger.info({ roomId: this.roomId, mapId: this.mapId }, "map room created");
   }
 
@@ -589,6 +634,8 @@ export class MapRoom extends Room {
       accountId: auth.account.id,
       characterId: auth.character.id,
       tokenVersion: auth.account.tokenVersion,
+      role: auth.account.role,
+      channel: auth.character.channel,
       progression,
       inventory: loaded.inventory,
       gold: loaded.gold,
@@ -698,6 +745,12 @@ export class MapRoom extends Room {
       this.updateInterest();
     }
 
+    // Register only after the post-kick fresh reload, so an admin action can
+    // never observe a runtime that is about to be overwritten.
+    const actions = this.createAdminActions(client.sessionId, runtime);
+    this.adminActions.set(client.sessionId, actions);
+    getServerServices().adminBus.register(actions);
+
     logger.info(
       {
         roomId: this.roomId,
@@ -711,6 +764,11 @@ export class MapRoom extends Room {
   }
 
   async onLeave(client: Client, code: number): Promise<void> {
+    const adminEntry = this.adminActions.get(client.sessionId);
+    this.adminActions.delete(client.sessionId);
+    if (adminEntry) {
+      getServerServices().adminBus.unregister(adminEntry.characterId, client.sessionId);
+    }
     const runtime = this.runtimes.get(client.sessionId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
@@ -728,6 +786,48 @@ export class MapRoom extends Room {
     }
 
     logger.info({ roomId: this.roomId, session: client.sessionId, closeCode: code }, "player left");
+  }
+
+  onDispose(): void {
+    try {
+      getServerServices().adminBus.unregisterRoom(this.roomId);
+    } catch {
+      // Services may already be reset by a test teardown.
+    }
+    this.adminActions.clear();
+    this.adminRoom = null;
+  }
+
+  /**
+   * Colyseus calls this during graceful shutdown without awaiting it; always
+   * disconnect the room afterwards. AdminRuntime also calls the idempotent
+   * `saveAllForShutdown` before triggering that shutdown.
+   */
+  onBeforeShutdown(): void {
+    void this.saveAllForShutdown().finally(() => {
+      super.onBeforeShutdown();
+    });
+  }
+
+  /** Drain inventories and save every dirty player once. */
+  async saveAllForShutdown(): Promise<void> {
+    if (this.shuttingDown) {
+      return;
+    }
+    this.shuttingDown = true;
+    const tasks: Array<Promise<unknown>> = [];
+    for (const runtime of this.runtimes.values()) {
+      runtime.inventoryClosed = true;
+      tasks.push(
+        (async () => {
+          await runtime.inventoryChain?.catch(() => undefined);
+          if (runtime.dirty) {
+            await this.enqueueSave(runtime, this.deathAwareDestination(runtime));
+          }
+        })(),
+      );
+    }
+    await Promise.allSettled(tasks);
   }
 
   /**
@@ -752,6 +852,507 @@ export class MapRoom extends Room {
   }
 
   /** Save one player before a session is replaced (kick path). */
+  private sendSystemMessage(client: Client, text: string): void {
+    const payload: ChatMsgPayload = {
+      from: "system",
+      name: "System",
+      kingdom: "system",
+      text,
+    };
+    this.safeSend(client, MSG.chatMsg, payload);
+  }
+
+  private auditGmCommand(runtime: PlayerRuntime, raw: string): void {
+    void getServerServices()
+      .logAdminAction({
+        actorAccountId: runtime.accountId,
+        action: "gm_command",
+        targetCharacterId: runtime.characterId,
+        detail: { command: raw },
+      })
+      .catch((error: unknown) => {
+        logger.error({ accountId: runtime.accountId, error }, "GM command audit failed");
+      });
+  }
+
+  private handleGmCommand(client: Client, runtime: PlayerRuntime, text: string): void {
+    const command = parseGmCommand(text);
+    if (!command) {
+      return;
+    }
+    this.auditGmCommand(runtime, text);
+    const fail = (error: unknown): void => {
+      this.sendSystemMessage(
+        client,
+        error instanceof ServiceError ? error.message : "Command failed.",
+      );
+    };
+
+    switch (command.kind) {
+      case "goto":
+        this.runAdminCommand(
+          client.sessionId,
+          async (current) => {
+            const player = this.state.players.get(client.sessionId);
+            if (!player) {
+              throw new ServiceError("conflict", "Player is no longer connected.");
+            }
+            if (!isWalkableAt(this.assets.grid, command.x, command.y)) {
+              throw new ServiceError("validation", "That position is not walkable.");
+            }
+            this.moveRuntimeTo(current, player, command.x, command.y);
+            current.dirty = true;
+            this.updateInterest();
+            this.sendSelfStats(client.sessionId);
+            const saved = await this.enqueueSave(current, {
+              mapId: this.mapId,
+              x: command.x,
+              y: command.y,
+            });
+            if (!saved) {
+              throw new ServiceError("internal", "Character save failed.");
+            }
+          },
+          { allowDead: true },
+        )
+          .then(() => this.sendSystemMessage(client, `Moved to ${command.x},${command.y}.`))
+          .catch(fail);
+        return;
+      case "level":
+        this.adminUpdateCharacter(client.sessionId, { level: command.level })
+          .then(() => this.sendSystemMessage(client, `Level set to ${command.level}.`))
+          .catch(fail);
+        return;
+      case "item":
+        this.adminGrantItem(client.sessionId, {
+          definitionId: command.itemId,
+          quantity: command.count,
+          upgradeLevel: 0,
+          bonuses: [],
+        })
+          .then((item) =>
+            this.sendSystemMessage(client, `Granted ${item.quantity} ${command.itemId}.`),
+          )
+          .catch(fail);
+        return;
+      case "spawn":
+        this.adminSpawnMonster(client.sessionId, command.typeId, command.count)
+          .then((count) => this.sendSystemMessage(client, `Spawned ${count} ${command.typeId}.`))
+          .catch(fail);
+        return;
+      case "invisible":
+        runtime.invisible = !runtime.invisible;
+        this.updateInterest();
+        this.sendSystemMessage(
+          client,
+          runtime.invisible ? "You are now invisible." : "You are visible again.",
+        );
+        return;
+      case "kick": {
+        const target = getServerServices().adminBus.findByName(command.name);
+        if (!target) {
+          this.sendSystemMessage(client, `No online player named ${command.name}.`);
+          return;
+        }
+        void getServerServices()
+          .sessionRegistry.kickCharacter(target.characterId, "admin")
+          .then(() => this.sendSystemMessage(client, `Kicked ${command.name}.`))
+          .catch(fail);
+        return;
+      }
+      case "warp": {
+        const target = getServerServices().adminBus.findByName(command.name);
+        if (!target) {
+          this.sendSystemMessage(client, `No online player named ${command.name}.`);
+          return;
+        }
+        const presence = target.presence();
+        if (!presence) {
+          this.sendSystemMessage(client, "That player just left.");
+          return;
+        }
+        if (presence.mapId === this.mapId) {
+          this.runAdminCommand(
+            client.sessionId,
+            async (current) => {
+              const player = this.state.players.get(client.sessionId);
+              if (!player) {
+                throw new ServiceError("conflict", "Player is no longer connected.");
+              }
+              this.moveRuntimeTo(current, player, presence.x, presence.y);
+              current.dirty = true;
+              this.updateInterest();
+              await this.enqueueSave(current, {
+                mapId: this.mapId,
+                x: presence.x,
+                y: presence.y,
+              });
+            },
+            { allowDead: true },
+          )
+            .then(() => this.sendSystemMessage(client, `Moved to ${command.name}.`))
+            .catch(fail);
+          return;
+        }
+        if (!isMapId(presence.mapId)) {
+          this.sendSystemMessage(client, "That player is on an unknown map.");
+          return;
+        }
+        void this.beginWarp(client, {
+          mapId: presence.mapId,
+          x: presence.x,
+          y: presence.y,
+        })
+          .then((accepted) => {
+            if (!accepted) {
+              this.sendSystemMessage(client, "Warp failed.");
+            }
+          })
+          .catch(fail);
+        return;
+      }
+      case "summon": {
+        const target = getServerServices().adminBus.findByName(command.name);
+        if (!target) {
+          this.sendSystemMessage(client, `No online player named ${command.name}.`);
+          return;
+        }
+        const presence = target.presence();
+        if (!presence || presence.mapId !== this.mapId) {
+          this.sendSystemMessage(client, "Summon only works on the same map.");
+          return;
+        }
+        const player = this.state.players.get(client.sessionId);
+        if (!player) {
+          return;
+        }
+        void target
+          .updateCharacter({ x: player.x, y: player.y })
+          .then(() => this.sendSystemMessage(client, `Summoned ${command.name}.`))
+          .catch(fail);
+        return;
+      }
+      default:
+        this.sendSystemMessage(client, `Unknown command: ${command.raw}`);
+    }
+  }
+
+  private createAdminActions(
+    sessionId: string,
+    runtime: PlayerRuntime,
+  ): AdminLiveActions {
+    const self = this;
+    return {
+      characterId: runtime.characterId,
+      sessionId,
+      roomId: this.roomId,
+      presence() {
+        const player = self.state.players.get(sessionId);
+        return player ? buildAdminPresence(sessionId, runtime, player, self.mapId) : null;
+      },
+      grantItem(request) {
+        return self.adminGrantItem(sessionId, request);
+      },
+      removeItem(instanceId) {
+        return self.adminRemoveItem(sessionId, instanceId);
+      },
+      setGold(gold) {
+        return self.adminSetGold(sessionId, gold);
+      },
+      updateCharacter(update) {
+        return self.adminUpdateCharacter(sessionId, update);
+      },
+      teleportTown() {
+        return self.adminTeleportTown(sessionId);
+      },
+      spawnMonster(typeId, count, x, y) {
+        return self.adminSpawnMonster(sessionId, typeId, count, x, y);
+      },
+    };
+  }
+
+  private adminGrantItem(
+    sessionId: string,
+    request: AdminGiveItemRequest,
+  ): Promise<ItemInstanceDto> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        if (!hasItem(request.definitionId)) {
+          throw new ServiceError("validation", "Unknown item definition.");
+        }
+        const definition = getItem(request.definitionId);
+        const before = runtime.inventory;
+        let generatedId: string | null = null;
+        const newId = (): string => {
+          const id = randomUUID();
+          generatedId ??= id;
+          return id;
+        };
+        const result = planAdminGive(
+          runtime.inventory,
+          runtime.characterId,
+          definition,
+          request.quantity,
+          request.upgradeLevel,
+          request.bonuses,
+          newId,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+        const created = findGrantedStack(before, result.state, generatedId, definition.id);
+        if (!created) {
+          throw new ServiceError("internal", "Item grant did not produce a stack.");
+        }
+        return toItemDto(created);
+      },
+      { allowDead: true },
+    );
+  }
+
+  private adminRemoveItem(sessionId: string, instanceId: string): Promise<void> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        const result = planAdminRemove(runtime.inventory, runtime.characterId, instanceId);
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      },
+      { allowDead: true },
+    );
+  }
+
+  private adminSetGold(sessionId: string, gold: number): Promise<number> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        if (!Number.isInteger(gold) || gold < 0 || gold > MAX_GOLD) {
+          throw new ServiceError("validation", "Invalid gold amount.");
+        }
+        if (gold === runtime.gold) {
+          return runtime.gold;
+        }
+        const plan: ItemPlan = {
+          changes: [],
+          logs: [],
+          gold: {
+            delta: gold - runtime.gold,
+            reason: "admin",
+            detail: { source: "admin_live", target: gold },
+          },
+        };
+        const result = await this.applyItemPlan(runtime, runtime.inventory, plan);
+        return result.gold;
+      },
+      { allowDead: true },
+    );
+  }
+
+  private adminUpdateCharacter(
+    sessionId: string,
+    update: AdminUpdateCharacterRequest,
+  ): Promise<void> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        const player = this.state.players.get(sessionId);
+        if (!player || !isClassId(player.classId)) {
+          throw new ServiceError("internal", "Player class is invalid.");
+        }
+        const progression = runtime.progression;
+        let changed = false;
+        let positionChanged = false;
+
+        if (update.x !== undefined || update.y !== undefined) {
+          if (runtime.dead) {
+            throw new ServiceError("conflict", "A dead player cannot be repositioned.");
+          }
+          const x = update.x ?? player.x;
+          const y = update.y ?? player.y;
+          if (!isWalkableAt(this.assets.grid, x, y)) {
+            throw new ServiceError("validation", "That position is not walkable.", {
+              position: "blocked",
+            });
+          }
+          this.moveRuntimeTo(runtime, player, x, y);
+          positionChanged = true;
+          changed = true;
+        }
+
+        if (update.level !== undefined) {
+          if (update.level !== progression.level) {
+            progression.level = update.level;
+            progression.xp = 0;
+            changed = true;
+          }
+        }
+        const statUpdates: Array<["vit" | "int" | "str" | "dex", number | undefined]> = [
+          ["vit", update.statVit],
+          ["int", update.statInt],
+          ["str", update.statStr],
+          ["dex", update.statDex],
+        ];
+        for (const [stat, value] of statUpdates) {
+          if (value === undefined) {
+            continue;
+          }
+          if (value < 0 || value > STAT_POINT_CAP) {
+            throw new ServiceError("validation", `Stat ${stat} is out of range.`);
+          }
+          if (progression.stats[stat] !== value) {
+            progression.stats[stat] = value;
+            changed = true;
+          }
+        }
+        if (changed) {
+          recomputeMaxima(
+            progression,
+            player.classId,
+            equipmentBonusStats(runtime.inventory),
+          );
+          player.level = progression.level;
+          player.maxHp = progression.maxHp;
+          player.hp = progression.hp;
+          player.maxMp = progression.maxMp;
+          player.mp = progression.mp;
+          runtime.dirty = true;
+        }
+
+        if (update.gold !== undefined && update.gold !== runtime.gold) {
+          const result = await this.applyItemPlan(runtime, runtime.inventory, {
+            changes: [],
+            logs: [],
+            gold: {
+              delta: update.gold - runtime.gold,
+              reason: "admin",
+              detail: { source: "admin_live", target: update.gold },
+            },
+          });
+          runtime.gold = result.gold;
+        }
+
+        if (changed) {
+          this.sendSelfStats(sessionId);
+          const saved = await this.enqueueSave(runtime, {
+            mapId: this.mapId,
+            x: runtime.mover.pos.x,
+            y: runtime.mover.pos.y,
+          });
+          if (!saved) {
+            throw new ServiceError("internal", "Character save failed; retry.");
+          }
+        }
+        if (positionChanged) {
+          this.updateInterest();
+        }
+      },
+      { allowDead: true },
+    );
+  }
+
+  private moveRuntimeTo(runtime: PlayerRuntime, player: PlayerState, x: number, y: number): void {
+    runtime.mover.pos.x = x;
+    runtime.mover.pos.y = y;
+    runtime.mover.path = [];
+    runtime.pending.length = 0;
+    runtime.lastIntent = { kind: "none" };
+    runtime.lastPathTargetKey = null;
+    runtime.targetMonsterId = null;
+    runtime.pendingAttack = null;
+    player.x = x;
+    player.y = y;
+    player.moving = false;
+  }
+
+  private adminTeleportTown(sessionId: string): Promise<void> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        const player = this.state.players.get(sessionId);
+        if (!player) {
+          throw new ServiceError("conflict", "Player is no longer connected.");
+        }
+        const village = defaultSpawn();
+        if (this.mapId === village.mapId) {
+          const spot = this.resolveSpawn(village.x, village.y);
+          this.moveRuntimeTo(runtime, player, spot.x, spot.y);
+          runtime.dirty = true;
+          this.updateInterest();
+          this.sendSelfStats(sessionId);
+          const saved = await this.enqueueSave(runtime, {
+            mapId: this.mapId,
+            x: spot.x,
+            y: spot.y,
+          });
+          if (!saved) {
+            throw new ServiceError("internal", "Character save failed; retry.");
+          }
+          return;
+        }
+        const client = this.clientFor(sessionId);
+        if (!client) {
+          throw new ServiceError("conflict", "Player is no longer connected.");
+        }
+        const accepted = await this.beginWarp(client, village, {
+          awaitInventory: false,
+        });
+        if (!accepted) {
+          throw new ServiceError("conflict", "Teleport failed; try again.");
+        }
+      },
+      { allowDead: false },
+    );
+  }
+
+  private adminSpawnMonster(
+    sessionId: string,
+    typeId: string,
+    count: number,
+    x?: number,
+    y?: number,
+  ): Promise<number> {
+    return this.runAdminCommand(
+      sessionId,
+      async (runtime) => {
+        if (!hasMonster(typeId)) {
+          throw new ServiceError("validation", "Unknown monster type.");
+        }
+        if (!Number.isInteger(count) || count < 1 || count > 50) {
+          throw new ServiceError("validation", "Spawn count must be 1-50.");
+        }
+        const anchor =
+          x !== undefined || y !== undefined
+            ? { x: x ?? runtime.mover.pos.x, y: y ?? runtime.mover.pos.y }
+            : { x: runtime.mover.pos.x, y: runtime.mover.pos.y };
+        if (!isWalkableAt(this.assets.grid, anchor.x, anchor.y)) {
+          throw new ServiceError("validation", "Spawn position is not walkable.");
+        }
+        const spawned = spawnAdminMonsters(this.spawns, {
+          typeId,
+          count,
+          position: anchor,
+          now: Date.now(),
+          rng: this.rng,
+        });
+        this.updateInterest();
+        return spawned.length;
+      },
+      { allowDead: true },
+    );
+  }
+
+  private unregisterAdminSession(sessionId: string): void {
+    const actions = this.adminActions.get(sessionId);
+    if (actions) {
+      getServerServices().adminBus.unregister(actions.characterId, sessionId);
+    }
+  }
+
+  private registerAdminSession(sessionId: string): void {
+    const actions = this.adminActions.get(sessionId);
+    if (actions) {
+      getServerServices().adminBus.register(actions);
+    }
+  }
+
   private async savePlayerNow(sessionId: string): Promise<void> {
     const runtime = this.runtimes.get(sessionId);
     if (!runtime) {
@@ -881,6 +1482,13 @@ export class MapRoom extends Room {
         if (sessionId === client.sessionId) {
           if (!view.has(player)) {
             view.add(player);
+          }
+          continue;
+        }
+        const otherRuntime = this.runtimes.get(sessionId);
+        if (otherRuntime?.invisible) {
+          if (view.has(player)) {
+            view.remove(player);
           }
           continue;
         }
@@ -1309,11 +1917,50 @@ export class MapRoom extends Room {
     );
   }
 
+  /**
+   * Promise-returning admin variant of `runItemCommand`. It shares the player's
+   * item chain so grants/gold/stat edits cannot interleave with pickups, shops,
+   * kick saves or warps. The returned promise rejects with a mapped error.
+   */
+  private runAdminCommand<T>(
+    sessionId: string,
+    handler: (runtime: PlayerRuntime) => Promise<T>,
+    guards: { allowDead?: boolean } = {},
+  ): Promise<T> {
+    const initial = this.runtimes.get(sessionId);
+    if (!initial) {
+      return Promise.reject(new ServiceError("conflict", "Player is no longer in this room."));
+    }
+    const run = async (): Promise<T> => {
+      const current = this.runtimes.get(sessionId);
+      if (!current) {
+        throw new ServiceError("conflict", "Player is no longer in this room.");
+      }
+      if (current.inventoryClosed || current.warping) {
+        throw new ServiceError("conflict", "Player session is closing; retry after reconnect.");
+      }
+      if (current.dead && !guards.allowDead) {
+        throw new ServiceError("conflict", "Player is dead.");
+      }
+      try {
+        return await handler(current);
+      } catch (error) {
+        throw toAdminError(error);
+      }
+    };
+    const next = (initial.inventoryChain ?? Promise.resolve()).then(run, run);
+    initial.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  }
+
   private async applyItemPlan(
     runtime: PlayerRuntime,
     state: InventoryState,
     plan: ItemPlan,
-  ): Promise<void> {
+  ): Promise<{ gold: number }> {
     const { gold } = await getServerServices().items.apply(
       runtime.accountId,
       runtime.characterId,
@@ -1327,6 +1974,7 @@ export class MapRoom extends Room {
     if (plan.changes.some((change) => this.touchesEquipment(change))) {
       this.refreshEquipment(runtime);
     }
+    return { gold };
   }
 
   private touchesEquipment(change: ItemPlan["changes"][number]): boolean {
@@ -1935,6 +2583,9 @@ export class MapRoom extends Room {
   private playerSnapshots(): AiPlayerSnapshot[] {
     const snapshots: AiPlayerSnapshot[] = [];
     for (const [sessionId, runtime] of this.runtimes) {
+      if (runtime.invisible) {
+        continue;
+      }
       snapshots.push({
         sessionId,
         pos: runtime.mover.pos,
@@ -2094,6 +2745,7 @@ export class MapRoom extends Room {
     this.clearPlayerFromMonsters(client.sessionId);
     // The move is intentional; do not let the target join "kick" this session.
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
+    this.unregisterAdminSession(client.sessionId);
 
     try {
       const token = issueWarpToken(destination.mapId, destination.x, destination.y, {
@@ -2170,6 +2822,8 @@ export class MapRoom extends Room {
         if (!accepted) {
           this.state.players.delete(client.sessionId);
           this.runtimes.delete(client.sessionId);
+        } else {
+          this.registerAdminSession(client.sessionId);
         }
         this.updateInterest();
       }

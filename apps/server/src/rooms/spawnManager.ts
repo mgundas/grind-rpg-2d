@@ -39,7 +39,11 @@ export interface SpawnManager {
   runtimes: Map<string, MonsterRuntime>;
   groups: SpawnGroupRuntime[];
   monsterGroup: Map<string, SpawnGroupRuntime>;
+  /** Monotonic counter for admin-spawned monsters (never group members). */
+  adminSeq: number;
 }
+
+export const ADMIN_MONSTER_GROUP = "@admin";
 
 export interface SpawnManagerInput {
   mapId: MapId;
@@ -233,6 +237,7 @@ export function createSpawnManager(input: SpawnManagerInput): SpawnManager {
     runtimes: input.runtimes,
     groups,
     monsterGroup: new Map(),
+    adminSeq: 0,
   };
 }
 
@@ -296,6 +301,70 @@ export function spawnGroup(
   // An entirely blocked zone retries soon instead of waiting 30–60 s.
   group.respawnAtMs = placed.length === 0 ? now + 5000 : null;
   return placed.length;
+}
+
+export interface AdminMonsterSpawnInput {
+  typeId: string;
+  count: number;
+  position: Vec2;
+  now: number;
+  rng: RandomSource;
+}
+
+export interface AdminMonsterSpawnResult {
+  monsterId: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Spawn monsters on demand without a spawn group. They participate in normal
+ * AI/combat/drops but have no group, so `notifyMonsterDeath` does not schedule
+ * a respawn and `aggroGroup` is a no-op.
+ */
+export function spawnAdminMonsters(
+  manager: SpawnManager,
+  input: AdminMonsterSpawnInput,
+): AdminMonsterSpawnResult[] {
+  const result: AdminMonsterSpawnResult[] = [];
+  for (let index = 0; index < input.count; index++) {
+    const spec = getMonster(input.typeId);
+    const ring = 48 + 16 * Math.floor(index / 8);
+    const angle = input.rng.next() * Math.PI * 2;
+    const candidate = {
+      x: input.position.x + Math.cos(angle) * ring,
+      y: input.position.y + Math.sin(angle) * ring,
+    };
+    const spot = nearestWalkable(manager.grid, candidate.x, candidate.y) ?? input.position;
+    const id = `a${++manager.adminSeq}`;
+
+    const monster = new MonsterState();
+    monster.typeId = spec.id;
+    monster.name = spec.name;
+    monster.level = spec.level;
+    monster.x = spot.x;
+    monster.y = spot.y;
+    monster.facing = 0;
+    monster.hp = spec.hp;
+    monster.maxHp = spec.hp;
+    monster.moving = false;
+    monster.isBoss = spec.isBoss;
+
+    const runtime = createMonsterRuntime({
+      id,
+      typeId: spec.id,
+      groupId: ADMIN_MONSTER_GROUP,
+      home: { x: spot.x, y: spot.y },
+      maxHp: spec.hp,
+      generation: 0,
+      spawnIndex: index,
+      now: input.now,
+    });
+    manager.state.monsters.set(id, monster);
+    manager.runtimes.set(id, runtime);
+    result.push({ monsterId: id, x: spot.x, y: spot.y });
+  }
+  return result;
 }
 
 export function spawnAllGroups(

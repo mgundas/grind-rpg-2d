@@ -42,6 +42,7 @@ export interface FakeJoinOptions {
   hairStyle?: number;
   hairColor?: number;
   level?: number;
+  role?: "player" | "gm" | "admin";
   x?: number;
   y?: number;
   spawnX?: number;
@@ -56,6 +57,8 @@ export interface FakeServices {
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
   items: ItemService;
   adminBus: AdminBus;
+  logChat: () => Promise<void>;
+  logAdminAction: () => Promise<void>;
   /** Seed an item row directly (room tests start with a clean inventory). */
   giveItem: (row: {
     id: string;
@@ -84,7 +87,7 @@ function makeAccount(options: FakeJoinOptions): AccountAuthRecord {
     email: `room${Math.random().toString(36).slice(2, 8)}@example.com`,
     username: `Room${Math.random().toString(36).slice(2, 8)}`,
     kingdom: (options.kingdom as KingdomId | undefined) ?? "ember",
-    role: "player",
+    role: options.role ?? "player",
     tokenVersion: 0,
     bannedUntil: null,
     banReason: null,
@@ -402,6 +405,8 @@ export function createFakeServices(): FakeServices {
     loadCharacter,
     items: itemsService,
     adminBus,
+    logChat: async () => undefined,
+    logAdminAction: async () => undefined,
     giveItem,
     setGold(characterId, gold) {
       goldByCharacter.set(characterId, gold);

@@ -1,6 +1,7 @@
 import {
   createMover,
   emptyInventory,
+  type AccountRole,
   type Dir8,
   type InputMessage,
   type InventoryState,
@@ -19,6 +20,12 @@ export interface PlayerRuntime {
   /** Authenticated account/character this session belongs to. */
   accountId: string;
   characterId: string;
+  /** Account role captured at authentication (GM commands/admin bus). */
+  role: AccountRole;
+  /** Character channel (always 1 until Phase 9 channels). */
+  channel: number;
+  /** GM invisibility: excluded from monster targeting and other clients' views. */
+  invisible: boolean;
   /** Account token generation captured at authentication. */
   tokenVersion: number;
   mover: MoverState;
@@ -100,6 +107,8 @@ export interface PlayerIdentity {
   accountId: string;
   characterId: string;
   tokenVersion: number;
+  role?: AccountRole;
+  channel?: number;
   progression?: PlayerProgression;
   inventory?: InventoryState;
   gold?: number;
@@ -121,6 +130,9 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
   return {
     accountId: identity.accountId,
     characterId: identity.characterId,
+    role: identity.role ?? "player",
+    channel: identity.channel ?? 1,
+    invisible: false,
     tokenVersion: identity.tokenVersion,
     mover: createMover(spawn),
     progression: identity.progression ?? {

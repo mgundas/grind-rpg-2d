@@ -66,6 +66,9 @@ beforeAll(async () => {
     saveCharacters: fake.saveCharacters,
     loadCharacter: fake.loadCharacter,
     items: fake.items,
+    adminBus: fake.adminBus,
+    logChat: fake.logChat,
+    logAdminAction: fake.logAdminAction,
     createRandomSource: () => ({ next: () => 0.5 }),
   });
   // `createGameServer` already returns a Server instance, and `boot()` ignores

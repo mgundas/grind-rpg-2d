@@ -10,10 +10,12 @@ import { getMonster } from "@jadethrone/data/monsters";
 import { getSpawnGroup } from "@jadethrone/data/spawnGroups";
 import { createMonsterRuntime, type MonsterRuntime } from "../../src/rooms/monsterRuntime";
 import {
+  ADMIN_MONSTER_GROUP,
   aggroGroup,
   createSpawnManager,
   notifyMonsterDeath,
   placeGroup,
+  spawnAdminMonsters,
   spawnAllGroups,
   tickSpawns,
   type SpawnManager,
@@ -214,6 +216,56 @@ describe("spawn manager", () => {
     runtimes.get(second!)!.ai = "return";
     aggroGroup(manager, first!, "p1");
     expect(runtimes.get(second!)?.ai).toBe("return");
+  });
+});
+
+describe("admin monster spawning", () => {
+  it("spawns ungrouped monsters at walkable positions", () => {
+    const { manager, state, runtimes } = makeManager();
+    const spawned = spawnAdminMonsters(manager, {
+      typeId: "wild_dog",
+      count: 3,
+      position: { x: 200, y: 200 },
+      now: 1000,
+      rng: seededRandomSource(11),
+    });
+    expect(spawned).toHaveLength(3);
+    expect(state.monsters.size).toBe(3);
+    expect([...state.monsters.keys()]).toEqual(["a1", "a2", "a3"]);
+    expect(manager.monsterGroup.size).toBe(0);
+    for (const entry of spawned) {
+      const runtime = runtimes.get(entry.monsterId)!;
+      expect(runtime.groupId).toBe(ADMIN_MONSTER_GROUP);
+      expect(runtime.home).toEqual({ x: entry.x, y: entry.y });
+    }
+  });
+
+  it("does not schedule a group respawn when an admin monster dies", () => {
+    const { manager, state } = makeManager();
+    const [spawned] = spawnAdminMonsters(manager, {
+      typeId: "wild_dog",
+      count: 1,
+      position: { x: 200, y: 200 },
+      now: 0,
+      rng: seededRandomSource(1),
+    });
+    const before = manager.groups[0]?.respawnAtMs ?? null;
+    notifyMonsterDeath(manager, spawned!.monsterId, 1000);
+    expect(manager.groups[0]?.respawnAtMs ?? null).toBe(before);
+    expect(state.monsters.has(spawned!.monsterId)).toBe(true);
+  });
+
+  it("throws for an unknown monster id", () => {
+    const { manager } = makeManager();
+    expect(() =>
+      spawnAdminMonsters(manager, {
+        typeId: "nope",
+        count: 1,
+        position: { x: 200, y: 200 },
+        now: 0,
+        rng: seededRandomSource(1),
+      }),
+    ).toThrow(/unknown monster/);
   });
 });
 

@@ -3,6 +3,7 @@ import type { AuthDeps } from "./auth/accountService";
 import type { JoinAuthenticator } from "./auth/joinAuth";
 import type { SessionRegistry } from "./auth/sessionRegistry";
 import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
+import type { AdminLogInput } from "./admin/adminLog";
 import type { AdminBus } from "./admin/liveBus";
 import type { CharacterRecord } from "./characters/characterMappers";
 import type { Db } from "./db/client";
@@ -20,6 +21,14 @@ export interface CombatTuning {
  * implementations; tests install fakes before booting. There is deliberately no
  * guest/bypass mode: the default is always the DB-backed authenticator.
  */
+export interface ChatLogInput {
+  characterId: string | null;
+  name: string;
+  kingdom: string;
+  mapId: string;
+  text: string;
+}
+
 export interface ServerServices {
   db: Db;
   authDeps: AuthDeps;
@@ -33,6 +42,10 @@ export interface ServerServices {
   items: ItemService;
   /** In-process registry of live players/rooms for the admin panel. */
   adminBus: AdminBus;
+  /** Best-effort persistence for the admin chat-log viewer. */
+  logChat: (entry: ChatLogInput) => Promise<void>;
+  /** Best-effort GM/admin audit write (in-game commands). */
+  logAdminAction: (entry: AdminLogInput) => Promise<void>;
   /** Fresh per-room RNG stream: crypto in production, seeded in tests. */
   createRandomSource: () => RandomSource;
   combatTuning: CombatTuning;
