@@ -7,6 +7,8 @@ export * from "./constants";
 export * from "./direction";
 export * from "./formulas";
 export * from "./health";
+export * from "./inventory";
+export * from "./items";
 export * from "./movement";
 export * from "./pathfinding";
 export * from "./protocol";
