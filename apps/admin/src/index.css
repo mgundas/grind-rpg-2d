@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Admin theme tokens shared with the game's palette (Jade Throne). */
+:root {
+  --jade: #5da88f;
+  --jade-soft: #37544a;
+  --gold: #c9a227;
+  --lacquer: #141a17;
+  --lacquer-deep: #0f1210;
+}
