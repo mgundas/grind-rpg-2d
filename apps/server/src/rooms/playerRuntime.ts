@@ -1,10 +1,13 @@
 import {
   createMover,
+  emptyInventory,
   type Dir8,
   type InputMessage,
+  type InventoryState,
   type MoveIntent,
   type MoverState,
   type Vec2,
+  type WarehouseState,
 } from "@jadethrone/shared";
 import type { PlayerProgression } from "../characters/progression";
 
@@ -53,6 +56,21 @@ export interface PlayerRuntime {
   /** Serialized save chain so autosave/kick/leave/warp writes cannot reorder. */
   saveChain: Promise<unknown> | null;
 
+  /** Authoritative in-memory inventory/equipment and gold (Phase 4). */
+  inventory: InventoryState;
+  gold: number;
+  /** Lazily loaded account warehouse snapshot. */
+  warehouse: WarehouseState | null;
+  /** Monotonic snapshot revision used by the client to ignore stale messages. */
+  inventoryRevision: number;
+  warehouseRevision: number;
+  /** Serialized item/economy commands; kick/warp/leave await this chain. */
+  inventoryChain: Promise<unknown> | null;
+  /** Set synchronously by kick/warp/leave so late commands are dropped. */
+  inventoryClosed: boolean;
+  /** Epoch ms before another consumable can be used. */
+  itemUseReadyAtMs: number;
+
   /** Basic-attack cooldown gate. */
   attackReadyAtMs: number;
   /** Attack requested by the client, resolved once on the next tick. */
@@ -83,6 +101,8 @@ export interface PlayerIdentity {
   characterId: string;
   tokenVersion: number;
   progression?: PlayerProgression;
+  inventory?: InventoryState;
+  gold?: number;
 }
 
 const FALLBACK_PROGRESSION: PlayerProgression = {
@@ -121,6 +141,14 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     droppedInputs: 0,
     dirty: false,
     saveChain: null,
+    inventory: identity.inventory ?? emptyInventory(),
+    gold: identity.gold ?? 0,
+    warehouse: null,
+    inventoryRevision: 0,
+    warehouseRevision: 0,
+    inventoryChain: null,
+    inventoryClosed: false,
+    itemUseReadyAtMs: 0,
     attackReadyAtMs: 0,
     pendingAttack: null,
     lastCombatAtMs: 0,

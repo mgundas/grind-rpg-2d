@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { matchMaker, type AuthContext, type Client, Room } from "@colyseus/core";
 import { StateView } from "@colyseus/schema";
 import {
@@ -28,6 +29,7 @@ import {
   chatRecipients,
   deathXpLoss,
   dir8Towards,
+  equipItemMessageSchema,
   facing4FromDelta,
   facing4FromIndex,
   facing4Index,
@@ -36,18 +38,24 @@ import {
   isClassId,
   isWalkableAt,
   monsterXpGain,
+  moveItemMessageSchema,
+  requestInventoryMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
   seedFromString,
   setTargetMessageSchema,
+  splitStackMessageSchema,
   stepMover,
+  unequipItemMessageSchema,
   type ChatMsgPayload,
   type CombatEventPayload,
   type CombatHit,
   type DeathPayload,
   type Dir8,
   type InputMessage,
+  type InventoryState,
+  type ItemActionErrorCode,
   type LevelUpPayload,
   type MapId,
   type MonsterDiedPayload,
@@ -62,6 +70,10 @@ import { getClass } from "@jadethrone/data/classes";
 import { getMonster } from "@jadethrone/data/monsters";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
+import { ItemError } from "../items/errors";
+import type { ItemPlan } from "../items/itemChanges";
+import { planEquip, planMove, planSplit, planUnequip } from "../items/planning";
+import { buildInventorySnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
@@ -270,6 +282,88 @@ export class MapRoom extends Room {
       this.sendSelfStats(client.sessionId);
     });
 
+    this.onMessage(MSG.requestInventory, (client, raw) => {
+      if (!requestInventoryMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.sendInventory(client.sessionId);
+    });
+
+    this.onMessage(MSG.moveItem, (client, raw) => {
+      const parsed = moveItemMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid moveItem message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        const result = planMove(
+          runtime.inventory,
+          runtime.characterId,
+          parsed.data.instanceId,
+          parsed.data.toSlot,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.splitStack, (client, raw) => {
+      const parsed = splitStackMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid splitStack message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        const result = planSplit(
+          runtime.inventory,
+          runtime.characterId,
+          parsed.data.instanceId,
+          parsed.data.quantity,
+          parsed.data.toSlot ?? null,
+          randomUUID,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.equipItem, (client, raw) => {
+      const parsed = equipItemMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid equipItem message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        const player = this.state.players.get(client.sessionId);
+        if (!player || !isClassId(player.classId)) {
+          throw new ItemError("internal", "Player class is invalid.");
+        }
+        const result = planEquip(
+          runtime.inventory,
+          runtime.characterId,
+          player.classId,
+          runtime.progression.level,
+          parsed.data.instanceId,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
+    this.onMessage(MSG.unequipItem, (client, raw) => {
+      const parsed = unequipItemMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid unequipItem message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        const result = planUnequip(
+          runtime.inventory,
+          runtime.characterId,
+          parsed.data.slot,
+          null,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+      });
+    });
+
     this.setSimulationInterval(() => this.tick(), TICK_MS);
     // Interest management runs at 4 Hz, not every tick (GAME_DESIGN.md §5.1).
     this.clock.setInterval(() => this.updateInterest(), INTEREST_INTERVAL_MS);
@@ -288,11 +382,19 @@ export class MapRoom extends Room {
     const requested = auth.warpSpawn ?? { x: auth.character.x, y: auth.character.y };
     const spawn = this.resolveSpawn(requested.x, requested.y);
     const progression = progressionFromCharacter(auth.character);
+    // Inventory is loaded before the player exists: a broken character row must
+    // fail the join rather than appear with an empty (and overwritable) bag.
+    const loaded = await getServerServices().items.loadInventory(
+      auth.account.id,
+      auth.character.id,
+    );
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
       characterId: auth.character.id,
       tokenVersion: auth.account.tokenVersion,
       progression,
+      inventory: loaded.inventory,
+      gold: loaded.gold,
     });
     runtime.dirty =
       Math.abs(spawn.x - auth.character.x) > 0.01 ||
@@ -354,6 +456,7 @@ export class MapRoom extends Room {
     }
 
     this.sendSelfStats(client.sessionId);
+    this.sendInventory(client.sessionId);
 
     // A duplicate join replaced and saved the previous session. Its save is
     // newer than the matchmaking snapshot, so refresh before the first tick
@@ -382,7 +485,11 @@ export class MapRoom extends Room {
           activePlayer.y = position.y;
         }
       }
+      // The kicked session's item commands are committed before its save
+      // completes, so refresh both progression and inventory here.
+      await this.reloadRuntimeInventory(activeRuntime);
       this.sendSelfStats(client.sessionId);
+      this.sendInventory(client.sessionId);
       this.updateInterest();
     }
 
@@ -405,6 +512,8 @@ export class MapRoom extends Room {
     this.clearPlayerFromMonsters(client.sessionId);
 
     if (runtime) {
+      runtime.inventoryClosed = true;
+      await runtime.inventoryChain?.catch(() => undefined);
       getServerServices().sessionRegistry.unregister(runtime.accountId, client.sessionId);
       // A kick already saved and cleared `dirty`; a warp already persisted
       // the destination and removed the runtime.
@@ -440,7 +549,14 @@ export class MapRoom extends Room {
   /** Save one player before a session is replaced (kick path). */
   private async savePlayerNow(sessionId: string): Promise<void> {
     const runtime = this.runtimes.get(sessionId);
-    if (!runtime || !runtime.dirty) {
+    if (!runtime) {
+      return;
+    }
+    // Close synchronously before awaiting so no new command can enter the
+    // chain while this save is in flight.
+    runtime.inventoryClosed = true;
+    await runtime.inventoryChain?.catch(() => undefined);
+    if (!runtime.dirty) {
       return;
     }
     await this.enqueueSave(runtime, this.deathAwareDestination(runtime));
@@ -783,6 +899,122 @@ export class MapRoom extends Room {
     this.safeSend(client, MSG.selfStats, buildSelfStats(runtime, player));
   }
 
+  private clientFor(sessionId: string): Client | undefined {
+    return this.clients.find((candidate) => candidate.sessionId === sessionId);
+  }
+
+  private sendInventory(sessionId: string): void {
+    const runtime = this.runtimes.get(sessionId);
+    const client = this.clientFor(sessionId);
+    if (!runtime || !client) {
+      return;
+    }
+    this.safeSend(client, MSG.inventory, buildInventorySnapshot(runtime));
+  }
+
+  private sendItemError(client: Client, code: ItemActionErrorCode): void {
+    this.safeSend(client, MSG.inventoryError, { code });
+  }
+
+  /**
+   * Item commands are validated only when they reach the head of the queue, so
+   * two clicks in the same tick cannot both see the pre-mutation state.
+   */
+  private runItemCommand(
+    client: Client,
+    handler: (runtime: PlayerRuntime) => Promise<void>,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime || runtime.inventoryClosed) {
+      return;
+    }
+    const run = async (): Promise<void> => {
+      const current = this.runtimes.get(client.sessionId);
+      if (!current || current.inventoryClosed) {
+        return;
+      }
+      try {
+        await handler(current);
+      } catch (error) {
+        await this.handleItemFailure(client, current, error);
+      }
+    };
+    const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
+    runtime.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  private async applyItemPlan(
+    runtime: PlayerRuntime,
+    state: InventoryState,
+    plan: ItemPlan,
+  ): Promise<void> {
+    const { gold } = await getServerServices().items.apply(
+      runtime.accountId,
+      runtime.characterId,
+      plan,
+    );
+    // Assign only after the commit; a failed write leaves the old snapshot.
+    runtime.inventory = state;
+    runtime.gold = gold;
+    runtime.inventoryRevision++;
+    this.sendInventoryById(runtime);
+  }
+
+  private sendInventoryById(runtime: PlayerRuntime): void {
+    const entry = [...this.runtimes.entries()].find(([, value]) => value === runtime);
+    if (entry) {
+      this.sendInventory(entry[0]);
+    }
+  }
+
+  private async reloadRuntimeInventory(runtime: PlayerRuntime): Promise<void> {
+    const loaded = await getServerServices().items.loadInventory(
+      runtime.accountId,
+      runtime.characterId,
+    );
+    runtime.inventory = loaded.inventory;
+    runtime.gold = loaded.gold;
+    runtime.inventoryRevision++;
+  }
+
+  private async handleItemFailure(
+    client: Client,
+    runtime: PlayerRuntime,
+    error: unknown,
+  ): Promise<void> {
+    if (error instanceof ItemError) {
+      if (error.code === "stale") {
+        logger.warn(
+          { roomId: this.roomId, session: client.sessionId, code: error.code },
+          "stale item command; reloading inventory",
+        );
+        try {
+          await this.reloadRuntimeInventory(runtime);
+          this.sendInventory(client.sessionId);
+        } catch (reloadError) {
+          logger.error(
+            { roomId: this.roomId, session: client.sessionId, error: reloadError },
+            "inventory reload failed",
+          );
+        }
+        this.sendItemError(client, "stale");
+        return;
+      }
+      if (error.code !== "internal") {
+        this.sendItemError(client, error.code);
+        return;
+      }
+    }
+    logger.error(
+      { roomId: this.roomId, session: client.sessionId, error },
+      "item command failed",
+    );
+    this.sendItemError(client, "internal");
+  }
+
   private applyRegen(now: number): void {
     for (const [sessionId, runtime] of this.runtimes) {
       const player = this.state.players.get(sessionId);
@@ -1090,6 +1322,8 @@ export class MapRoom extends Room {
       return false;
     }
     runtime.warping = true;
+    runtime.inventoryClosed = true;
+    await runtime.inventoryChain?.catch(() => undefined);
     const services = getServerServices();
     const source = {
       mapId: this.mapId,
@@ -1100,6 +1334,7 @@ export class MapRoom extends Room {
     const saved = await this.enqueueSave(runtime, destination);
     if (!saved) {
       runtime.warping = false;
+      runtime.inventoryClosed = false;
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
       logger.error(
         { roomId: this.roomId, session: client.sessionId },
@@ -1167,6 +1402,7 @@ export class MapRoom extends Room {
       // Restore the player only if the client is still connected here.
       if (this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
         runtime.warping = false;
+        runtime.inventoryClosed = false;
         // Do not retry every tick while the warp zone still overlaps: without
         // this cooldown a persistent matchmaker failure would issue a token
         // and run a full reservation attempt 20 times per second.

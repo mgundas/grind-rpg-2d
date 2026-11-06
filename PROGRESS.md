@@ -143,7 +143,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 8 — Pickup and gold persistence
 - [x] Task 9 — Shop and warehouse persistence
 - [x] Task 10 — Service wiring and room-test fakes
-- [ ] Task 11 — Runtime inventory, join load, snapshots and command queue
+- [x] Task 11 — Runtime inventory, join load, snapshots and command queue
 - [ ] Task 12 — Equipment stats and server-side visual keys
 - [ ] Task 13 — Drops, ground items and ownership
 - [ ] Task 14 — Pickup, gold credit and auto-loot support
