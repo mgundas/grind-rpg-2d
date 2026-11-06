@@ -18,8 +18,14 @@ A 2D browser MMORPG: three rival kingdoms, grinding packs of monsters, spirit st
 
 ```sh
 pnpm install
-pnpm dev        # DB reachability check + server :2567 + client :5173 + admin :5174
+pnpm db:migrate  # apply the committed Drizzle migrations to the dev database
+pnpm seed        # optional: admin@example.com + test player (dev only)
+pnpm dev         # DB reachability check + server :2567 + client :5173 + admin :5174
 ```
+
+Phase 2 (accounts and characters) is current: register on the client, create up to
+four characters, and the server saves/restores their position and map. `pnpm seed`
+prints the configured admin/test credentials (see `.env.example`).
 
 All commands must always work:
 
@@ -32,6 +38,24 @@ All commands must always work:
 | `pnpm typecheck`                                                         | `tsc --noEmit` in every package                     |
 | `pnpm lint`                                                              | ESLint (flat config)                                |
 | `pnpm format` / `pnpm format:check`                                      | Prettier write / check                              |
+| `pnpm db:generate` / `pnpm db:migrate`                                   | generate / apply Drizzle migrations                 |
+| `pnpm seed`                                                              | idempotent admin + dev test player                  |
+
+## Tests and the test database
+
+Pure suites always run. Drizzle/HTTP integration tests need `TEST_DATABASE_URL`
+and are skipped otherwise:
+
+```sh
+# one-time, on the DB host
+createdb -U jade jade_throne_test
+
+export TEST_DATABASE_URL=postgres://jade:<password>@<host>:5432/jade_throne_test
+pnpm test
+```
+
+The harness refuses URLs that do not contain `test`, applies the committed
+migrations itself, and uses randomized identifiers so reruns are safe.
 
 ## Dev database (Raspberry Pi)
 
@@ -49,5 +73,6 @@ On the dev machine, copy `.env.example` to `.env` and set `POSTGRES_HOST` to the
 
 - `PROGRESS.md` — phase and task checklist
 - `DECISIONS.md` — technical decision log
-- `docs/plans/phase-1.md` — the current phase plan
+- `docs/plans/phase-2.md` — the current phase plan
+- `docs/reports/phase-2.md` — the Phase-2 report
 - `ASSETS.md` — asset conventions (key namespaces, LPC sheet spec, placeholder behavior)

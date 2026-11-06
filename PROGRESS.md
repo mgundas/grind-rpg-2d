@@ -70,7 +70,7 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 
 Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
 
-**Verification note (2026-11-06):** the dev database (`homepi:5452`) is reachable. `drizzle/0000_*.sql` is applied to `jade_throne` and to a dedicated `jade_throne_test`; the 21 real-Postgres persistence tests and the 8 HTTP route tests pass against the test database. Full suite: 27 files, 253 tests, all passing when `TEST_DATABASE_URL` points at the test database. The real `tsx` server was also exercised over HTTP (register → login → create character).
+**Verification note (2026-11-06):** the dev database (`homepi:5452`) is reachable. `drizzle/0000_*.sql` is applied to `jade_throne` and to a dedicated `jade_throne_test`; the 21 real-Postgres persistence tests and the 8 HTTP route tests pass against the test database. Full suite: 29 files, 265 tests, all passing when `TEST_DATABASE_URL` points at the test database. Additional acceptance runs: `scripts/verify-phase2-e2e.mjs` (17/17 PASS against a real server) and the auth-aware `scripts/verify-phase1-e2e.mjs` (13/13 PASS, including both warps). `pnpm seed` was run twice and is idempotent. The real `tsx` server was also exercised over HTTP (register → login → create character → matchmake).
 
 - [x] Task 1 — Dependencies, config, DB schema, migration
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
@@ -86,7 +86,7 @@ Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typ
 - [x] Task 12 — Character select, create, delete, preview
 - [x] Task 13 — Layered appearance in the world
 - [x] Task 14 — In-game logout and kick UX
-- [ ] Task 15 — Seed script and verification tooling
+- [x] Task 15 — Seed script and verification tooling
 - [ ] Task 16 — CI Postgres, docs, final verification, reviewer, phase report
 
 ## Later phases (from GAME_DESIGN.md §12)

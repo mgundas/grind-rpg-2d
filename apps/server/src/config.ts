@@ -33,6 +33,9 @@ const envSchema = z.object({
     .default(30 * 24 * 3600),
   SEED_ADMIN_EMAIL: z.string().default("admin@example.com"),
   SEED_ADMIN_PASSWORD: z.string().default("change-me-please-8-chars"),
+  SEED_TEST_EMAIL: z.string().default("test@example.com"),
+  SEED_TEST_USERNAME: z.string().default("TestPlayer"),
+  SEED_TEST_PASSWORD: z.string().default("test-password-123"),
 });
 
 /**
@@ -55,6 +58,9 @@ export interface Config {
   jwtRefreshTtlSeconds: number;
   seedAdminEmail: string;
   seedAdminPassword: string;
+  seedTestEmail: string;
+  seedTestUsername: string;
+  seedTestPassword: string;
 }
 
 function buildDatabaseUrl(parts: {
@@ -99,6 +105,9 @@ function parseConfig(): Config {
     jwtRefreshTtlSeconds: env.JWT_REFRESH_TTL_SECONDS,
     seedAdminEmail: env.SEED_ADMIN_EMAIL,
     seedAdminPassword: env.SEED_ADMIN_PASSWORD,
+    seedTestEmail: env.SEED_TEST_EMAIL,
+    seedTestUsername: env.SEED_TEST_USERNAME,
+    seedTestPassword: env.SEED_TEST_PASSWORD,
   };
 }
 

@@ -79,6 +79,17 @@ a deterministic procedural `CanvasTexture` registered **under the same key**
   first two letters of the label centered.
 - `portrait` placeholder: tinted square with a generic label.
 
+### Layered character placeholders (Phase 2)
+
+The world and the character-select preview no longer use the single
+`char.body.male` texture. `apps/client/src/assets/characterArt.ts` paints a
+64x64 composite from the persisted appearance (`classId`, `gender`,
+`hairStyle`, `hairColor`) in layers: legs → torso/class outfit → belt → arms →
+head → hair. The class colours come from `packages/data/classes.json`. Textures
+are cached under `char.gen.<class>.<gender>.<hairStyle>.<hairColor>` so real LPC
+art can replace the procedural painter under the same key later; no game code
+needs to change.
+
 Dropping a real file at the manifest path (or editing `manifest.json`)
 upgrades the game with zero code changes; the silent-failure rule is
 "missing file → placeholder, never a black screen" (bad manifest → readable

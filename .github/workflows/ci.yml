@@ -1,10 +1,29 @@
-# Jade Throne CI. No Postgres service in Phase 0 — add one when
-# DB-touching tests arrive in Phase 2+.
+# Jade Throne CI. The DB-backed tests run against the service below;
+# `pnpm db:migrate` applies the committed Drizzle migrations before Vitest.
 name: ci
 on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: jade
+          POSTGRES_PASSWORD: jade_test
+          POSTGRES_DB: jade_throne_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jade -d jade_throne_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://jade:jade_test@localhost:5432/jade_throne_test
+      TEST_DATABASE_URL: postgres://jade:jade_test@localhost:5432/jade_throne_test
+      JWT_ACCESS_SECRET: ci-only-access-secret-at-least-32-chars
+      JWT_REFRESH_SECRET: ci-only-refresh-secret-at-least-32-chars
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4 # reads packageManager from package.json
@@ -13,6 +32,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm format:check

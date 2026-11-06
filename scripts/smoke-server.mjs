@@ -63,23 +63,38 @@ try {
   const payload = await waitForHealth(20000);
   let roomsProbe = null;
   try {
-    // The 0.17 default router exposes matchmaking via POST joinOrCreate —
-    // this proves the room is registered and matchmakeable.
+    // Phase 2 requires authentication for matchmaking: an anonymous request
+    // must be rejected, which proves the static onAuth is wired.
     const res = await fetch(`http://127.0.0.1:${port}/matchmake/joinOrCreate/map_ember_village`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "SmokeTester" }),
+      body: JSON.stringify({}),
       signal: AbortSignal.timeout(1500),
     });
+    roomsProbe = { status: res.status, body: await res.text() };
     if (res.ok) {
-      roomsProbe = await res.json();
-    } else {
-      roomsProbe = { error: `HTTP ${res.status}`, body: await res.text() };
+      console.error("[smoke] FAILED: anonymous matchmake unexpectedly succeeded");
+      process.exitCode = 1;
     }
   } catch (error) {
     roomsProbe = { error: String(error) };
+    process.exitCode = 1;
   }
-  console.log(JSON.stringify({ smoke: "ok", payload, rooms: roomsProbe }));
+
+  let authProbe = null;
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/auth/me`);
+    authProbe = { status: res.status };
+    if (res.status !== 401) {
+      console.error(`[smoke] FAILED: /api/auth/me returned ${res.status}, expected 401`);
+      process.exitCode = 1;
+    }
+  } catch (error) {
+    authProbe = { error: String(error) };
+    process.exitCode = 1;
+  }
+
+  console.log(JSON.stringify({ smoke: "ok", payload, rooms: roomsProbe, auth: authProbe }));
 } catch (error) {
   console.error(`[smoke] FAILED: ${String(error)}`);
   process.exitCode = 1;
