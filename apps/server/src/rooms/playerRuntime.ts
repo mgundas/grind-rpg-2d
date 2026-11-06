@@ -23,6 +23,10 @@ export interface PlayerRuntime {
   lastPathTarget: Vec2 | null;
   /** Epoch ms before which chat is rate-limited. */
   chatReadyAtMs: number;
+  /** A warp is in flight; skip movement/warp checks. */
+  warping: boolean;
+  /** Arrival guard so a warp cannot immediately bounce back. */
+  warpCooldownUntilMs: number;
 }
 
 export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
@@ -34,5 +38,7 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     ticksSinceInput: 999,
     lastPathTarget: null,
     chatReadyAtMs: 0,
+    warping: false,
+    warpCooldownUntilMs: 0,
   };
 }

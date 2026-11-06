@@ -1,4 +1,4 @@
-import { type Client, Room } from "@colyseus/core";
+import { matchMaker, type Client, Room } from "@colyseus/core";
 import { StateView } from "@colyseus/schema";
 import { z } from "zod";
 import {
@@ -11,6 +11,7 @@ import {
   MSG,
   SERVER_TICK_GRACE_TICKS,
   TICK_MS,
+  WARP_COOLDOWN_MS,
   chatMessageSchema,
   chatRecipients,
   facing4FromDelta,
@@ -26,6 +27,8 @@ import {
   type InputMessage,
   type MapId,
   type Vec2,
+  type WarpPayload,
+  type WarpZone,
 } from "@jadethrone/shared";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
@@ -41,6 +44,8 @@ const joinOptionsSchema = z.looseObject({
   /** Only honored for server-issued warp reservations; clamped + walkable-checked. */
   x: z.number().finite().optional().catch(undefined),
   y: z.number().finite().optional().catch(undefined),
+  /** Set by the server on warp reservations to arm the arrival cooldown. */
+  warp: z.boolean().optional().catch(undefined),
 });
 
 /** Max queued input messages per player; older inputs are dropped. */
@@ -140,6 +145,9 @@ export class MapRoom extends Room {
     const join = parsed.success ? parsed.data : {};
     const spawn = this.resolveSpawn(join.x, join.y);
     const runtime = createPlayerRuntime(spawn);
+    if (join.warp === true) {
+      runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
+    }
 
     const player = new PlayerState();
     player.name = sanitizeDisplayName(join.name);
@@ -218,6 +226,81 @@ export class MapRoom extends Room {
         continue;
       }
       this.stepPlayer(runtime, player);
+    }
+    this.checkWarps();
+  }
+
+  /** Trigger any warp zone the player is standing on (after movement). */
+  private checkWarps(): void {
+    const now = Date.now();
+    for (const client of [...this.clients]) {
+      const runtime = this.runtimes.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!runtime || !player || runtime.warping || now < runtime.warpCooldownUntilMs) {
+        continue;
+      }
+      const warp = this.assets.warps.find(
+        (zone) =>
+          player.x >= zone.x &&
+          player.x <= zone.x + zone.w &&
+          player.y >= zone.y &&
+          player.y <= zone.y + zone.h,
+      );
+      if (warp) {
+        void this.startWarp(client, warp);
+      }
+    }
+  }
+
+  /**
+   * Reserve a seat in the target map room, send it to the client, and remove
+   * the player from this room. The client leaves and consumes the reservation
+   * (Phase 1 has no character persistence, so name/kingdom/position travel in
+   * the join options).
+   */
+  private async startWarp(client: Client, warp: WarpZone): Promise<void> {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    runtime.warping = true;
+    const name = player.name;
+    const kingdom = player.kingdom;
+    this.state.players.delete(client.sessionId);
+    this.runtimes.delete(client.sessionId);
+
+    try {
+      const reservation = await matchMaker.joinOrCreate(warp.targetMap, {
+        name,
+        kingdom,
+        x: warp.targetX,
+        y: warp.targetY,
+        warp: true,
+      });
+      const payload: WarpPayload = {
+        map: warp.targetMap,
+        x: warp.targetX,
+        y: warp.targetY,
+        reservation,
+      };
+      client.send(MSG.warp, payload);
+      logger.info(
+        {
+          roomId: this.roomId,
+          session: client.sessionId,
+          from: this.mapId,
+          to: warp.targetMap,
+        },
+        "player warped",
+      );
+    } catch (error) {
+      // Restore the player on this map; the client shows the current map.
+      runtime.warping = false;
+      this.state.players.set(client.sessionId, player);
+      this.runtimes.set(client.sessionId, runtime);
+      this.updateInterest();
+      logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
     }
   }
 

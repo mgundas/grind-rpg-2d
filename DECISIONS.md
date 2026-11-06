@@ -61,3 +61,7 @@ Chat recipients are selected by the shared `chatRecipients` helper (900 px aroun
 ## D15 — Interest management: tagged collection + per-client StateView at 4 Hz
 
 The `players` map is view-tagged and each client owns a `StateView`; `updateInterest()` adds a player inside 850 px and removes them beyond 900 px, always keeping the own player visible. The pass runs at 4 Hz (`clock.setInterval(..., 250)`) plus immediately on join, so joins feel instant without paying the O(players²) cost every tick. In Phase 3 this becomes a spatial hash if the population grows.
+
+## D16 — Warp = server seat reservation, cooldown on arrival
+
+Walking onto a `warp` object makes the room remove the player, call `matchMaker.joinOrCreate(targetMap, { name, kingdom, x, y, warp: true })` and send the returned `ISeatReservation` to the client as `warp`; the client leaves, consumes it, and fades into the new map. The `warp: true` join flag arms a 2 s arrival cooldown so the destination spawn can never immediately bounce the player back (the generated warp targets are also 2+ tiles clear of the return zone). A failed reservation restores the player at the old position and logs an error.

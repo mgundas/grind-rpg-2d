@@ -6,9 +6,11 @@ import {
   ROOM_NAME_VILLAGE,
   isWalkableAt,
   type InputMessage,
+  type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
 import { createGameServer } from "../../src/server";
+import { loadMapAssets } from "../../src/maps/mapRegistry";
 import { MapRoom } from "../../src/rooms/MapRoom";
 
 let colyseus: ColyseusTestServer;
@@ -415,5 +417,49 @@ describe("MapRoom interest management", () => {
     farState.x = aliceState.x + 950;
     await sleep(350);
     expect(aliceServer.view?.has(farState)).toBe(false);
+  });
+});
+
+describe("MapRoom warp", () => {
+  it("reserves a seat in the target map and removes the player here", async () => {
+    const villageWarp = loadMapAssets(ROOM_NAME_VILLAGE).warps[0]!;
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Traveller",
+      // Just west of the warp rectangle, inside the cleared corridor.
+      x: villageWarp.x - 40,
+      y: villageWarp.y + villageWarp.h / 2,
+    });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    const warpMessage = client.waitForMessage(MSG.warp, 5000);
+    for (let seq = 1; seq <= 6; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 0 }); // walk east into the zone
+    }
+
+    const payload = (await warpMessage) as WarpPayload;
+    expect(payload.map).toBe(ROOM_NAME_FIELDS);
+    expect(payload.x).toBe(FIELDS_SPAWN.x);
+    expect(payload.y).toBe(FIELDS_SPAWN.y);
+    expect(payload.reservation.roomId.length).toBeGreaterThan(0);
+    expect(payload.reservation.sessionId.length).toBeGreaterThan(0);
+
+    await waitUntil(() => !room.state.players.has(sessionId));
+  });
+
+  it("does not bounce back immediately after arriving", async () => {
+    const fieldsWarp = loadMapAssets(ROOM_NAME_FIELDS).warps[0]!;
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Arrival",
+      x: fieldsWarp.x + fieldsWarp.w / 2,
+      y: fieldsWarp.y + fieldsWarp.h / 2,
+      warp: true,
+    });
+    await room.waitForNextPatch();
+
+    await sleep(300);
+    expect(room.state.players.has(client.sessionId)).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { CHAT_MAX_LEN } from "./constants";
+import { CHAT_MAX_LEN, type MapId } from "./constants";
 import { z } from "zod";
 
 /**
@@ -42,4 +42,23 @@ export interface ChatMsgPayload {
   name: string;
   kingdom: string;
   text: string;
+}
+
+/** Shape of a Colyseus seat reservation, as passed through the warp message. */
+export interface SeatReservationPayload {
+  name: string;
+  sessionId: string;
+  roomId: string;
+  publicAddress?: string;
+  processId?: string;
+  reconnectionToken?: string;
+  devMode?: boolean;
+}
+
+/** Server → client warp instruction: consume this reservation, then fade in. */
+export interface WarpPayload {
+  map: MapId;
+  x: number;
+  y: number;
+  reservation: SeatReservationPayload;
 }

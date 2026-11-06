@@ -34,7 +34,7 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 8 — server: tick loop + authoritative movement
 - [x] Task 9 — server: messages, chat, latency flag
 - [x] Task 10 — server: StateView interest
-- [ ] Task 11 — server: warp between maps
+- [x] Task 11 — server: warp between maps
 - [ ] Task 12 — client: session + guest join
 - [ ] Task 13 — client: real map rendering
 - [ ] Task 14 — client: input + prediction
