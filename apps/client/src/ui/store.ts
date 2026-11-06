@@ -1,7 +1,10 @@
 import { create } from "zustand";
-import type { ChatMsgPayload, MapId } from "@jadethrone/shared";
+import type { AccountPublic, CharacterSummary, ChatMsgPayload, MapId } from "@jadethrone/shared";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
+
+/** Auth/screen phase: checking tokens at boot, signed out, or signed in. */
+export type AuthPhase = "checking" | "anonymous" | "authenticated";
 
 export interface DebugStats {
   fps: number;
@@ -19,6 +22,18 @@ interface UiState {
   /** null = still probing the HTTP health endpoint. */
   serverOnline: boolean | null;
   setServerOnline: (online: boolean | null) => void;
+
+  authPhase: AuthPhase;
+  account: AccountPublic | null;
+  characters: CharacterSummary[];
+  selectedCharacterId: string | null;
+  authError: string | null;
+  setAuthChecking: () => void;
+  setAnonymous: (error?: string | null) => void;
+  setAuthenticated: (account: AccountPublic, characters: CharacterSummary[]) => void;
+  setCharacters: (characters: CharacterSummary[]) => void;
+  setSelectedCharacter: (id: string | null) => void;
+  setAuthError: (error: string | null) => void;
 
   connectionPhase: ConnectionPhase;
   connectionError: string | null;
@@ -50,6 +65,41 @@ interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   serverOnline: null,
   setServerOnline: (serverOnline) => set({ serverOnline }),
+
+  authPhase: "checking",
+  account: null,
+  characters: [],
+  selectedCharacterId: null,
+  authError: null,
+  setAuthChecking: () => set({ authPhase: "checking", authError: null }),
+  setAnonymous: (authError = null) =>
+    set({
+      authPhase: "anonymous",
+      account: null,
+      characters: [],
+      selectedCharacterId: null,
+      authError,
+      connectionPhase: "idle",
+      connectionError: null,
+    }),
+  setAuthenticated: (account, characters) =>
+    set({
+      authPhase: "authenticated",
+      account,
+      characters,
+      selectedCharacterId: characters[0]?.id ?? null,
+      authError: null,
+    }),
+  setCharacters: (characters) =>
+    set((state) => ({
+      characters,
+      selectedCharacterId:
+        state.selectedCharacterId && characters.some((c) => c.id === state.selectedCharacterId)
+          ? state.selectedCharacterId
+          : (characters[0]?.id ?? null),
+    })),
+  setSelectedCharacter: (selectedCharacterId) => set({ selectedCharacterId }),
+  setAuthError: (authError) => set({ authError }),
 
   connectionPhase: "idle",
   connectionError: null,

@@ -80,7 +80,7 @@ Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typ
 - [x] Task 6 — REST routes, middleware, server dependency wiring
 - [x] Task 7 — MapRoom: authenticated join, state identity, persistence, kick
 - [x] Task 8 — Warp persistence and target-map authentication
-- [ ] Task 9 — Client API + token storage + auth state
+- [x] Task 9 — Client API + token storage + auth state
 - [ ] Task 10 — Client session and screen routing
 - [ ] Task 11 — Auth screen (login/register, kingdom choice)
 - [ ] Task 12 — Character select, create, delete, preview
