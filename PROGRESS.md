@@ -16,7 +16,7 @@ Current plan: `docs/plans/phase-0.md`
 - [x] Task 10 — client: asset manifest with procedural placeholder fallback
 - [x] Task 11 — client: demo world scene with placeholder character + server status overlay
 - [x] Task 12 — admin: theme styled login page skeleton
-- [ ] Task 13 — root dev orchestration and workspace scripts
+- [x] Task 13 — root dev orchestration and workspace scripts
 - [ ] Task 14 — CI workflow (.github/workflows/ci.yml)
 - [ ] Task 15 — ASSETS.md + assets/CREDITS.md skeleton
 - [ ] Task 16 — final verification, @reviewer pass, phase report

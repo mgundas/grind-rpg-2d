@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/app.config.ts",
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/app.config.ts",
     "build": "esbuild src/app.config.ts --bundle --platform=node --format=cjs --target=node24 --outfile=dist/index.cjs --external:pg --external:pino",
     "typecheck": "tsc --noEmit",
     "start": "node dist/index.cjs"
