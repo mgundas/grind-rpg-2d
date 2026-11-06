@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import {
+  KINGDOMS,
   TILE_SIZE,
   buildCollisionGrid,
   dir8FromAxes,
@@ -16,6 +17,7 @@ import {
 } from "@jadethrone/shared";
 import { getRoom, sendInput } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
+import { RemoteRegistry, type RemoteEntity } from "../state/remotes";
 import { useUiStore } from "../ui/store";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
 
@@ -29,8 +31,22 @@ interface OwnPlayerState {
   lastSeq: number;
 }
 
+interface RemotePlayerState {
+  name: string;
+  kingdom: string;
+  facing: number;
+  x: number;
+  y: number;
+}
+
 interface RoomStateLike {
-  players?: Record<string, OwnPlayerState>;
+  players?: Record<string, OwnPlayerState & RemotePlayerState>;
+}
+
+interface RemoteVisual {
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  label: Phaser.GameObjects.Text;
 }
 
 /**
@@ -56,6 +72,9 @@ export class WorldScene extends Phaser.Scene {
   private pointerWorld: Vec2 | null = null;
   private pathTarget: Vec2 | null = null;
   private facing: Dir8 = 2;
+
+  private remoteRegistry = new RemoteRegistry();
+  private remoteVisuals = new Map<string, RemoteVisual>();
 
   constructor() {
     super({ key: "World" });
@@ -106,6 +125,8 @@ export class WorldScene extends Phaser.Scene {
     this.character.setDepth(this.character.y);
     this.shadow.setDepth(this.character.y - 1);
     this.arrow.setDepth(this.character.y + 1);
+
+    this.updateRemotes();
   }
 
   private ensurePredictor(): void {
@@ -130,6 +151,7 @@ export class WorldScene extends Phaser.Scene {
     this.predictor = new LocalPredictor(this.grid, { x: own.x, y: own.y }, sendInput);
     this.initializedFor = sessionId;
     this.character.setPosition(own.x, own.y);
+    this.syncRemotes(state, sessionId);
 
     room.onStateChange((next: unknown) => {
       const snapshot = next as RoomStateLike;
@@ -137,7 +159,69 @@ export class WorldScene extends Phaser.Scene {
       if (me) {
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
+      this.syncRemotes(snapshot, sessionId);
     });
+  }
+
+  /** Create/destroy remote sprites for the currently visible players. */
+  private syncRemotes(snapshot: RoomStateLike, ownSessionId: string): void {
+    const { removed } = this.remoteRegistry.sync(
+      snapshot.players ?? {},
+      ownSessionId,
+      this.time.now,
+    );
+    for (const sessionId of removed) {
+      const visual = this.remoteVisuals.get(sessionId);
+      if (visual) {
+        visual.sprite.destroy();
+        visual.shadow.destroy();
+        visual.label.destroy();
+        this.remoteVisuals.delete(sessionId);
+      }
+    }
+    for (const entity of this.remoteRegistry.entities.values()) {
+      if (!this.remoteVisuals.has(entity.sessionId)) {
+        this.createRemoteVisual(entity);
+      }
+    }
+  }
+
+  private createRemoteVisual(entity: RemoteEntity): void {
+    const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
+    const color = KINGDOMS.find((kingdom) => kingdom.id === entity.kingdom)?.color ?? "#cfd8d3";
+    const shadow = this.add.ellipse(pos.x, pos.y + 6, 24, 9, 0x000000, 0.3);
+    const sprite = this.add.sprite(pos.x, pos.y, KEY_CHARACTER).setOrigin(0.5, 0.85);
+    const label = this.add
+      .text(pos.x, pos.y - 52, entity.name, {
+        fontFamily: "monospace",
+        fontSize: "10px",
+        color,
+        stroke: "#0b0f0d",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1);
+    this.remoteVisuals.set(entity.sessionId, { sprite, shadow, label });
+  }
+
+  private updateRemotes(): void {
+    const now = this.time.now;
+    for (const entity of this.remoteRegistry.entities.values()) {
+      const visual = this.remoteVisuals.get(entity.sessionId);
+      if (!visual) {
+        continue;
+      }
+      const pos = this.remoteRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      entity.buffer.consumeTeleport();
+      visual.sprite.setPosition(pos.x, pos.y);
+      visual.sprite.setDepth(pos.y);
+      visual.shadow.setPosition(pos.x, pos.y + 6);
+      visual.shadow.setDepth(pos.y - 1);
+      visual.label.setPosition(pos.x, pos.y - 52);
+      visual.label.setDepth(pos.y + 2);
+    }
   }
 
   /** Input precedence: chat focus > WASD > hold-to-steer > click path > idle. */

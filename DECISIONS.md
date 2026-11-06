@@ -65,3 +65,7 @@ The `players` map is view-tagged and each client owns a `StateView`; `updateInte
 ## D16 — Warp = server seat reservation, cooldown on arrival
 
 Walking onto a `warp` object makes the room remove the player, call `matchMaker.joinOrCreate(targetMap, { name, kingdom, x, y, warp: true })` and send the returned `ISeatReservation` to the client as `warp`; the client leaves, consumes it, and fades into the new map. The `warp: true` join flag arms a 2 s arrival cooldown so the destination spawn can never immediately bounce the player back (the generated warp targets are also 2+ tiles clear of the return zone). A failed reservation restores the player at the old position and logs an error.
+
+## D17 — Remote players: receipt-time samples rendered 100 ms behind
+
+Each state patch pushes one `(x, y)` sample timestamped with the local Phaser clock; the scene renders `now − 100 ms` by binary-searching and lerping between bracketing samples, clamping at both ends (no extrapolation). A >200 px jump clears the buffer and snaps the sprite. Visible-player sync iterates the StateView-filtered `players` map on every patch instead of using `onAdd`/`onRemove`: with at most a few hundred entities this is simpler, handles interest add/remove and leave in one path, and avoids the callback API's collection-availability edge cases.
