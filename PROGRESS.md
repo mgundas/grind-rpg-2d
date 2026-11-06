@@ -141,8 +141,8 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 6 — Item loading, normalization and starter kit
 - [x] Task 7 — Inventory mutation persistence
 - [x] Task 8 — Pickup and gold persistence
-- [ ] Task 9 — Shop and warehouse persistence
-- [ ] Task 10 — Service wiring and room-test fakes
+- [x] Task 9 — Shop and warehouse persistence
+- [x] Task 10 — Service wiring and room-test fakes
 - [ ] Task 11 — Runtime inventory, join load, snapshots and command queue
 - [ ] Task 12 — Equipment stats and server-side visual keys
 - [ ] Task 13 — Drops, ground items and ownership

@@ -168,6 +168,7 @@ beforeAll(async () => {
       saveCharacter: fake.saveCharacter,
       saveCharacters: fake.saveCharacters,
       loadCharacter: fake.loadCharacter,
+      items: fake.items,
       // Hit, neutral damage roll, no crit; cycles per target. AI wander is not
       // due during these tests, so combat draws stay predictable.
       createRandomSource: () => {
