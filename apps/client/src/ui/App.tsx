@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { GAME_NAME } from "@jadethrone/shared";
 import { getHealth } from "../network/http";
+import { JoinPanel } from "./JoinPanel";
 import { useUiStore } from "./store";
 
 const POLL_MS = 5000;
@@ -12,12 +13,12 @@ const STATUS_COLOR = {
 } as const;
 
 /**
- * Status badge (docs/plans/phase-0.md task 11). Polls /api/health every
- * 5 s and shows online / offline / checking. The #overlay wrapper keeps
- * pointer-events off the canvas, so nothing here can steal mouse input.
+ * Overlay root: server status badge + guest join card. The #overlay wrapper
+ * keeps pointer-events off the canvas, so nothing here can steal mouse input.
  */
 export function App() {
   const serverOnline = useUiStore((state) => state.serverOnline);
+  const connectionPhase = useUiStore((state) => state.connectionPhase);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,22 +45,28 @@ export function App() {
         : STATUS_COLOR.offline;
 
   return (
-    <div style={{ position: "absolute", top: 12, left: 12 }}>
-      <span
-        style={{
-          display: "inline-block",
-          padding: "4px 10px",
-          background: "rgba(16, 20, 19, 0.85)",
-          border: "1px solid rgba(93, 168, 143, 0.4)",
-          borderRadius: 6,
-          fontFamily: "system-ui, sans-serif",
-          fontSize: 12,
-          color: "#cfd8d3",
-          textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-        }}
-      >
-        {GAME_NAME} — server: <span style={{ color: statusColor }}>{label}</span>
-      </span>
-    </div>
+    <>
+      <div style={{ position: "absolute", top: 12, left: 12 }}>
+        <span
+          style={{
+            display: "inline-block",
+            padding: "4px 10px",
+            background: "rgba(16, 20, 19, 0.85)",
+            border: "1px solid rgba(93, 168, 143, 0.4)",
+            borderRadius: 6,
+            fontFamily: "system-ui, sans-serif",
+            fontSize: 12,
+            color: "#cfd8d3",
+            textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+          }}
+        >
+          {GAME_NAME} — server: <span style={{ color: statusColor }}>{label}</span>
+          {connectionPhase === "connected" ? (
+            <span style={{ color: "#7ee08a" }}> · in game</span>
+          ) : null}
+        </span>
+      </div>
+      <JoinPanel />
+    </>
   );
 }

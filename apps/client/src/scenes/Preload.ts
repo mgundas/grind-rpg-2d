@@ -1,6 +1,9 @@
 import Phaser from "phaser";
+import villageMap from "@jadethrone/data/maps/map_ember_village.json";
+import fieldsMap from "@jadethrone/data/maps/map_ember_fields.json";
 import type { AssetManifest } from "../assets/manifest";
 import { createPlaceholder } from "../assets/placeholders";
+import { TILEMAP_KEYS } from "../world/mapKeys";
 
 /**
  * Loads every manifest entry; files that exist win, files that 404 get a
@@ -21,6 +24,22 @@ export class PreloadScene extends Phaser.Scene {
     if (!manifest) {
       this.scene.start("Boot");
       return;
+    }
+
+    // Seed Phaser's tilemap cache with the bundled Tiled JSON. Importing the
+    // same files the server bundles guarantees the client builds the exact
+    // same collision grid.
+    if (!this.cache.tilemap.exists(TILEMAP_KEYS.village)) {
+      this.cache.tilemap.add(TILEMAP_KEYS.village, {
+        format: Phaser.Tilemaps.Formats.TILED_JSON,
+        data: villageMap,
+      });
+    }
+    if (!this.cache.tilemap.exists(TILEMAP_KEYS.fields)) {
+      this.cache.tilemap.add(TILEMAP_KEYS.fields, {
+        format: Phaser.Tilemaps.Formats.TILED_JSON,
+        data: fieldsMap,
+      });
     }
 
     this.buildProgressBar();

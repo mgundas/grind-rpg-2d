@@ -8,6 +8,13 @@
         "tiles": ["grass", "dirt", "stone", "water", "wall"]
       }
     },
+    "tileset.fields": {
+      "path": "tilesets/fields.png",
+      "placeholder": {
+        "kind": "tileset",
+        "tiles": ["grass", "dirt", "stone", "water", "wall"]
+      }
+    },
     "char.body.male": {
       "path": "sprites/char/body-male.png",
       "placeholder": {

@@ -35,8 +35,8 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 9 — server: messages, chat, latency flag
 - [x] Task 10 — server: StateView interest
 - [x] Task 11 — server: warp between maps
-- [ ] Task 12 — client: session + guest join
-- [ ] Task 13 — client: real map rendering
+- [x] Task 12 — client: session + guest join
+- [x] Task 13 — client: real map rendering
 - [ ] Task 14 — client: input + prediction
 - [ ] Task 15 — client: remote interpolation
 - [ ] Task 16 — client: chat, bubbles, F3 overlay
