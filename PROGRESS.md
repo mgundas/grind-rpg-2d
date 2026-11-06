@@ -160,10 +160,38 @@ Plan: `docs/plans/phase-4.md`.
 
 **Gate verification (2026-11-07):** `pnpm typecheck`, `pnpm lint`, `pnpm build` pass. Full suite against `jade_throne_test` (constructed from the local Postgres env): **55 files / 513 tests pass**, including the real-Postgres transaction, pickup, shop, warehouse and repair tests. `pnpm verify:phase4-economy` passes; the live `node scripts/verify-phase4-e2e.mjs` run against the real server passed starter inventory, NPC dialog, shop buy/sell, warehouse deposit and cross-character withdraw. `scripts/smoke-server.mjs` boots both map rooms with `db: "up"`.
 
+## Phase 5 — Admin panel
+
+Plan: `docs/plans/phase-5.md`.
+
+- [ ] Task 1 — Shared admin contracts, protocol and error codes
+- [ ] Task 2 — Database schema + migration
+- [ ] Task 3 — Role guard and monitor cookie auth
+- [ ] Task 4 — Admin read service
+- [ ] Task 5 — Pure admin item planners
+- [ ] Task 6 — Admin mutation service
+- [ ] Task 7 — Live admin bus + service wiring
+- [ ] Task 8 — MapRoom registration and live admin actions
+- [ ] Task 9 — GM commands and chat logging
+- [ ] Task 10 — Admin runtime: rates, metrics, announcements, shutdown
+- [ ] Task 11 — Admin read routes
+- [ ] Task 12 — Admin mutation routes
+- [ ] Task 13 — Admin announcement/control routes
+- [ ] Task 14 — Colyseus monitor mount
+- [ ] Task 15 — Client announcement banner and kick reasons
+- [ ] Task 16 — Admin app foundation
+- [ ] Task 17 — Admin dashboard and Live Rooms pages
+- [ ] Task 18 — Admin player search and detail
+- [ ] Task 19 — Admin player actions
+- [ ] Task 20 — Admin announcements, server controls, game data
+- [ ] Task 21 — Admin logs page
+- [ ] Task 22 — Verification tooling and docs
+- [ ] Task 23 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
-- [ ] Phase 5 — Admin panel
+- [ ] Phase 5 — Admin panel (see the Phase 5 section above)
 - [ ] Phase 6 — Spirit stones, skills, parties
 - [ ] Phase 7 — Upgrades, bonuses, trading
 - [ ] Phase 8 — Social and progression depth
