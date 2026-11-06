@@ -4,14 +4,25 @@ import { z } from "zod";
 import {
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
+  MSG,
+  SERVER_TICK_GRACE_TICKS,
+  TICK_MS,
+  facing4FromDelta,
+  facing4FromIndex,
   facing4Index,
+  findPath,
+  inputMessageSchema,
   isWalkableAt,
   nearestWalkable,
+  stepMover,
+  type Dir8,
+  type InputMessage,
   type MapId,
   type Vec2,
 } from "@jadethrone/shared";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
+import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
 
 const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
@@ -25,10 +36,12 @@ const joinOptionsSchema = z.looseObject({
   y: z.number().finite().optional().catch(undefined),
 });
 
+/** Max queued input messages per player; older inputs are dropped. */
+const MAX_PENDING_INPUTS = 8;
+
 /**
  * One room instance per map (GAME_DESIGN.md §10.2). Phase 1 handles guest
- * join, movement (task 8), chat (task 9), interest management (task 10) and
- * warps (task 11).
+ * join, movement, chat (task 9), interest management (task 10) and warps.
  */
 export class MapRoom extends Room {
   maxClients = MAX_PLAYERS_PER_CHANNEL;
@@ -39,6 +52,7 @@ export class MapRoom extends Room {
 
   private mapId!: MapId;
   private assets!: MapAssets;
+  private runtimes = new Map<string, PlayerRuntime>();
 
   onCreate(): void {
     if (!isMapId(this.roomName)) {
@@ -46,6 +60,29 @@ export class MapRoom extends Room {
     }
     this.mapId = this.roomName;
     this.assets = loadMapAssets(this.mapId);
+
+    this.onMessage(MSG.input, (client, raw) => {
+      const parsed = inputMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        // A malformed message from a buggy/hostile client is dropped, not a
+        // reason to disconnect a legitimate session.
+        logger.warn(
+          { session: client.sessionId, issues: parsed.error.issues.map((issue) => issue.message) },
+          "dropped invalid input message",
+        );
+        return;
+      }
+      const runtime = this.runtimes.get(client.sessionId);
+      if (!runtime) {
+        return;
+      }
+      if (runtime.pending.length >= MAX_PENDING_INPUTS) {
+        runtime.pending.shift();
+      }
+      runtime.pending.push(parsed.data);
+    });
+
+    this.setSimulationInterval(() => this.tick(), TICK_MS);
     logger.info({ roomId: this.roomId, mapId: this.mapId }, "map room created");
   }
 
@@ -53,16 +90,18 @@ export class MapRoom extends Room {
     const parsed = joinOptionsSchema.safeParse(options ?? {});
     const join = parsed.success ? parsed.data : {};
     const spawn = this.resolveSpawn(join.x, join.y);
+    const runtime = createPlayerRuntime(spawn);
 
     const player = new PlayerState();
     player.name = sanitizeDisplayName(join.name);
     player.kingdom = join.kingdom ?? "ember";
-    player.x = spawn.x;
-    player.y = spawn.y;
+    player.x = runtime.mover.pos.x;
+    player.y = runtime.mover.pos.y;
     player.facing = facing4Index("down");
     player.moving = false;
     player.lastSeq = 0;
     this.state.players.set(client.sessionId, player);
+    this.runtimes.set(client.sessionId, runtime);
 
     client.view = new StateView();
     // Interim (task 10 narrows this to the interest radius): everyone sees
@@ -85,7 +124,102 @@ export class MapRoom extends Room {
 
   onLeave(client: Client, code: number): void {
     this.state.players.delete(client.sessionId);
+    this.runtimes.delete(client.sessionId);
     logger.info({ roomId: this.roomId, session: client.sessionId, closeCode: code }, "player left");
+  }
+
+  /**
+   * Fixed 20 Hz step, in the GAME_DESIGN order `input -> movement -> ...`.
+   * Each queued intent advances exactly one tick, so delayed input still
+   * covers the same distance; path intents keep walking without new input.
+   */
+  private tick(): void {
+    for (const client of this.clients) {
+      const runtime = this.runtimes.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!runtime || !player) {
+        continue;
+      }
+      this.stepPlayer(runtime, player);
+    }
+  }
+
+  private stepPlayer(runtime: PlayerRuntime, player: PlayerState): void {
+    const from = { x: runtime.mover.pos.x, y: runtime.mover.pos.y };
+    let applied = 0;
+
+    if (runtime.pending.length > 0) {
+      const queued = runtime.pending.sort((a, b) => a.seq - b.seq);
+      runtime.pending = [];
+      for (const message of queued) {
+        if (message.seq <= runtime.lastSeq) {
+          continue; // stale or duplicated input
+        }
+        runtime.lastSeq = message.seq;
+        this.applyMessage(runtime, message);
+        applied++;
+      }
+    }
+
+    if (applied === 0) {
+      if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
+        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+      } else if (runtime.ticksSinceInput < SERVER_TICK_GRACE_TICKS) {
+        runtime.ticksSinceInput++;
+        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+      } else if (runtime.mover.path.length > 0) {
+        runtime.mover = { ...runtime.mover, path: [] };
+      }
+    }
+
+    const to = runtime.mover.pos;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const moved = dx !== 0 || dy !== 0;
+
+    if (moved) {
+      player.x = to.x;
+      player.y = to.y;
+      player.facing = facing4Index(facing4FromDelta(dx, dy, facing4FromIndex(player.facing)));
+      player.moving = true;
+    } else if (player.moving) {
+      player.moving = false;
+    }
+    if (player.lastSeq !== runtime.lastSeq) {
+      player.lastSeq = runtime.lastSeq;
+    }
+  }
+
+  /** Convert a validated intent into mover state and step it once. */
+  private applyMessage(runtime: PlayerRuntime, message: InputMessage): void {
+    switch (message.kind) {
+      case "dir":
+        runtime.mover.path = [];
+        runtime.lastIntent = { kind: "dir", dir: message.dir as Dir8 };
+        runtime.lastPathTarget = null;
+        break;
+      case "path": {
+        const target = { x: message.x, y: message.y };
+        const previous = runtime.lastPathTarget;
+        const sameTarget =
+          previous !== null &&
+          Math.abs(previous.x - target.x) < 2 &&
+          Math.abs(previous.y - target.y) < 2;
+        if (!sameTarget) {
+          runtime.mover.path = findPath(this.assets.grid, runtime.mover.pos, target);
+          runtime.lastPathTarget = target;
+        }
+        runtime.lastIntent = { kind: "path" };
+        break;
+      }
+      case "none":
+        runtime.mover.path = [];
+        runtime.lastIntent = { kind: "none" };
+        runtime.lastPathTarget = null;
+        break;
+    }
+    runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+    runtime.ticksSinceInput = 0;
   }
 
   /** Reservation position when valid, otherwise the map spawn; always walkable. */

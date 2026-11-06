@@ -1,6 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { boot, type ColyseusTestServer } from "@colyseus/testing";
-import { ROOM_NAME_FIELDS, ROOM_NAME_VILLAGE, isWalkableAt } from "@jadethrone/shared";
+import {
+  MSG,
+  ROOM_NAME_FIELDS,
+  ROOM_NAME_VILLAGE,
+  isWalkableAt,
+  type InputMessage,
+} from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
 import { createGameServer } from "../../src/server";
 import { MapRoom } from "../../src/rooms/MapRoom";
@@ -15,6 +21,15 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<vo
     }
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** The SDK's `send` is typed against declared room messages; ours are strings. */
+function sendInput(client: unknown, message: InputMessage): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(MSG.input, message);
 }
 
 beforeAll(async () => {
@@ -139,5 +154,126 @@ describe("MapRoom join", () => {
     // server state instead of waiting for a patch.
     await waitUntil(() => room.state.players.size === 0);
     expect(room.state.players.size).toBe(0);
+  });
+});
+
+describe("MapRoom movement", () => {
+  it("moves, acks the input sequence and stops on none", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Walker" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const startX = room.state.players.get(sessionId)!.x;
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    expect(room.state.players.get(sessionId)!.x).toBeGreaterThan(startX);
+
+    sendInput(client, { seq: 2, kind: "none" });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 2);
+    await waitUntil(() => room.state.players.get(sessionId)!.moving === false);
+
+    const stoppedX = room.state.players.get(sessionId)!.x;
+    await sleep(150);
+    expect(room.state.players.get(sessionId)!.x).toBe(stoppedX);
+  });
+
+  it("ignores stale and duplicate sequences", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Stale" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    sendInput(client, { seq: 2, kind: "none" });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 2);
+    await waitUntil(() => room.state.players.get(sessionId)!.moving === false);
+    const stoppedX = room.state.players.get(sessionId)!.x;
+
+    // Replaying old sequences must not move the player again.
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    sendInput(client, { seq: 2, kind: "dir", dir: 0 });
+    await sleep(150);
+    expect(room.state.players.get(sessionId)!.x).toBe(stoppedX);
+  });
+
+  it("stops at a wall instead of clipping through it", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, {
+      name: "Wall",
+      x: VILLAGE_SPAWN.x,
+      y: 80,
+    });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    for (let seq = 1; seq <= 6; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 6 }); // north
+    }
+    sendInput(client, { seq: 7, kind: "none" });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 7);
+    await waitUntil(() => room.state.players.get(sessionId)!.moving === false);
+
+    const player = room.state.players.get(sessionId)!;
+    // Border ring starts at y=64; the body is 12px tall (half 6), so the
+    // centre stops at y=70.
+    expect(player.y).toBeCloseTo(70, 3);
+    const grid = (room as unknown as { assets: { grid: Parameters<typeof isWalkableAt>[0] } })
+      .assets.grid;
+    expect(isWalkableAt(grid, player.x, player.y)).toBe(true);
+  });
+
+  it("follows a click-to-move path to its exact target", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Clicker" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const target = { x: VILLAGE_SPAWN.x + 96, y: VILLAGE_SPAWN.y };
+
+    sendInput(client, { seq: 1, kind: "path", x: target.x, y: target.y });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    await waitUntil(() => {
+      const player = room.state.players.get(sessionId)!;
+      return !player.moving && Math.abs(player.x - target.x) < 4;
+    }, 3000);
+
+    const player = room.state.players.get(sessionId)!;
+    expect(player.x).toBeCloseTo(target.x, 0);
+    expect(player.y).toBeCloseTo(target.y, 0);
+  });
+
+  it("stops after the input grace period", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Grace" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    await sleep(350);
+    const settled = room.state.players.get(sessionId)!;
+    expect(settled.moving).toBe(false);
+    const settledX = settled.x;
+    await sleep(150);
+    expect(room.state.players.get(sessionId)!.x).toBe(settledX);
+  });
+
+  it("survives an invalid input payload", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Cheater" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    (client as unknown as { send: (type: string, payload: unknown) => void }).send(MSG.input, {
+      seq: -1,
+      kind: "dir",
+      dir: 0,
+    });
+    await sleep(100);
+    expect(room.state.players.has(sessionId)).toBe(true);
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
   });
 });

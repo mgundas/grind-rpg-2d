@@ -49,3 +49,7 @@ Maps are Tiled JSON (same format the spec calls `.tmj`) but named `*.json` so Vi
 ## D12 — One room type per map, and map assets are memoized shared JSON
 
 `map_ember_village` and `map_ember_fields` are separate registrations of the same `MapRoom` class; `roomName` is the map id, so clients can never choose a map. Server and client import the same generated JSON and build the collision grid with the same shared parser; `apps/server/src/maps/mapRegistry.ts` memoizes parsed assets per map. `createGameServer()` builds the server without listening so `@colyseus/testing` can boot it for room tests.
+
+## D13 — Movement input: one tick per intent, dropped-not-kicked validation
+
+Each validated `input` intent is stepped for exactly one 50 ms tick (20 intents/s reproduces the client exactly), and the server keeps applying the last intent for up to 3 ticks (~150 ms) so jitter does not produce stutter; click-to-move `path` intents persist until the path is finished rather than needing a message per tick. Malformed payloads fail `safeParse` and are logged + dropped inside the handler instead of using Colyseus's schema-validated `onMessage` overload, because that overload disconnects the client on the first invalid message. Final path waypoints snap to the exact target when it is within one step and walkable, so clicks land where the player clicked.

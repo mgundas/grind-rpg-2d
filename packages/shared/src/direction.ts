@@ -40,6 +40,17 @@ export function facing4FromIndex(index: number): Facing4 {
   return FACING4_ORDER[index] ?? "down";
 }
 
+/** Facing from a movement delta, keeping the previous facing when idle. */
+export function facing4FromDelta(dx: number, dy: number, fallback: Facing4 = "down"): Facing4 {
+  if (dx === 0 && dy === 0) {
+    return fallback;
+  }
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx > 0 ? "right" : "left";
+  }
+  return dy > 0 ? "down" : "up";
+}
+
 /**
  * Sprite sheets only have 4 rows; diagonals use the closer horizontal
  * direction (GAME_DESIGN.md §5), i.e. E/SE/NE look right, W/SW/NW look left.

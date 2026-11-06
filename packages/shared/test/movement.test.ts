@@ -147,6 +147,7 @@ describe("stepMover", () => {
         TICK_MS,
       );
       expect(state.path).toEqual([]);
+      expect(state.pos).toEqual({ x: 53, y: 48 });
     });
   });
 });
