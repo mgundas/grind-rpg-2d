@@ -12,6 +12,7 @@ import {
   type ClassId,
   type InventoryState,
   type ItemBonus,
+  type ItemDefinitionLike,
   type ItemStack,
   type WarehouseState,
 } from "@jadethrone/shared";
@@ -334,6 +335,75 @@ export function planPickup(
       ],
     },
   };
+}
+
+/**
+ * Admin grant: ordinary item row(s) with an optional upgrade level and bonuses.
+ * Uses the same stacking/free-slot rules as looting and is atomic on a full bag.
+ */
+export function planAdminGive(
+  state: InventoryState,
+  characterId: string,
+  definition: ItemDefinitionLike,
+  quantity: number,
+  upgradeLevel: number,
+  bonuses: readonly ItemBonus[],
+  newId: () => string,
+  detail?: Record<string, unknown>,
+): ItemPlanResult<InventoryState> {
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new ItemError("invalid_quantity", "Quantity must be positive.");
+  }
+  if (!Number.isInteger(upgradeLevel) || upgradeLevel < 0 || upgradeLevel > 9) {
+    throw new ItemError("invalid_quantity", "Upgrade level must be 0–9.");
+  }
+  if (bonuses.length > 5) {
+    throw new ItemError("invalid_quantity", "At most five bonuses are allowed.");
+  }
+  const result = addItem(
+    state,
+    definition,
+    {
+      id: newId(),
+      itemId: definition.id,
+      slot: 0,
+      quantity,
+      upgradeLevel,
+      bonuses: [...bonuses],
+    },
+    newId,
+    safeDefinition,
+  );
+  if (!result.ok) {
+    throw new ItemError(result.code, `Cannot grant item: ${result.code}`);
+  }
+  return planFromInventory(state, result.state, characterId, "admin_grant", "admin", {
+    quantity,
+    upgradeLevel,
+    ...detail,
+  });
+}
+
+/** Admin removal handles inventory and equipped instances. */
+export function planAdminRemove(
+  state: InventoryState,
+  characterId: string,
+  instanceId: string,
+): ItemPlanResult<InventoryState> {
+  const located = locateStacks(state);
+  const entry = located.get(instanceId);
+  if (!entry) {
+    throw new ItemError("item_not_found", "Item is not owned by this character.");
+  }
+  const after = cloneInventory(state);
+  if (entry.location === "inventory") {
+    after.items = after.items.filter((item) => item.id !== instanceId);
+  } else {
+    after.equipment[entry.stack.slot] = null;
+  }
+  return planFromInventory(state, after, characterId, "admin_remove", "mutation", {
+    itemId: entry.stack.itemId,
+  });
 }
 
 export function planGoldPickup(characterId: string, amount: number, dropId: string): ItemPlan {

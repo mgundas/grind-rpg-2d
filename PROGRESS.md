@@ -168,7 +168,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 2 — Database schema + migration
 - [x] Task 3 — Role guard and monitor cookie auth
 - [x] Task 4 — Admin read service
-- [ ] Task 5 — Pure admin item planners
+- [x] Task 5 — Pure admin item planners
 - [ ] Task 6 — Admin mutation service
 - [ ] Task 7 — Live admin bus + service wiring
 - [ ] Task 8 — MapRoom registration and live admin actions
