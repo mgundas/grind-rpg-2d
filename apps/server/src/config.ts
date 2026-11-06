@@ -21,6 +21,18 @@ const envSchema = z.object({
   POSTGRES_DB: z.string().min(1).default("jade_throne"),
   /** Optional explicit override of the URL built from the values above. */
   DATABASE_URL: z.string().url().optional(),
+
+  JWT_ACCESS_SECRET: z.string().min(1).default("dev-only-jade-throne-access-secret-change-me"),
+  JWT_REFRESH_SECRET: z.string().min(1).default("dev-only-jade-throne-refresh-secret-change-me"),
+  JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(3600),
+  JWT_REFRESH_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(3600)
+    .max(365 * 24 * 3600)
+    .default(30 * 24 * 3600),
+  SEED_ADMIN_EMAIL: z.string().default("admin@example.com"),
+  SEED_ADMIN_PASSWORD: z.string().default("change-me-please-8-chars"),
 });
 
 /**
@@ -37,6 +49,12 @@ export interface Config {
   databaseUrl: string;
   /** True when a dev placeholder POSTGRES_PASSWORD is configured. */
   usingDefaultDbPassword: boolean;
+  jwtAccessSecret: string;
+  jwtRefreshSecret: string;
+  jwtAccessTtlSeconds: number;
+  jwtRefreshTtlSeconds: number;
+  seedAdminEmail: string;
+  seedAdminPassword: string;
 }
 
 function buildDatabaseUrl(parts: {
@@ -75,6 +93,12 @@ function parseConfig(): Config {
       }),
     usingDefaultDbPassword:
       env.DATABASE_URL === undefined && DEFAULT_DB_PASSWORDS.has(env.POSTGRES_PASSWORD),
+    jwtAccessSecret: env.JWT_ACCESS_SECRET,
+    jwtRefreshSecret: env.JWT_REFRESH_SECRET,
+    jwtAccessTtlSeconds: env.JWT_ACCESS_TTL_SECONDS,
+    jwtRefreshTtlSeconds: env.JWT_REFRESH_TTL_SECONDS,
+    seedAdminEmail: env.SEED_ADMIN_EMAIL,
+    seedAdminPassword: env.SEED_ADMIN_PASSWORD,
   };
 }
 

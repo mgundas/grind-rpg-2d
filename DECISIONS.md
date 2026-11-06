@@ -81,3 +81,7 @@ Ground and `above` stay as tilemap layers (depth 0 and 100000), but every non-em
 ## D20 — Local prediction uses render-only interpolation
 
 The local simulation remains fixed at 20 Hz, but `visualPosition` lerps the previous and latest predicted positions by the fixed-step accumulator fraction. This adds at most one tick of presentation delay and deliberately avoids extrapolation, which could overshoot collision or path endpoints. Reconciliation replays the penultimate as well as the latest position so the active interpolation segment survives a patch; small corrections remain continuous offsets from that segment, while large snaps reset both positions. Interpolation never feeds back into input history, shared movement, or the authoritative simulation.
+
+## D21 — Phase-2 schema is hand-owned Drizzle SQL, applied by boot and CLI
+
+`apps/server/drizzle/` holds the committed migration SQL generated from `src/db/schema.ts`; `drizzle-kit` only generates. `pnpm db:migrate` applies it, and the server also runs the same migrator in the background after `listen()` so a fresh database self-heals without blocking the HTTP health endpoint when the database is down. IDs are application-generated UUIDs (no DB extension), and case-insensitive uniqueness for email/username/character name is enforced with `lower(...)` expression indexes rather than application pre-checks, because registration races are otherwise possible. `characters` uses `class_id`/`map_id` column names (the spec's `class`/`map` are reserved-ish in SQL and ambiguous in TypeScript).

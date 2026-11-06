@@ -7,3 +7,4 @@ coverage
 AGENTS.md
 GAME_DESIGN.md
 packages/data/maps
+apps/server/drizzle

@@ -1,6 +1,7 @@
 import process from "node:process";
 import { matchMaker } from "@colyseus/core";
 import { config } from "./config";
+import { runMigrations } from "./db/migrate";
 import { logger } from "./logger";
 import { createGameServer } from "./server";
 
@@ -18,6 +19,26 @@ const server = createGameServer();
 if (config.usingDefaultDbPassword) {
   logger.warn("POSTGRES_PASSWORD is not configured; using the built-in dev default.");
 }
+
+const DEV_JWT_SECRETS = new Set([
+  "dev-only-jade-throne-access-secret-change-me",
+  "dev-only-jade-throne-refresh-secret-change-me",
+  "change-me",
+]);
+if (DEV_JWT_SECRETS.has(config.jwtAccessSecret) || DEV_JWT_SECRETS.has(config.jwtRefreshSecret)) {
+  if (process.env.NODE_ENV === "production") {
+    logger.error("JWT secrets are dev placeholders; refusing to start in production.");
+    process.exit(1);
+  }
+  logger.warn("JWT secrets are dev placeholders; set JWT_ACCESS_SECRET/JWT_REFRESH_SECRET.");
+}
+
+// Migrations are applied in the background so an unreachable database never
+// prevents the HTTP health endpoint from answering. Auth/character routes
+// return 503 until the tables exist (see DECISIONS.md D26).
+void runMigrations()
+  .then(() => logger.info("database migrations applied"))
+  .catch((error: unknown) => logger.error({ error }, "database migrations failed"));
 
 server
   .listen(config.port)

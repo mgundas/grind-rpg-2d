@@ -13,6 +13,7 @@ Phase 1 is complete (`docs/reports/phase-1.md`). This plan was produced after re
 ## 1. What already exists that Phase 2 builds on
 
 ### Server (`apps/server`)
+
 - `src/server.ts` — `createGameServer()` returns `defineServer({ rooms, express })`; the single mounting point for REST routes and room registrations.
 - `src/rooms/MapRoom.ts` (504 lines) — anonymous guest join (`joinOptionsSchema` accepts `name`, `kingdom`, `warpToken`), 20 Hz authoritative movement, chat, StateView interest (850/900 px), warp via `matchMaker.joinOrCreate` + single-use warp tokens.
 - `src/rooms/state/WorldState.ts` — `PlayerState { name, kingdom, x, y, facing, moving, lastSeq }` in a `@view()`-tagged `players` MapSchema. No character id, class, appearance, level or account linkage.
@@ -25,12 +26,14 @@ Phase 1 is complete (`docs/reports/phase-1.md`). This plan was produced after re
 - `apps/server/package.json` — no Drizzle, argon2 or JWT. `pg`, `express`, `pino`, `zod` are present.
 
 ### Shared / data
+
 - `packages/shared` — movement, collision, pathfinding, Tiled parser, chat, protocol Zod schemas, constants, seeded RNG.
 - `packages/shared/src/protocol.ts` — `MSG`, input/chat schemas, `ChatMsgPayload`, `WarpPayload`.
 - `packages/data` — generated Tiled maps only; no class/item/monster JSON.
 - `packages/shared/src/formulas.ts` does **not** exist yet.
 
 ### Client (`apps/client`)
+
 - `src/network/session.ts` — SDK singleton, `connect({ name, kingdom })`, warp consumption, ping loop.
 - `src/ui/JoinPanel.tsx` — Phase-1 guest join (name + kingdom); `App.tsx` renders it over the canvas.
 - `src/scenes/World.ts` — map render, own predictor, remote interpolation, chat bubbles, warp; own sprite texture is hardcoded to `char.body.male`; remotes use the same texture.
@@ -39,13 +42,16 @@ Phase 1 is complete (`docs/reports/phase-1.md`). This plan was produced after re
 - Tests: predictor, interpolation, manifest; server room tests (601 lines) all join anonymously.
 
 ### Infra
+
 - No Drizzle, migrations, auth, sessions, character tables, or seed script.
 - `.env.example` already reserves `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD`.
 - CI has **no** Postgres service yet (explicit Phase-2 TODO comment).
 - `scripts/verify-phase1-e2e.mjs` and `scripts/smoke-server.mjs` both assume anonymous joins and must be updated.
 
 ### Colyseus 0.17 facts verified in the installed typings/runtime
+
 These dictated the design:
+
 - **Authentication must be a `static onAuth`.** `MatchMaker.mjs` calls `roomClass["onAuth"](authContext.token, options, authContext)` during matchmaking and stores the return value as the seat reservation's auth data; `Room._onJoin` then assigns it to `client.auth`. An instance-only `onAuth` runs later during the WS join and is ignored if a static one exists (`defineRoomType` logs a warning). Static auth is what allows a bad token to fail the HTTP matchmake request cleanly and lets warp reservations carry identity.
 - `client.auth.token = jwt` in `@colyseus/sdk` sets `http.authToken`, which sends `Authorization: Bearer …` on matchmake and `_authToken=…` on the WebSocket URL; `ws-transport` turns that into `context.token`.
 - `matchMaker.joinOrCreate(roomName, options, authContext)` accepts an `AuthContext`. **Once MapRoom gains a static `onAuth`, warp reservations must pass a third argument** (or `callOnAuth` dereferences `undefined.token`). This is a Phase-1 breakage risk to handle explicitly.
@@ -60,6 +66,7 @@ These dictated the design:
 ## 2. Architecture for Phase 2
 
 ### 2.1 Identity and session model
+
 - `accounts` own `characters` (max 4) and a kingdom. `characters` store everything needed to rejoin.
 - Access token: JWT HS256, 1 h, claims `{ sub: accountId, tv: tokenVersion, typ: "access", iss: "jade-throne" }`.
 - Refresh token: JWT HS256, 30 days, claims `{ sub, sid, typ: "refresh" }`; only its SHA-256 hash is stored in `sessions`. Rotation on every refresh.
@@ -71,6 +78,7 @@ These dictated the design:
 - Logout revokes the refresh session, increments `token_version`, clears the registry entry and leaves the room.
 
 ### 2.2 Join flow (initial join and warp)
+
 1. Client `POST /api/auth/login` → tokens + characters.
 2. Client sets `sdk.auth.token = accessToken`, then `joinOrCreate(character.map, { characterId, map: character.map })`.
 3. Static `MapRoom.onAuth(token, options, context)`:
@@ -82,6 +90,7 @@ These dictated the design:
 4. `MapRoom.onJoin` uses `client.auth.character` — never the client-supplied name/kingdom/position — and builds `PlayerState`.
 
 ### 2.3 Persistence policy
+
 - Save only the server-authoritative position/map: on leave, immediately before a warp reservation, and every 60 s for dirty players.
 - `runtime.dirty` is set when a tick changes position; a successful save clears it.
 - On join, the saved position is validated with `nearestWalkable` against the room's collision grid; invalid positions fall back to the map spawn and are marked dirty.
@@ -90,6 +99,7 @@ These dictated the design:
 - DB errors never crash the room tick: log, keep `dirty`, retry on the next save.
 
 ### 2.4 Database (Drizzle, PostgreSQL)
+
 Tables for this phase (unused spec tables such as items/guilds/logs stay for later phases):
 
 - `accounts`: `id uuid pk`, `email` (lower-cased), `username`, `password_hash`, `kingdom`, `role` (`player|gm|admin`), `token_version int`, `banned_until timestamptz null`, `ban_reason`, `created_at`, `last_login`.
@@ -99,6 +109,7 @@ Tables for this phase (unused spec tables such as items/guilds/logs stay for lat
 - Character creation uses a transaction with `SELECT id FROM accounts WHERE id = $1 FOR UPDATE` then a count, so concurrent requests cannot exceed 4 slots; the DB unique index is the final arbiter for names (map PG `23505` to 409).
 
 ### 2.5 Layered character appearance
+
 - Appearance is data: `classId` from `packages/data/classes.json`, `gender` (`male|female`), `hairStyle` 0–2, `hairColor` 0–2.
 - A client-only layered canvas draw (`body → legs → torso/class outfit → head → hair`) produces a composite texture keyed by `char.gen.<class>.<gender>.<hairStyle>.<hairColor>`; the same drawing function backs the React character preview.
 - Server `PlayerState` carries `characterId`, `classId`, `gender`, `hairStyle`, `hairColor`, `level` so other clients render the correct appearance.
@@ -130,6 +141,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 ## 3. Hard-system detail and edge cases
 
 ### Auth / REST
+
 - Never log passwords, tokens, or password hashes; log security events with account id + IP only.
 - Login failures are always the same 401 response regardless of email/username existence.
 - Register 409 for taken email/username (registration inherently reveals it).
@@ -140,6 +152,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 - JWT secrets shorter than 32 chars: warn in dev, reject in production. The human's existing `.env` uses `change-me`; either update it or let dev warn.
 
 ### One-session kick
+
 - Kick saves the authoritative position before closing the socket; `dirty` is cleared so the following `onLeave` does not overwrite a newer session.
 - The registry is keyed by account and character; `onLeave` only unregisters if its `sessionId` matches.
 - Login from a second browser: old room gets `sessionKicked` + close 4100; old access token fails `tv` check on any rejoin.
@@ -147,6 +160,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 - Cross-process limitation: the registry is in-process. Single-process deployment is the Phase-2 expectation; record it.
 
 ### Character transactions
+
 - 4-slot limit: `SELECT … FOR UPDATE` on the account row, count, insert inside one transaction.
 - Name uniqueness: DB expression unique index, case-insensitive; map `23505` to 409 `name_taken`.
 - Deleting an online character: kick/save first, then delete; delete is hard today (items arrive in Phase 4, cascade then).
@@ -154,6 +168,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 - Never trust client-supplied name/kingdom/level/position.
 
 ### Join, map and warp
+
 - Static `onAuth` returns the full safe identity; `onJoin` only uses it.
 - `options.map` must equal the character's saved map; a stale client gets a clean auth failure, then refetches characters and retries once.
 - Warp reservations pass an `AuthContext`; the target room accepts the server-issued warp token without a JWT, so an expired access token never breaks a map change.
@@ -162,6 +177,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 - The arrival cooldown, "client did not leave" timeout, and token pruning from Phase 1 remain.
 
 ### Persistence lifecycle
+
 - Join: load, validate position with `nearestWalkable`, mark dirty if corrected.
 - Tick: mark dirty only when the authoritative position changes.
 - 60 s autosave: only dirty, non-warping players; `Promise.allSettled`; errors logged.
@@ -170,6 +186,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 - Server crash: at most 60 s of movement lost.
 
 ### Client state machine
+
 - Screens: boot/checking → auth (login/register) → character select → connecting → world.
 - On join failure: refresh token once, refetch characters (map may have changed), retry once, then surface the error.
 - On kick: message + close code; login-replacement clears tokens, duplicate-join keeps them and returns to character select.
@@ -181,24 +198,24 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 
 ## 4. Tests
 
-| File | Covers |
-|---|---|
-| `packages/shared/test/characterRules.test.ts` | Name rules, class/appearance enums, map labels |
-| `packages/shared/test/auth.test.ts` | Register/login/refresh DTO validation |
-| `packages/shared/test/formulas.test.ts` | `maxHp`/`maxMp` reference values |
-| `packages/data/test/classes.test.ts` | JSON validity, 4 classes, stats/doctrines match §4.2, ids match shared |
-| `apps/server/test/auth/passwords.test.ts` | Argon2id hash/verify, wrong password, salt uniqueness, length limits |
-| `apps/server/test/auth/tokens.test.ts` | Access/refresh sign/verify, expiry, wrong type/secret/issuer, malformed claims |
-| `apps/server/test/http/rateLimit.test.ts` | Window, per-key isolation, reset, over-limit |
-| `apps/server/test/db/persistence.test.ts` | Real DB: register/login/refresh/logout, duplicates, ban, token version, sessions, character CRUD, 4-slot race, case-insensitive names, ownership, save/load, spawn snapping |
-| `apps/server/test/api/routes.test.ts` | HTTP status codes/shapes with fake services, auth required, no hash leakage, kick on login, 429, 503 |
-| `apps/server/test/rooms/joinAuth.test.ts` | JWT path, warp-token path, map/ownership/version/ban checks |
-| `apps/server/test/rooms/sessionRegistry.test.ts` | register/unregister, save-before-kick, duplicate-session handling |
-| `apps/server/test/rooms/warpTokens.test.ts` | Extended token binding, single use, TTL, wrong map/character |
-| `apps/server/test/rooms/rooms.test.ts` | All Phase-1 movement/chat/interest/warp tests with fake auth, plus auth-required join, saved spawn, appearance in state, save on leave, autosave, kick, map mismatch |
-| `apps/client/test/api.test.ts` | Refresh-and-retry, refresh failure, error parsing |
-| `apps/client/test/characterKeys.test.ts` | Texture key determinism/bounds |
-| `scripts/verify-phase2-e2e.mjs` | Full acceptance flow against the real stack |
+| File                                             | Covers                                                                                                                                                                      |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/shared/test/characterRules.test.ts`    | Name rules, class/appearance enums, map labels                                                                                                                              |
+| `packages/shared/test/auth.test.ts`              | Register/login/refresh DTO validation                                                                                                                                       |
+| `packages/shared/test/formulas.test.ts`          | `maxHp`/`maxMp` reference values                                                                                                                                            |
+| `packages/data/test/classes.test.ts`             | JSON validity, 4 classes, stats/doctrines match §4.2, ids match shared                                                                                                      |
+| `apps/server/test/auth/passwords.test.ts`        | Argon2id hash/verify, wrong password, salt uniqueness, length limits                                                                                                        |
+| `apps/server/test/auth/tokens.test.ts`           | Access/refresh sign/verify, expiry, wrong type/secret/issuer, malformed claims                                                                                              |
+| `apps/server/test/http/rateLimit.test.ts`        | Window, per-key isolation, reset, over-limit                                                                                                                                |
+| `apps/server/test/db/persistence.test.ts`        | Real DB: register/login/refresh/logout, duplicates, ban, token version, sessions, character CRUD, 4-slot race, case-insensitive names, ownership, save/load, spawn snapping |
+| `apps/server/test/api/routes.test.ts`            | HTTP status codes/shapes with fake services, auth required, no hash leakage, kick on login, 429, 503                                                                        |
+| `apps/server/test/rooms/joinAuth.test.ts`        | JWT path, warp-token path, map/ownership/version/ban checks                                                                                                                 |
+| `apps/server/test/rooms/sessionRegistry.test.ts` | register/unregister, save-before-kick, duplicate-session handling                                                                                                           |
+| `apps/server/test/rooms/warpTokens.test.ts`      | Extended token binding, single use, TTL, wrong map/character                                                                                                                |
+| `apps/server/test/rooms/rooms.test.ts`           | All Phase-1 movement/chat/interest/warp tests with fake auth, plus auth-required join, saved spawn, appearance in state, save on leave, autosave, kick, map mismatch        |
+| `apps/client/test/api.test.ts`                   | Refresh-and-retry, refresh failure, error parsing                                                                                                                           |
+| `apps/client/test/characterKeys.test.ts`         | Texture key determinism/bounds                                                                                                                                              |
+| `scripts/verify-phase2-e2e.mjs`                  | Full acceptance flow against the real stack                                                                                                                                 |
 
 Existing tests updated: `rooms.test.ts` joins; `verify-phase1-e2e.mjs`; `smoke-server.mjs`. `packages/data/test/maps.test.ts` is untouched.
 
@@ -206,19 +223,19 @@ Existing tests updated: `rooms.test.ts` joins; `verify-phase1-e2e.mjs`; `smoke-s
 
 ## 5. Acceptance verification
 
-| Acceptance (GAME_DESIGN §12) | Automated verification | Manual verification |
-|---|---|---|
-| Register | `POST /api/auth/register` tests + e2e; duplicate email/username tests | Fill the Register tab; account is created and lands on character select |
-| Create a character | Character service tests + e2e create; 4-slot/name/class/appearance validation | Create each class; check preview, name rules, 5th slot disabled |
-| Walk | Existing movement/prediction tests + e2e input/ack | WASD/click move; remote tab sees smooth movement |
-| Log out | Logout route/service tests + e2e leave | Click Log out; returns to login; DB `characters.x/y/map` updated |
-| Log in | Login tests + e2e | Log back in; character list appears |
-| Character is where it was | e2e compares the rejoin state to the saved position/map | Leave on the fields, log in, spawn at the same spot/map |
-| Second login kicks the first session | e2e: second login, first room receives `sessionKicked`/4100; old token rejoin fails; registry/version tests | Two browsers: second login shows "signed in elsewhere" in the first |
-| LPC-style layered placeholder appearance | State appearance fields + texture key tests | Preview and in-world sprite change with gender/class/hair; remote tab matches |
-| React login/character select styled per §2 | — (human) | Dark lacquer/jade/gold panels, consistent with the existing UI |
-| `pnpm dev` / build / test / typecheck | All commands run at the phase gate | `pnpm dev` starts DB, server, client, admin |
-| Migrations | `pnpm db:migrate` + boot migration | Fresh DB gets tables automatically |
+| Acceptance (GAME_DESIGN §12)               | Automated verification                                                                                      | Manual verification                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Register                                   | `POST /api/auth/register` tests + e2e; duplicate email/username tests                                       | Fill the Register tab; account is created and lands on character select       |
+| Create a character                         | Character service tests + e2e create; 4-slot/name/class/appearance validation                               | Create each class; check preview, name rules, 5th slot disabled               |
+| Walk                                       | Existing movement/prediction tests + e2e input/ack                                                          | WASD/click move; remote tab sees smooth movement                              |
+| Log out                                    | Logout route/service tests + e2e leave                                                                      | Click Log out; returns to login; DB `characters.x/y/map` updated              |
+| Log in                                     | Login tests + e2e                                                                                           | Log back in; character list appears                                           |
+| Character is where it was                  | e2e compares the rejoin state to the saved position/map                                                     | Leave on the fields, log in, spawn at the same spot/map                       |
+| Second login kicks the first session       | e2e: second login, first room receives `sessionKicked`/4100; old token rejoin fails; registry/version tests | Two browsers: second login shows "signed in elsewhere" in the first           |
+| LPC-style layered placeholder appearance   | State appearance fields + texture key tests                                                                 | Preview and in-world sprite change with gender/class/hair; remote tab matches |
+| React login/character select styled per §2 | — (human)                                                                                                   | Dark lacquer/jade/gold panels, consistent with the existing UI                |
+| `pnpm dev` / build / test / typecheck      | All commands run at the phase gate                                                                          | `pnpm dev` starts DB, server, client, admin                                   |
+| Migrations                                 | `pnpm db:migrate` + boot migration                                                                          | Fresh DB gets tables automatically                                            |
 
 Phase-gate commands:
 
@@ -255,6 +272,7 @@ node scripts/verify-phase2-e2e.mjs
 15. **Zod/Drizzle API drift** — re-check installed typings in task 1 (table extra config form, expression indexes, `.for("update")`, `z.email`).
 
 ### Decisions to add to `DECISIONS.md`
+
 - D21: static `onAuth` at matchmaking; `client.auth` carries the identity; warp tokens instead of JWT re-verification.
 - D22: access JWT + rotating refresh sessions (hashed), `token_version`, in-process kick registry, close code 4100.
 - D23: Drizzle schema/keys; app-generated UUIDs; expression unique indexes; 4-slot `FOR UPDATE` transaction.
