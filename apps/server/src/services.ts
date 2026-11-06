@@ -1,0 +1,35 @@
+import type { AuthDeps } from "./auth/accountService";
+import type { JoinAuthenticator } from "./auth/joinAuth";
+import type { SessionRegistry } from "./auth/sessionRegistry";
+import type { Db } from "./db/client";
+
+/**
+ * Server-wide services resolved by Colyseus room instances (which are created
+ * by the framework, not by us). `createGameServer()` installs the real
+ * implementations; tests install fakes before booting. There is deliberately no
+ * guest/bypass mode: the default is always the DB-backed authenticator.
+ */
+export interface ServerServices {
+  db: Db;
+  authDeps: AuthDeps;
+  joinAuthenticator: JoinAuthenticator;
+  sessionRegistry: SessionRegistry;
+}
+
+let current: ServerServices | null = null;
+
+export function setServerServices(services: ServerServices): void {
+  current = services;
+}
+
+export function getServerServices(): ServerServices {
+  if (!current) {
+    throw new Error("Server services have not been initialized (createGameServer must run first)");
+  }
+  return current;
+}
+
+/** Test helper: forget the installed services between test files. */
+export function resetServerServices(): void {
+  current = null;
+}

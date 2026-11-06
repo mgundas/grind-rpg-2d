@@ -76,7 +76,7 @@ Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typ
 - [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
 - [x] Task 3 — Password hashing and JWT helpers
 - [x] Task 4 — Account and character services (DB)
-- [ ] Task 5 — Session registry, warp token extension, static join authenticator
+- [x] Task 5 — Session registry, warp token extension, join authenticator (MapRoom wiring in task 7)
 - [ ] Task 6 — REST routes, middleware, server dependency wiring
 - [ ] Task 7 — MapRoom: authenticated join, state identity, persistence, kick
 - [ ] Task 8 — Warp persistence and target-map authentication

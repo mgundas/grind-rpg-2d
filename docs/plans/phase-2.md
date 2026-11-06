@@ -163,7 +163,7 @@ Every task ends with `pnpm typecheck`, the relevant tests, `pnpm lint`, a `PROGR
 
 - 4-slot limit: `SELECT … FOR UPDATE` on the account row, count, insert inside one transaction.
 - Name uniqueness: DB expression unique index, case-insensitive; map `23505` to 409 `name_taken`.
-- Deleting an online character: the route blocks it with 409 `character_online` via an injected registry predicate (see D24); delete is hard today (items arrive in Phase 4, cascade then).
+- Deleting an online character: the route blocks it with 409 `character_online` via an injected registry predicate (see D26); delete is hard today (items arrive in Phase 4, cascade then).
 - Character creation stats come from `classes.json`; HP/MP from `formulas.ts`; default position is the village spawn from `mapRegistry`.
 - Never trust client-supplied name/kingdom/level/position.
 
