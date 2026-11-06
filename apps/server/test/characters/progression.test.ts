@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CharacterRecord } from "../../src/characters/characterMappers";
-import { progressionFromCharacter } from "../../src/characters/progression";
+import { progressionFromCharacter, recomputeMaxima } from "../../src/characters/progression";
 
 const base: CharacterRecord = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -68,5 +68,26 @@ describe("progressionFromCharacter", () => {
     expect(progression.stats.vit).toBe(10);
     expect(progression.statPoints).toBe(9);
     expect(progression.maxHp).toBe(120 + 400 + 360);
+  });
+
+  it("adds equipment max HP/MP and clamps when the bonus disappears", () => {
+    const bonuses = {
+      attack: 6,
+      defense: 4,
+      maxHp: 20,
+      maxMp: 10,
+      critChance: 0.01,
+    };
+    const withGear = progressionFromCharacter({ ...base, hp: 999, mp: 999 }, bonuses);
+    expect(withGear.maxHp).toBe(336);
+    expect(withGear.maxMp).toBe(102);
+    expect(withGear.hp).toBe(336);
+    expect(withGear.mp).toBe(102);
+
+    recomputeMaxima(withGear, "warrior");
+    expect(withGear.maxHp).toBe(316);
+    expect(withGear.maxMp).toBe(92);
+    expect(withGear.hp).toBe(316);
+    expect(withGear.mp).toBe(92);
   });
 });

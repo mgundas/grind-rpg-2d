@@ -33,6 +33,11 @@ export class PlayerState extends Schema {
   @type("uint16") mp!: number;
   @type("uint16") maxMp!: number;
   @type("boolean") dead!: boolean;
+  /** Equipped visual layer keys; empty string means that slot is empty. */
+  @type("string") weaponLayer!: string;
+  @type("string") armorLayer!: string;
+  @type("string") helmetLayer!: string;
+  @type("string") shieldLayer!: string;
 }
 
 /**

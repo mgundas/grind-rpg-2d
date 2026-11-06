@@ -70,6 +70,7 @@ import { getClass } from "@jadethrone/data/classes";
 import { getMonster } from "@jadethrone/data/monsters";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
+import { equipmentBonusStats, equipmentVisualKeys } from "../items/equipment";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { planEquip, planMove, planSplit, planUnequip } from "../items/planning";
@@ -381,12 +382,15 @@ export class MapRoom extends Room {
     // to the character's saved position for a normal join.
     const requested = auth.warpSpawn ?? { x: auth.character.x, y: auth.character.y };
     const spawn = this.resolveSpawn(requested.x, requested.y);
-    const progression = progressionFromCharacter(auth.character);
     // Inventory is loaded before the player exists: a broken character row must
     // fail the join rather than appear with an empty (and overwritable) bag.
     const loaded = await getServerServices().items.loadInventory(
       auth.account.id,
       auth.character.id,
+    );
+    const progression = progressionFromCharacter(
+      auth.character,
+      equipmentBonusStats(loaded.inventory),
     );
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
@@ -427,6 +431,11 @@ export class MapRoom extends Room {
     player.mp = progression.mp;
     player.maxMp = progression.maxMp;
     player.dead = false;
+    const layers = equipmentVisualKeys(loaded.inventory);
+    player.weaponLayer = layers.weaponLayer;
+    player.armorLayer = layers.armorLayer;
+    player.helmetLayer = layers.helmetLayer;
+    player.shieldLayer = layers.shieldLayer;
 
     // The view must exist before the player is added, so the very first
     // encoded state is already filtered for this client.
@@ -465,7 +474,10 @@ export class MapRoom extends Room {
     const activeRuntime = this.runtimes.get(client.sessionId);
     const activePlayer = this.state.players.get(client.sessionId);
     if (fresh && activeRuntime && activePlayer) {
-      const refreshed = progressionFromCharacter(fresh);
+      const refreshed = progressionFromCharacter(
+        fresh,
+        equipmentBonusStats(activeRuntime.inventory),
+      );
       activeRuntime.progression = refreshed;
       activePlayer.level = refreshed.level;
       activePlayer.hp = refreshed.hp;
@@ -961,13 +973,54 @@ export class MapRoom extends Room {
     runtime.gold = gold;
     runtime.inventoryRevision++;
     this.sendInventoryById(runtime);
+    if (plan.changes.some((change) => this.touchesEquipment(change))) {
+      this.refreshEquipment(runtime);
+    }
+  }
+
+  private touchesEquipment(change: ItemPlan["changes"][number]): boolean {
+    if (change.kind === "insert") {
+      return change.location === "equipment";
+    }
+    if (change.kind === "delete") {
+      return change.expect.location === "equipment";
+    }
+    return change.expect.location === "equipment" || change.to.location === "equipment";
+  }
+
+  private sessionForRuntime(runtime: PlayerRuntime): string | undefined {
+    return [...this.runtimes.entries()].find(([, value]) => value === runtime)?.[0];
   }
 
   private sendInventoryById(runtime: PlayerRuntime): void {
-    const entry = [...this.runtimes.entries()].find(([, value]) => value === runtime);
-    if (entry) {
-      this.sendInventory(entry[0]);
+    const sessionId = this.sessionForRuntime(runtime);
+    if (sessionId) {
+      this.sendInventory(sessionId);
     }
+  }
+
+  /** Recompute equipment-derived maxima/layers after an equip or unequip. */
+  private refreshEquipment(runtime: PlayerRuntime): void {
+    const sessionId = this.sessionForRuntime(runtime);
+    const player = sessionId ? this.state.players.get(sessionId) : undefined;
+    if (!sessionId || !player || !isClassId(player.classId)) {
+      return;
+    }
+    recomputeMaxima(
+      runtime.progression,
+      player.classId,
+      equipmentBonusStats(runtime.inventory),
+    );
+    player.maxHp = runtime.progression.maxHp;
+    player.hp = runtime.progression.hp;
+    player.maxMp = runtime.progression.maxMp;
+    player.mp = runtime.progression.mp;
+    const layers = equipmentVisualKeys(runtime.inventory);
+    player.weaponLayer = layers.weaponLayer;
+    player.armorLayer = layers.armorLayer;
+    player.helmetLayer = layers.helmetLayer;
+    player.shieldLayer = layers.shieldLayer;
+    this.sendSelfStats(sessionId);
   }
 
   private async reloadRuntimeInventory(runtime: PlayerRuntime): Promise<void> {
@@ -1109,7 +1162,11 @@ export class MapRoom extends Room {
     runtime.progression.statPoints += result.statPointsGained;
 
     if (result.levelsGained > 0 && isClassId(player.classId)) {
-      recomputeMaxima(runtime.progression, player.classId);
+      recomputeMaxima(
+        runtime.progression,
+        player.classId,
+        equipmentBonusStats(runtime.inventory),
+      );
       runtime.progression.hp = runtime.progression.maxHp;
       runtime.progression.mp = runtime.progression.maxMp;
       player.level = runtime.progression.level;
@@ -1164,7 +1221,11 @@ export class MapRoom extends Room {
     runtime.progression.statPoints--;
 
     if (isClassId(player.classId)) {
-      recomputeMaxima(runtime.progression, player.classId);
+      recomputeMaxima(
+        runtime.progression,
+        player.classId,
+        equipmentBonusStats(runtime.inventory),
+      );
     }
     player.maxHp = runtime.progression.maxHp;
     player.maxMp = runtime.progression.maxMp;

@@ -586,3 +586,50 @@ export function equipmentForStats(
     item ? { definition: getDefinition(item.itemId), upgradeLevel: item.upgradeLevel } : null,
   );
 }
+
+/** Slot → sprite layer key (empty string means nothing equipped). */
+export interface EquipmentLayerKeys {
+  weaponLayer: string;
+  armorLayer: string;
+  helmetLayer: string;
+  shieldLayer: string;
+}
+
+export function equipmentLayerKeys(
+  state: InventoryState,
+  getDefinition: (itemId: string) => ItemDefinitionLike & { spriteLayerKey?: string },
+): EquipmentLayerKeys {
+  const keys: EquipmentLayerKeys = {
+    weaponLayer: "",
+    armorLayer: "",
+    helmetLayer: "",
+    shieldLayer: "",
+  };
+  for (const item of state.equipment) {
+    if (!item) {
+      continue;
+    }
+    const definition = getDefinition(item.itemId);
+    const layer = definition.spriteLayerKey ?? "";
+    if (!layer) {
+      continue;
+    }
+    switch (definition.type) {
+      case "weapon":
+        keys.weaponLayer = layer;
+        break;
+      case "armor":
+        keys.armorLayer = layer;
+        break;
+      case "helmet":
+        keys.helmetLayer = layer;
+        break;
+      case "shield":
+        keys.shieldLayer = layer;
+        break;
+      default:
+        break;
+    }
+  }
+  return keys;
+}

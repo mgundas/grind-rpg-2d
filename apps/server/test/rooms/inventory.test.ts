@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ColyseusTestServer } from "@colyseus/testing";
-import { MSG, ROOM_NAME_VILLAGE, type InventorySnapshotPayload } from "@jadethrone/shared";
+import {
+  MSG,
+  ROOM_NAME_VILLAGE,
+  type InventorySnapshotPayload,
+  type SelfStatsPayload,
+} from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
 import type { MapRoom } from "../../src/rooms/MapRoom";
 import type { JoinIdentity } from "../../src/auth/joinAuth";
@@ -143,6 +148,50 @@ describe("MapRoom inventory snapshots", () => {
     const error = client.waitForMessage(MSG.inventoryError, 2000);
     send(client, MSG.equipItem, { instanceId: randomUUID() });
     expect(((await error) as { code: string }).code).toBe("item_not_found");
+  });
+
+  it("applies weapon attack and publishes the visual layer", async () => {
+    const swordId = randomUUID();
+    const { client, room } = await joinWithInventory("Swordsman", (id) => {
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+    });
+
+    const stats = client.waitForMessage(MSG.selfStats, 2000);
+    send(client, MSG.equipItem, { instanceId: swordId });
+    const updated = (await stats) as SelfStatsPayload;
+    expect(updated.attack).toBe(20); // warrior base 14 + 6 weapon attack
+    await room.waitForNextPatch();
+    const player = room.state.players.get(client.sessionId);
+    expect(player?.weaponLayer).toBe("weapon.sword.t1");
+  });
+
+  it("adds armor max HP and clamps it again on unequip", async () => {
+    const armorId = randomUUID();
+    const { client } = await joinWithInventory("Tank", (id) => {
+      fake.giveItem({
+        id: armorId,
+        itemId: "armor_warrior_t1",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+    });
+
+    const equipped = client.waitForMessage(MSG.selfStats, 2000);
+    send(client, MSG.equipItem, { instanceId: armorId });
+    const withArmor = (await equipped) as SelfStatsPayload;
+    expect(withArmor.maxHp).toBe(336); // 316 + 20
+
+    const unequipped = client.waitForMessage(MSG.selfStats, 2000);
+    send(client, MSG.unequipItem, { slot: 1 });
+    const withoutArmor = (await unequipped) as SelfStatsPayload;
+    expect(withoutArmor.maxHp).toBe(316);
   });
 
   it("serializes two quick moves so the second sees the first result", async () => {

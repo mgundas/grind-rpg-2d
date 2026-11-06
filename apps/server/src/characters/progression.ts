@@ -1,4 +1,12 @@
-import { applyXpGain, clamp, maxHp, maxMp, type ClassId, type Stats } from "@jadethrone/shared";
+import {
+  applyXpGain,
+  clamp,
+  maxHp,
+  maxMp,
+  type ClassId,
+  type FullItemStats,
+  type Stats,
+} from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import type { CharacterRecord } from "./characterMappers";
 
@@ -18,7 +26,10 @@ export interface PlayerProgression {
   statPoints: number;
 }
 
-export function progressionFromCharacter(character: CharacterRecord): PlayerProgression {
+export function progressionFromCharacter(
+  character: CharacterRecord,
+  equipment?: FullItemStats,
+): PlayerProgression {
   const info = getClass(character.classId);
   const stats: Stats = {
     vit: character.statVit,
@@ -30,8 +41,12 @@ export function progressionFromCharacter(character: CharacterRecord): PlayerProg
   // zero gain still consumes full thresholds.
   const levelled = applyXpGain(character.level, character.xp, 0);
 
-  const maximumHp = maxHp({ baseHp: info.baseHp, vit: stats.vit, level: levelled.level });
-  const maximumMp = maxMp({ baseMp: info.baseMp, int: stats.int, level: levelled.level });
+  const maximumHp =
+    maxHp({ baseHp: info.baseHp, vit: stats.vit, level: levelled.level }) +
+    (equipment?.maxHp ?? 0);
+  const maximumMp =
+    maxMp({ baseMp: info.baseMp, int: stats.int, level: levelled.level }) +
+    (equipment?.maxMp ?? 0);
 
   return {
     // A dead-on-login row is revived at full HP rather than trapping the player
@@ -47,19 +62,25 @@ export function progressionFromCharacter(character: CharacterRecord): PlayerProg
   };
 }
 
-/** Recompute max HP/MP after a level-up or stat allocation, clamping current. */
-export function recomputeMaxima(progression: PlayerProgression, classId: ClassId): void {
+/** Recompute max HP/MP after a level-up, stat allocation or equip change. */
+export function recomputeMaxima(
+  progression: PlayerProgression,
+  classId: ClassId,
+  equipment?: FullItemStats,
+): void {
   const info = getClass(classId);
-  progression.maxHp = maxHp({
-    baseHp: info.baseHp,
-    vit: progression.stats.vit,
-    level: progression.level,
-  });
-  progression.maxMp = maxMp({
-    baseMp: info.baseMp,
-    int: progression.stats.int,
-    level: progression.level,
-  });
+  progression.maxHp =
+    maxHp({
+      baseHp: info.baseHp,
+      vit: progression.stats.vit,
+      level: progression.level,
+    }) + (equipment?.maxHp ?? 0);
+  progression.maxMp =
+    maxMp({
+      baseMp: info.baseMp,
+      int: progression.stats.int,
+      level: progression.level,
+    }) + (equipment?.maxMp ?? 0);
   progression.hp = clamp(progression.hp, 0, progression.maxHp);
   progression.mp = clamp(progression.mp, 0, progression.maxMp);
 }

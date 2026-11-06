@@ -18,6 +18,7 @@ import {
   type RandomSource,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
+import { equipmentBonusStats } from "../items/equipment";
 import { getMonster } from "@jadethrone/data/monsters";
 import type { MonsterRuntime } from "./monsterRuntime";
 import type { PlayerRuntime } from "./playerRuntime";
@@ -104,10 +105,12 @@ export function resolvePlayerSwing(
   });
 
   const stats = runtime.progression.stats;
+  const equipment = equipmentBonusStats(runtime.inventory);
   const attack = physicalAttack({
     classId: player.classId,
     stats,
     level: runtime.progression.level,
+    weaponAttack: equipment.attack,
   });
 
   const hits: CombatHit[] = [];
@@ -138,7 +141,7 @@ export function resolvePlayerSwing(
     }
 
     const base = resolveDamage(ctx.rng, attack, spec.defense);
-    const crit = rollCrit(ctx.rng, critChance(stats.dex));
+    const crit = rollCrit(ctx.rng, critChance(stats.dex, equipment.critChance));
     const damage = crit ? critDamage(base) : base;
 
     monsterRuntime.hp = Math.max(0, monsterRuntime.hp - damage);
@@ -208,7 +211,12 @@ export function resolveMonsterAttack(
     };
   }
 
-  const base = resolveDamage(ctx.rng, spec.attack, defenseOf(stats.vit));
+  const equipment = equipmentBonusStats(runtime.inventory);
+  const base = resolveDamage(
+    ctx.rng,
+    spec.attack,
+    defenseOf(stats.vit) + equipment.defense,
+  );
   const crit = rollCrit(ctx.rng, critChance(spec.dex));
   const damage = crit ? critDamage(base) : base;
 

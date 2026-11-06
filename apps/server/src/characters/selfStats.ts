@@ -6,6 +6,7 @@ import {
   xpToNextLevel,
   type SelfStatsPayload,
 } from "@jadethrone/shared";
+import { equipmentBonusStats } from "../items/equipment";
 import type { PlayerRuntime } from "../rooms/playerRuntime";
 import type { PlayerState } from "../rooms/state/WorldState";
 
@@ -16,6 +17,7 @@ import type { PlayerState } from "../rooms/state/WorldState";
 export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): SelfStatsPayload {
   const progression = runtime.progression;
   const classId = isClassId(player.classId) ? player.classId : "warrior";
+  const equipment = equipmentBonusStats(runtime.inventory);
   return {
     level: progression.level,
     xp: progression.xp,
@@ -26,8 +28,13 @@ export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): Sel
     maxMp: progression.maxMp,
     statPoints: progression.statPoints,
     stats: { ...progression.stats },
-    attack: physicalAttack({ classId, stats: progression.stats, level: progression.level }),
-    defense: defenseOf(progression.stats.vit),
-    critChance: critChance(progression.stats.dex),
+    attack: physicalAttack({
+      classId,
+      stats: progression.stats,
+      level: progression.level,
+      weaponAttack: equipment.attack,
+    }),
+    defense: defenseOf(progression.stats.vit) + equipment.defense,
+    critChance: critChance(progression.stats.dex, equipment.critChance),
   };
 }
