@@ -155,7 +155,7 @@ Plan: `docs/plans/phase-4.md`.
 - [x] Task 20 — Client hotbar, consumables and gold HUD
 - [x] Task 21 — Client ground items, pickup FX and auto-loot
 - [x] Task 22 — Client NPC dialog, shop and warehouse UI
-- [ ] Task 23 — Verification tooling and docs
+- [x] Task 23 — Verification tooling and docs
 - [ ] Task 24 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)

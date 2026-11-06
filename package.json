@@ -11,6 +11,8 @@
     "db:migrate": "pnpm --filter @jadethrone/server db:migrate",
     "seed": "pnpm --filter @jadethrone/server seed",
     "verify:phase3-grind": "node --import tsx scripts/verify-phase3-grind.mjs",
+    "verify:phase4-economy": "node --import tsx scripts/verify-phase4-economy.mjs",
+    "verify:phase4-e2e": "node scripts/verify-phase4-e2e.mjs",
     "dev:server": "pnpm --filter @jadethrone/server dev",
     "dev:client": "pnpm --filter @jadethrone/client dev",
     "dev:admin": "pnpm --filter @jadethrone/admin dev",

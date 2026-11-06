@@ -167,7 +167,9 @@ describe("resolvePlayerSwing", () => {
     expect(outcome!.hits[0]).toMatchObject({ crit: true, damage: 28 });
     expect(monster.hp).toBe(0);
     expect(state.monsters.get("m1")!.hp).toBe(0);
-    expect(outcome!.killed).toEqual([{ monsterId: "m1", typeId: "wild_dog", x: 230, y: 200 }]);
+    expect(outcome!.killed).toEqual([
+      { monsterId: "m1", typeId: "wild_dog", x: 230, y: 200, ownerSessionId: "s1" },
+    ]);
   });
 
   it("enforces the class cooldown and only sets it on accepted swings", () => {
