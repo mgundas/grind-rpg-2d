@@ -22,7 +22,7 @@ Phase 0 is complete (`docs/reports/phase-0.md`). This plan was produced after re
 
 1. **One room type per map** (`map_ember_village`, `map_ember_fields`), per GAME_DESIGN §10.2; warp = seat reservation, no shared room switching.
 2. **Server-authoritative movement.** Clients send intents only. No position ever crosses the wire. Each input is stepped **exactly one 50 ms tick**, so delayed inputs still produce identical total movement.
-3. **Click-to-move** sends one `path` command per click; the server computes A* from its own position, then follows the stored path on subsequent ticks. The client runs the same A* locally for prediction; reconciliation replays the command from the same position and reproduces the path exactly.
+3. **Click-to-move** sends a `path` intent each tick while walking; the server recomputes A* from its current position for each intent (making reconciliation replay exact).
 4. **WASD** sends one `dir` intent per fixed tick while held; releasing sends one `none`. Hold-to-steer reuses `dir` (no per-tick A*).
 5. **Ack in state** (`lastSeq`), so `(x, y, lastSeq)` arrive atomically in one patch. Snap > 64 px, else visual offset decays over 100 ms.
 6. **Remote interpolation** renders 100 ms in the past from position samples keyed by local receipt time; no extrapolation; > 200 px discontinuity snaps.

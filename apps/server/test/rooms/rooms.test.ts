@@ -4,13 +4,17 @@ import {
   MSG,
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
+  TICK_MS,
+  createMover,
   isWalkableAt,
+  stepMover,
   type InputMessage,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
 import { createGameServer } from "../../src/server";
 import { loadMapAssets } from "../../src/maps/mapRegistry";
+import { issueWarpToken } from "../../src/rooms/warpTokens";
 import { MapRoom } from "../../src/rooms/MapRoom";
 
 let colyseus: ColyseusTestServer;
@@ -102,27 +106,18 @@ describe("MapRoom join", () => {
     expect(player.y).toBeCloseTo(FIELDS_SPAWN.y, 5);
   });
 
-  it("honors a walkable reservation position (warp arrivals)", async () => {
+  it("ignores client-supplied spawn positions", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const target = { x: VILLAGE_SPAWN.x + 64, y: VILLAGE_SPAWN.y };
-    const client = await colyseus.connectTo(room, { name: "Warped", ...target });
+    const client = await colyseus.connectTo(room, {
+      name: "Cheater",
+      x: VILLAGE_SPAWN.x + 500,
+      y: VILLAGE_SPAWN.y,
+    });
     await room.waitForNextPatch();
 
     const player = room.state.players.get(client.sessionId)!;
-    expect(player.x).toBeCloseTo(target.x, 5);
-    expect(player.y).toBeCloseTo(target.y, 5);
-  });
-
-  it("snaps a blocked reservation position to walkable ground", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const client = await colyseus.connectTo(room, { name: "Stuck", x: 16, y: 16 });
-    await room.waitForNextPatch();
-
-    const player = room.state.players.get(client.sessionId)!;
-    const roomAny = room as unknown as { assets: { grid: Parameters<typeof isWalkableAt>[0] } };
-    expect(isWalkableAt(roomAny.assets.grid, player.x, player.y)).toBe(true);
-    expect(player.x).not.toBe(16);
-    expect(player.y).not.toBe(16);
+    expect(player.x).toBeCloseTo(VILLAGE_SPAWN.x, 5);
+    expect(player.y).toBeCloseTo(VILLAGE_SPAWN.y, 5);
   });
 
   it("sanitizes display names", async () => {
@@ -206,11 +201,8 @@ describe("MapRoom movement", () => {
 
   it("stops at a wall instead of clipping through it", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const client = await colyseus.connectTo(room, {
-      name: "Wall",
-      x: VILLAGE_SPAWN.x,
-      y: 80,
-    });
+    const token = issueWarpToken(ROOM_NAME_VILLAGE, VILLAGE_SPAWN.x, 80);
+    const client = await colyseus.connectTo(room, { name: "Wall", warpToken: token });
     await room.waitForNextPatch();
     const sessionId = client.sessionId;
 
@@ -249,20 +241,60 @@ describe("MapRoom movement", () => {
     expect(player.y).toBeCloseTo(target.y, 0);
   });
 
-  it("stops after the input grace period", async () => {
+  it("stops immediately when input stops", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const client = await colyseus.connectTo(room, { name: "Grace" });
+    const client = await colyseus.connectTo(room, { name: "Stopper" });
     await room.waitForNextPatch();
     const sessionId = client.sessionId;
 
     sendInput(client, { seq: 1, kind: "dir", dir: 0 });
     await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
-    await sleep(350);
+    await sleep(120);
     const settled = room.state.players.get(sessionId)!;
     expect(settled.moving).toBe(false);
     const settledX = settled.x;
     await sleep(150);
     expect(room.state.players.get(sessionId)!.x).toBe(settledX);
+  });
+
+  it("caps batched input to one step per tick", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Burst" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const startX = room.state.players.get(sessionId)!.x;
+
+    // A full second of movement (20 intents) delivered all at once must not
+    // move faster than 20 ticks' worth; it should take ~1 s to apply.
+    for (let seq = 1; seq <= 20; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 0 });
+    }
+    await sleep(600);
+    const moved = room.state.players.get(sessionId)!.x - startX;
+    expect(moved).toBeLessThanOrEqual(12 * 10 + 0.001);
+    expect(moved).toBeGreaterThan(0);
+  });
+
+  it("matches the shared step exactly for a scripted input sequence", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Parity" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const { grid } = loadMapAssets(ROOM_NAME_VILLAGE);
+
+    let expected = createMover(VILLAGE_SPAWN);
+    const steps = [0, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2] as const;
+    for (let index = 0; index < steps.length; index++) {
+      const seq = index + 1;
+      const dir = steps[index]!;
+      sendInput(client, { seq, kind: "dir", dir });
+      await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === seq);
+      expected = stepMover(expected, { kind: "dir", dir }, grid, TICK_MS);
+    }
+
+    const player = room.state.players.get(sessionId)!;
+    expect(player.x).toBeCloseTo(expected.pos.x, 4);
+    expect(player.y).toBeCloseTo(expected.pos.y, 4);
   });
 
   it("survives an invalid input payload", async () => {
@@ -313,11 +345,8 @@ describe("MapRoom chat", () => {
   it("does not deliver chat beyond the local range", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const alice = await colyseus.connectTo(room, { name: "Alice" });
-    const bob = await colyseus.connectTo(room, {
-      name: "Bob",
-      x: VILLAGE_SPAWN.x + 1000,
-      y: VILLAGE_SPAWN.y,
-    });
+    const farToken = issueWarpToken(ROOM_NAME_VILLAGE, VILLAGE_SPAWN.x + 1000, VILLAGE_SPAWN.y);
+    const bob = await colyseus.connectTo(room, { name: "Bob", warpToken: farToken });
     await room.waitForNextPatch();
 
     let received = false;
@@ -371,16 +400,9 @@ describe("MapRoom interest management", () => {
   it("keeps the own player and nearby players visible, hides far ones", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const alice = await colyseus.connectTo(room, { name: "Alice" });
-    const near = await colyseus.connectTo(room, {
-      name: "Near",
-      x: VILLAGE_SPAWN.x + 64,
-      y: VILLAGE_SPAWN.y,
-    });
-    const far = await colyseus.connectTo(room, {
-      name: "Far",
-      x: VILLAGE_SPAWN.x + 1000,
-      y: VILLAGE_SPAWN.y,
-    });
+    const near = await colyseus.connectTo(room, { name: "Near" });
+    const farToken = issueWarpToken(ROOM_NAME_VILLAGE, VILLAGE_SPAWN.x + 1000, VILLAGE_SPAWN.y);
+    const far = await colyseus.connectTo(room, { name: "Far", warpToken: farToken });
     await room.waitForNextPatch();
 
     const aliceServer = room.clients.find((c) => c.sessionId === alice.sessionId)!;
@@ -396,11 +418,8 @@ describe("MapRoom interest management", () => {
   it("uses 850/900 px hysteresis for add and remove", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const alice = await colyseus.connectTo(room, { name: "Alice" });
-    const far = await colyseus.connectTo(room, {
-      name: "Far",
-      x: VILLAGE_SPAWN.x + 1000,
-      y: VILLAGE_SPAWN.y,
-    });
+    const farToken = issueWarpToken(ROOM_NAME_VILLAGE, VILLAGE_SPAWN.x + 1000, VILLAGE_SPAWN.y);
+    const far = await colyseus.connectTo(room, { name: "Far", warpToken: farToken });
     await room.waitForNextPatch();
 
     const aliceServer = room.clients.find((c) => c.sessionId === alice.sessionId)!;
@@ -410,53 +429,46 @@ describe("MapRoom interest management", () => {
 
     // 800 px: inside the add radius -> becomes visible.
     farState.x = aliceState.x + 800;
-    await sleep(350);
-    expect(aliceServer.view?.has(farState)).toBe(true);
+    await waitUntil(() => aliceServer.view?.has(farState) === true, 3000);
 
     // 950 px: beyond the remove radius -> hidden again.
     farState.x = aliceState.x + 950;
-    await sleep(350);
-    expect(aliceServer.view?.has(farState)).toBe(false);
+    await waitUntil(() => aliceServer.view?.has(farState) === false, 3000);
   });
 });
 
 describe("MapRoom warp", () => {
   it("reserves a seat in the target map and removes the player here", async () => {
-    const villageWarp = loadMapAssets(ROOM_NAME_VILLAGE).warps[0]!;
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
-    const client = await colyseus.connectTo(room, {
-      name: "Traveller",
-      // Just west of the warp rectangle, inside the cleared corridor.
-      x: villageWarp.x - 40,
-      y: villageWarp.y + villageWarp.h / 2,
-    });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, { name: "Traveller" });
     await room.waitForNextPatch();
     const sessionId = client.sessionId;
 
     const warpMessage = client.waitForMessage(MSG.warp, 5000);
-    for (let seq = 1; seq <= 6; seq++) {
-      sendInput(client, { seq, kind: "dir", dir: 0 }); // walk east into the zone
+    // Walk west from the fields spawn into the return warp.
+    for (let seq = 1; seq <= 20; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 4 });
     }
 
     const payload = (await warpMessage) as WarpPayload;
-    expect(payload.map).toBe(ROOM_NAME_FIELDS);
-    expect(payload.x).toBe(FIELDS_SPAWN.x);
-    expect(payload.y).toBe(FIELDS_SPAWN.y);
+    expect(payload.map).toBe(ROOM_NAME_VILLAGE);
+    expect(payload.x).toBe(VILLAGE_SPAWN.x);
+    expect(payload.y).toBe(VILLAGE_SPAWN.y);
     expect(payload.reservation.roomId.length).toBeGreaterThan(0);
     expect(payload.reservation.sessionId.length).toBeGreaterThan(0);
 
     await waitUntil(() => !room.state.players.has(sessionId));
   });
 
-  it("does not bounce back immediately after arriving", async () => {
+  it("does not bounce back immediately after arriving (warp token)", async () => {
     const fieldsWarp = loadMapAssets(ROOM_NAME_FIELDS).warps[0]!;
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const client = await colyseus.connectTo(room, {
-      name: "Arrival",
-      x: fieldsWarp.x + fieldsWarp.w / 2,
-      y: fieldsWarp.y + fieldsWarp.h / 2,
-      warp: true,
-    });
+    const token = issueWarpToken(
+      ROOM_NAME_FIELDS,
+      fieldsWarp.x + fieldsWarp.w / 2,
+      fieldsWarp.y + fieldsWarp.h / 2,
+    );
+    const client = await colyseus.connectTo(room, { name: "Arrival", warpToken: token });
     await room.waitForNextPatch();
 
     await sleep(300);

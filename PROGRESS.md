@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/phase-0.md`).
+Current plan: `docs/plans/phase-1.md` (Phase 1 complete — see `docs/reports/phase-1.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -41,7 +41,8 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 15 — client: remote interpolation
 - [x] Task 16 — client: chat, bubbles, F3 overlay
 - [x] Task 17 — client: warp UX
-- [ ] Task 18 — phase gate: verification, reviewer, report
+- [x] Task 18 — phase gate: verification, reviewer, report
+- [x] Phase report: `docs/reports/phase-1.md`
 
 ## Later phases (from GAME_DESIGN.md §12)
 

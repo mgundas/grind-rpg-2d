@@ -9,7 +9,6 @@ import {
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
-  SERVER_TICK_GRACE_TICKS,
   TICK_MS,
   WARP_COOLDOWN_MS,
   chatMessageSchema,
@@ -34,6 +33,7 @@ import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import { PlayerState, WorldState } from "./state/WorldState";
+import { consumeWarpToken, issueWarpToken } from "./warpTokens";
 
 const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
 
@@ -41,17 +41,12 @@ const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
 const joinOptionsSchema = z.looseObject({
   name: z.string().optional().catch(undefined),
   kingdom: z.enum(KINGDOM_IDS).optional().catch(undefined),
-  /** Only honored for server-issued warp reservations; clamped + walkable-checked. */
-  x: z.number().finite().optional().catch(undefined),
-  y: z.number().finite().optional().catch(undefined),
-  /** Set by the server on warp reservations to arm the arrival cooldown. */
-  warp: z.boolean().optional().catch(undefined),
+  /** Single-use token issued by the server for a warp; proves the spawn. */
+  warpToken: z.string().optional().catch(undefined),
 });
 
 /** Max queued input messages per player; older inputs are dropped. */
-const MAX_PENDING_INPUTS = 8;
-
-/**
+const MAX_PENDING_INPUTS = 8; /**
  * One room instance per map (GAME_DESIGN.md §10.2). Phase 1 handles guest
  * join, movement, chat (task 9), interest management (task 10) and warps.
  */
@@ -143,9 +138,10 @@ export class MapRoom extends Room {
   onJoin(client: Client, options: unknown): void {
     const parsed = joinOptionsSchema.safeParse(options ?? {});
     const join = parsed.success ? parsed.data : {};
-    const spawn = this.resolveSpawn(join.x, join.y);
+    const warpSpawn = join.warpToken ? consumeWarpToken(join.warpToken, this.mapId) : null;
+    const spawn = this.resolveSpawn(warpSpawn?.x, warpSpawn?.y);
     const runtime = createPlayerRuntime(spawn);
-    if (join.warp === true) {
+    if (warpSpawn) {
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
     }
 
@@ -271,13 +267,16 @@ export class MapRoom extends Room {
     this.runtimes.delete(client.sessionId);
 
     try {
+      const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY);
       const reservation = await matchMaker.joinOrCreate(warp.targetMap, {
         name,
         kingdom,
-        x: warp.targetX,
-        y: warp.targetY,
-        warp: true,
+        warpToken: token,
       });
+      if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
+        // Client left during the reservation; its seat expires on its own.
+        return;
+      }
       const payload: WarpPayload = {
         map: warp.targetMap,
         x: warp.targetX,
@@ -295,40 +294,40 @@ export class MapRoom extends Room {
         "player warped",
       );
     } catch (error) {
-      // Restore the player on this map; the client shows the current map.
-      runtime.warping = false;
-      this.state.players.set(client.sessionId, player);
-      this.runtimes.set(client.sessionId, runtime);
-      this.updateInterest();
+      // Restore the player only if the client is still connected here.
+      if (this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
+        runtime.warping = false;
+        this.state.players.set(client.sessionId, player);
+        this.runtimes.set(client.sessionId, runtime);
+        this.updateInterest();
+      }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
     }
   }
 
   private stepPlayer(runtime: PlayerRuntime, player: PlayerState): void {
     const from = { x: runtime.mover.pos.x, y: runtime.mover.pos.y };
-    let applied = 0;
+    let applied = false;
 
-    if (runtime.pending.length > 0) {
-      const queued = runtime.pending.sort((a, b) => a.seq - b.seq);
-      runtime.pending = [];
-      for (const message of queued) {
-        if (message.seq <= runtime.lastSeq) {
-          continue; // stale or duplicated input
-        }
-        runtime.lastSeq = message.seq;
-        this.applyMessage(runtime, message);
-        applied++;
+    // Apply at most ONE intent per tick. Bursty clients therefore cannot move
+    // faster than 20 steps/s; excess inputs stay queued for later ticks.
+    while (runtime.pending.length > 0) {
+      const message = runtime.pending.shift()!;
+      if (message.seq <= runtime.lastSeq) {
+        continue; // stale or duplicated input
       }
+      runtime.lastSeq = message.seq;
+      this.applyMessage(runtime, message);
+      applied = true;
+      break;
     }
 
-    if (applied === 0) {
+    if (!applied) {
       if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
+        // Click-to-move keeps following its path (speed-bounded by movement).
         runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
-      } else if (runtime.ticksSinceInput < SERVER_TICK_GRACE_TICKS) {
-        runtime.ticksSinceInput++;
-        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
-      } else if (runtime.mover.path.length > 0) {
-        runtime.mover = { ...runtime.mover, path: [] };
+      } else {
+        runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
       }
     }
 
@@ -372,7 +371,6 @@ export class MapRoom extends Room {
         break;
     }
     runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
-    runtime.ticksSinceInput = 0;
   }
 
   /** Reservation position when valid, otherwise the map spawn; always walkable. */

@@ -64,7 +64,6 @@ export function stepMover(
   } else if (intent.kind === "path") {
     const consumeRadius = stepDistance + waypointTolerance(speed, dtMs);
     const consumeSquared = consumeRadius * consumeRadius;
-    const toleranceSquared = waypointTolerance(speed, dtMs) ** 2;
     path = path.slice();
     // Peel off intermediate waypoints the next step would cross anyway. This
     // also stops an octant step from oscillating around a waypoint.
@@ -76,16 +75,17 @@ export function stepMover(
     }
     if (path.length === 1) {
       const distance = distanceSquared(mover.pos, path[0]!);
-      if (distance <= toleranceSquared) {
-        return { pos: { x: mover.pos.x, y: mover.pos.y }, path: [] };
-      }
-      // Land exactly on the final waypoint when the next step could reach it
-      // (it is guaranteed walkable by findPath), avoiding octant overshoot.
+      // Land exactly on the final waypoint when the next step can reach it
+      // (findPath guarantees it is walkable).
       if (distance <= stepDistance * stepDistance) {
         const last = path[0]!;
         if (!rectOverlapsSolid(grid, last.x, last.y, PLAYER_BODY.halfW, PLAYER_BODY.halfH)) {
           return { pos: { x: last.x, y: last.y }, path: [] };
         }
+      }
+      const toleranceSquared = waypointTolerance(speed, dtMs) ** 2;
+      if (distance <= toleranceSquared) {
+        return { pos: { x: mover.pos.x, y: mover.pos.y }, path: [] };
       }
     }
     const dir = dir8Towards(mover.pos, path[0]!);

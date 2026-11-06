@@ -16,9 +16,8 @@ export interface PlayerRuntime {
   pending: InputMessage[];
   /** Highest applied input sequence. */
   lastSeq: number;
-  /** Intent used for the 3-tick grace after the last input. */
+  /** Intent used to keep following a click-to-move path between inputs. */
   lastIntent: MoveIntent;
-  ticksSinceInput: number;
   /** Epoch ms before which chat is rate-limited. */
   chatReadyAtMs: number;
   /** A warp is in flight; skip movement/warp checks. */
@@ -33,7 +32,6 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     pending: [],
     lastSeq: 0,
     lastIntent: { kind: "none" },
-    ticksSinceInput: 999,
     chatReadyAtMs: 0,
     warping: false,
     warpCooldownUntilMs: 0,

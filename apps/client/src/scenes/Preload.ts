@@ -44,25 +44,18 @@ export class PreloadScene extends Phaser.Scene {
 
     this.buildProgressBar();
 
-    const failed = new Set<string>();
-    const onLoadError = (file: Phaser.Loader.File) => {
-      failed.add(file.key);
-    };
-    this.load.on("loaderror", onLoadError);
-
     for (const [key, entry] of Object.entries(manifest.assets)) {
       this.load.image(key, `/assets/${entry.path}`);
     }
 
     this.load.once("complete", () => {
-      // The loader's listeners survive scene restarts; drop the one this
-      // scene installed so a re-run can never accumulate duplicates.
-      this.load.off("loaderror", onLoadError);
       this.destroyProgressBar();
+      // Guarantee every manifest key has a texture: anything that failed to
+      // load (or was never registered) gets a deterministic placeholder under
+      // the same key. World must never start with a missing texture.
       let placeholderCount = 0;
-      for (const key of failed) {
-        const entry = manifest.assets[key];
-        if (entry && createPlaceholder(this, key, entry.placeholder)) {
+      for (const [key, entry] of Object.entries(manifest.assets)) {
+        if (!this.textures.exists(key) && createPlaceholder(this, key, entry.placeholder)) {
           placeholderCount++;
         }
       }

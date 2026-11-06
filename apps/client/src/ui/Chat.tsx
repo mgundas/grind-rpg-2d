@@ -31,6 +31,20 @@ export function Chat() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // Never leave movement disabled if this input unmounts or the connection
+  // drops while it has focus.
+  useEffect(() => {
+    if (phase !== "connected") {
+      useUiStore.getState().setChatFocused(false);
+    }
+  }, [phase]);
+  useEffect(
+    () => () => {
+      useUiStore.getState().setChatFocused(false);
+    },
+    [],
+  );
+
   if (phase !== "connected") {
     return null;
   }

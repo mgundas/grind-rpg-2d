@@ -19,7 +19,7 @@ import {
 } from "@jadethrone/shared";
 import { consumeWarp, getPingMs, getRoom, leave, sendInput } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
-import { RemoteRegistry, type RemoteEntity } from "../state/remotes";
+import { RemoteRegistry, type RemoteEntity, type RemotePlayerData } from "../state/remotes";
 import { useUiStore } from "../ui/store";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
 
@@ -27,22 +27,22 @@ const KEY_CHARACTER = "char.body.male";
 const HOLD_TO_STEER_MS = 200;
 const CLICK_MAX_MS = 200;
 
-interface OwnPlayerState {
-  x: number;
-  y: number;
-  lastSeq: number;
-}
-
 interface RemotePlayerState {
   name: string;
   kingdom: string;
   facing: number;
   x: number;
   y: number;
+  lastSeq: number;
+}
+
+interface PlayersCollection {
+  forEach(callback: (player: RemotePlayerState, sessionId: string) => void): void;
+  get(sessionId: string): RemotePlayerState | undefined;
 }
 
 interface RoomStateLike {
-  players?: Record<string, OwnPlayerState & RemotePlayerState>;
+  players?: PlayersCollection;
 }
 
 interface RemoteVisual {
@@ -97,16 +97,33 @@ export class WorldScene extends Phaser.Scene {
     this.buildMap();
     this.buildCharacter();
     this.setupInput();
-    this.cameras.main.fadeIn(250, 0, 0, 0);
 
-    this.cursors = this.input.keyboard?.createCursorKeys() ?? null;
-    this.wasd =
-      (this.input.keyboard?.addKeys({
-        up: Phaser.Input.Keyboard.KeyCodes.W,
-        down: Phaser.Input.Keyboard.KeyCodes.S,
-        left: Phaser.Input.Keyboard.KeyCodes.A,
-        right: Phaser.Input.Keyboard.KeyCodes.D,
-      }) as Record<string, Phaser.Input.Keyboard.Key>) ?? null;
+    const keyboard = this.input.keyboard;
+    this.cursors = keyboard
+      ? {
+          up: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP, false),
+          down: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN, false),
+          left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT, false),
+          right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT, false),
+          space: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false),
+          shift: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT, false),
+        }
+      : null;
+    // `false` = do not preventDefault: typing WASD/space in chat/name inputs
+    // must reach the DOM input.
+    this.wasd = keyboard
+      ? (keyboard.addKeys(
+          {
+            up: Phaser.Input.Keyboard.KeyCodes.W,
+            down: Phaser.Input.Keyboard.KeyCodes.S,
+            left: Phaser.Input.Keyboard.KeyCodes.A,
+            right: Phaser.Input.Keyboard.KeyCodes.D,
+          },
+          false,
+        ) as Record<string, Phaser.Input.Keyboard.Key>)
+      : null;
+
+    this.cameras.main.fadeIn(250, 0, 0, 0);
 
     const cam = this.cameras.main;
     cam.setZoom(2);
@@ -161,7 +178,7 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     const state = room.state as RoomStateLike;
-    const own = state.players?.[room.sessionId];
+    const own = state.players?.get(room.sessionId);
     if (!own) {
       return; // wait for the first patch
     }
@@ -174,7 +191,7 @@ export class WorldScene extends Phaser.Scene {
 
     room.onStateChange((next: unknown) => {
       const snapshot = next as RoomStateLike;
-      const me = snapshot.players?.[sessionId];
+      const me = snapshot.players?.get(sessionId);
       if (me) {
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
@@ -202,7 +219,6 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
     this.warping = true;
-    useUiStore.getState().setMapId(payload.map);
 
     await new Promise<void>((resolve) => {
       this.cameras.main.once(Phaser.Cameras.Scene2D.Events.FADE_OUT_COMPLETE, () => resolve());
@@ -210,8 +226,10 @@ export class WorldScene extends Phaser.Scene {
     });
 
     try {
-      await leave();
+      await leave({ silent: true });
       await consumeWarp(payload);
+      // consumeWarp sets the store's map id only after the reservation is
+      // accepted; restart rebuilds the map/collision grid for that id.
       this.scene.restart();
     } catch (error) {
       this.warping = false;
@@ -269,11 +287,17 @@ export class WorldScene extends Phaser.Scene {
 
   /** Create/destroy remote sprites for the currently visible players. */
   private syncRemotes(snapshot: RoomStateLike, ownSessionId: string): void {
-    const { removed } = this.remoteRegistry.sync(
-      snapshot.players ?? {},
-      ownSessionId,
-      this.time.now,
-    );
+    const visible: Record<string, RemotePlayerData> = {};
+    snapshot.players?.forEach((player, sessionId) => {
+      visible[sessionId] = {
+        name: player.name,
+        kingdom: player.kingdom,
+        facing: player.facing,
+        x: player.x,
+        y: player.y,
+      };
+    });
+    const { removed } = this.remoteRegistry.sync(visible, ownSessionId, this.time.now);
     for (const sessionId of removed) {
       const visual = this.remoteVisuals.get(sessionId);
       if (visual) {
@@ -318,7 +342,6 @@ export class WorldScene extends Phaser.Scene {
       if (!pos) {
         continue;
       }
-      entity.buffer.consumeTeleport();
       visual.sprite.setPosition(pos.x, pos.y);
       visual.sprite.setDepth(pos.y);
       visual.shadow.setPosition(pos.x, pos.y + 6);

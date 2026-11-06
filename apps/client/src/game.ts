@@ -9,7 +9,7 @@ export function startGame(): Phaser.Game {
   return new Phaser.Game({
     type: Phaser.AUTO,
     title: GAME_NAME,
-    version: "0.0.1-phase0",
+    version: "0.1.0-phase1",
     pixelArt: true,
     backgroundColor: "#141a17",
     scale: {

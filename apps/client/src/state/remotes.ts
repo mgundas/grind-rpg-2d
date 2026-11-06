@@ -15,19 +15,11 @@ interface Sample {
 
 export class SampleBuffer {
   private samples: Sample[] = [];
-  private teleported = false;
 
   constructor(private readonly capacity = 32) {}
 
   get size(): number {
     return this.samples.length;
-  }
-
-  /** True when the last push was a discontinuity; consumed by the scene. */
-  consumeTeleport(): boolean {
-    const value = this.teleported;
-    this.teleported = false;
-    return value;
   }
 
   push(t: number, x: number, y: number): void {
@@ -39,8 +31,7 @@ export class SampleBuffer {
       const dx = x - last.x;
       const dy = y - last.y;
       if (dx * dx + dy * dy > TELEPORT_THRESHOLD_PX * TELEPORT_THRESHOLD_PX) {
-        this.samples = [];
-        this.teleported = true;
+        this.samples = []; // discontinuity: drop history, snap to the new point
       }
     }
     this.samples.push({ t, x, y });

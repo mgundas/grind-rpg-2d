@@ -28,14 +28,13 @@ describe("SampleBuffer", () => {
     expect(buffer.size).toBe(2);
   });
 
-  it("clears and flags a teleport beyond 200 px", () => {
+  it("clears the buffer on a teleport beyond 200 px", () => {
     const buffer = new SampleBuffer();
     buffer.push(1000, 0, 0);
     buffer.push(1050, 10, 0);
     buffer.push(1100, 400, 0);
     expect(buffer.size).toBe(1);
-    expect(buffer.consumeTeleport()).toBe(true);
-    expect(buffer.consumeTeleport()).toBe(false);
+    expect(buffer.sample(1100)).toEqual({ x: 400, y: 0 });
   });
 
   it("keeps a bounded capacity", () => {
