@@ -129,9 +129,38 @@ Phase report: `docs/reports/phase-3.md`.
 
 **Temporary gap (closed by Task 13):** town respawn and disconnect-while-dead now persist full HP/MP/XP through `CharacterSave`; the DB roundtrip test covers the full payload (run against the test database when `TEST_DATABASE_URL` is set).
 
+## Phase 4 — Items and economy
+
+Plan: `docs/plans/phase-4.md`.
+
+- [ ] Task 1 — Shared item domain and inventory grid
+- [ ] Task 2 — Item definitions data
+- [ ] Task 3 — Drop tables, shops, NPCs and monster wiring
+- [ ] Task 4 — Protocol additions
+- [ ] Task 5 — DB schema and migration
+- [ ] Task 6 — Item loading, normalization and starter kit
+- [ ] Task 7 — Inventory mutation persistence
+- [ ] Task 8 — Pickup and gold persistence
+- [ ] Task 9 — Shop and warehouse persistence
+- [ ] Task 10 — Service wiring and room-test fakes
+- [ ] Task 11 — Runtime inventory, join load, snapshots and command queue
+- [ ] Task 12 — Equipment stats and server-side visual keys
+- [ ] Task 13 — Drops, ground items and ownership
+- [ ] Task 14 — Pickup, gold credit and auto-loot support
+- [ ] Task 15 — Consumables and return scroll
+- [ ] Task 16 — NPC dialog and shops (server)
+- [ ] Task 17 — Warehouse (server)
+- [ ] Task 18 — Client store, item icons and inventory UI
+- [ ] Task 19 — Client equipment panel and visual layers
+- [ ] Task 20 — Client hotbar, consumables and gold HUD
+- [ ] Task 21 — Client ground items, pickup FX and auto-loot
+- [ ] Task 22 — Client NPC dialog, shop and warehouse UI
+- [ ] Task 23 — Verification tooling and docs
+- [ ] Task 24 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
-- [ ] Phase 4 — Items and economy
+- [ ] Phase 4 — Items and economy (see the Phase 4 section above)
 - [ ] Phase 5 — Admin panel
 - [ ] Phase 6 — Spirit stones, skills, parties
 - [ ] Phase 7 — Upgrades, bonuses, trading
