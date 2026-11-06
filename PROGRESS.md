@@ -71,7 +71,7 @@ Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these a
 Plan: `docs/plans/phase-2.md` (produced after reading the installed Colyseus typings; see the plan for verified API facts).
 
 - [x] Task 1 — Dependencies, config, DB schema, migration
-- [ ] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
+- [x] Task 2 — Shared rules, DTOs, class data, HP/MP formulas, new WS messages
 - [ ] Task 3 — Password hashing and JWT helpers
 - [ ] Task 4 — Account and character services (DB)
 - [ ] Task 5 — Session registry, warp token extension, static join authenticator

@@ -18,6 +18,10 @@ export interface KingdomInfo {
   color: string;
 }
 
+/** Stable kingdom ids. Kept as a tuple so Zod enums can use them. */
+export const KINGDOM_IDS = ["ember", "gale", "tide"] as const;
+export type KingdomId = (typeof KINGDOM_IDS)[number];
+
 export const KINGDOMS: readonly KingdomInfo[] = [
   { id: "ember", label: "Ember", color: "#d9453a" },
   { id: "gale", label: "Gale", color: "#e0b526" },

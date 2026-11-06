@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./classes": "./src/classes.ts",
     "./maps/*": "./maps/*"
   },
   "types": "./src/index.ts",
@@ -12,7 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@jadethrone/shared": "workspace:*"
+    "@jadethrone/shared": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

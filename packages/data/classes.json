@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "classes": [
+    {
+      "id": "warrior",
+      "name": "Warrior",
+      "description": "Swords and two-handed swords. A front-line fighter who either cleaves packs apart or becomes an iron wall.",
+      "weapons": ["sword", "two_handed_sword"],
+      "baseHp": 120,
+      "baseMp": 20,
+      "stats": { "vit": 4, "int": 3, "str": 6, "dex": 3 },
+      "colors": { "outfit": "#8c3b2f", "trim": "#c9a227", "pants": "#3b3a36" },
+      "doctrines": [
+        {
+          "id": "blade",
+          "name": "Blade",
+          "description": "Offensive sword arts, whirlwinds and sweeping area damage."
+        },
+        {
+          "id": "iron_body",
+          "name": "Iron Body",
+          "description": "Defensive stance, heavy armour and unyielding endurance."
+        }
+      ]
+    },
+    {
+      "id": "assassin",
+      "name": "Assassin",
+      "description": "Daggers and bows. Strikes from the shadows for burst damage or picks enemies apart from range.",
+      "weapons": ["dagger", "bow"],
+      "baseHp": 90,
+      "baseMp": 30,
+      "stats": { "vit": 3, "int": 3, "str": 4, "dex": 6 },
+      "colors": { "outfit": "#2f4a3f", "trim": "#5da88f", "pants": "#2b2b33" },
+      "doctrines": [
+        {
+          "id": "shadow",
+          "name": "Shadow",
+          "description": "Stealth, ambush strikes and close-range execution."
+        },
+        {
+          "id": "hawk",
+          "name": "Hawk",
+          "description": "Archery, mobility and precise ranged pressure."
+        }
+      ]
+    },
+    {
+      "id": "hexblade",
+      "name": "Hexblade",
+      "description": "A sword bound to a curse. Fights in melee with dark buffs or hurls cursed magic from afar.",
+      "weapons": ["sword"],
+      "baseHp": 100,
+      "baseMp": 40,
+      "stats": { "vit": 3, "int": 5, "str": 5, "dex": 3 },
+      "colors": { "outfit": "#4b2f5e", "trim": "#9b6bd1", "pants": "#2f2b36" },
+      "doctrines": [
+        {
+          "id": "cursed_steel",
+          "name": "Cursed Steel",
+          "description": "Melee strikes empowered by self-buffs and curses."
+        },
+        {
+          "id": "dark_arts",
+          "name": "Dark Arts",
+          "description": "Ranged shadow magic and area corruption."
+        }
+      ]
+    },
+    {
+      "id": "mystic",
+      "name": "Mystic",
+      "description": "Bells and fans. Channels dragon spirits for destruction or grace for healing and protection.",
+      "weapons": ["bell", "fan"],
+      "baseHp": 80,
+      "baseMp": 50,
+      "stats": { "vit": 3, "int": 6, "str": 3, "dex": 4 },
+      "colors": { "outfit": "#2f4a6b", "trim": "#6bb6d1", "pants": "#353b44" },
+      "doctrines": [
+        {
+          "id": "dragon",
+          "name": "Dragon",
+          "description": "Offensive elemental magic and spirit summons."
+        },
+        {
+          "id": "grace",
+          "name": "Grace",
+          "description": "Healing, cleansing and protective buffs."
+        }
+      ]
+    }
+  ]
+}

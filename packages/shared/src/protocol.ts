@@ -11,7 +11,21 @@ export const MSG = {
   chat: "chat",
   chatMsg: "chatMsg",
   warp: "warp",
+  sessionKicked: "sessionKicked",
 } as const;
+
+/**
+ * Application close code used when a session is replaced (Colyseus reserves
+ * 4000–4010 for its own close reasons).
+ */
+export const SESSION_KICK_CODE = 4100;
+
+export type SessionKickReason = "login" | "duplicate";
+
+/** Sent just before the socket closes with SESSION_KICK_CODE. */
+export interface SessionKickedPayload {
+  reason: SessionKickReason;
+}
 
 const seqSchema = z.number().int().min(1).max(4_294_967_295);
 /** All maps fit in uint16 pixels (largest is 5120 px). */
