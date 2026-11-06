@@ -59,6 +59,11 @@ export interface InventoryState {
   equipment: (ItemStack | null)[];
 }
 
+/** Account-wide warehouse contents (3 pages, no equipment). */
+export interface WarehouseState {
+  items: ItemStack[];
+}
+
 export const INVENTORY_ERROR_CODES = [
   "invalid_slot",
   "slot_occupied",
@@ -81,6 +86,10 @@ export function emptyInventory(): InventoryState {
     items: [],
     equipment: Array.from({ length: EQUIP_SLOTS.length }, () => null),
   };
+}
+
+export function emptyWarehouse(): WarehouseState {
+  return { items: [] };
 }
 
 export function cloneInventory(state: InventoryState): InventoryState {

@@ -78,6 +78,7 @@ export const AUTO_WALK_MAX_EMPTY_PATHS = 3;
 export const COMBAT_EVENT_RADIUS_PX = 900;
 
 /** Phase-4 economy interaction ranges and timings (GAME_DESIGN.md §6.3, §7). */
+export const MAX_GOLD = 2_000_000_000;
 export const PICKUP_RADIUS_PX = 56;
 export const DROP_OWNERSHIP_MS = 30_000;
 export const GROUND_ITEM_DESPAWN_MS = 120_000;

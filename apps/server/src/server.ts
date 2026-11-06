@@ -26,6 +26,7 @@ import type { RateLimitSettings } from "./http/rateLimit";
 import { createAuthRouter } from "./routes/auth";
 import { createCharactersRouter } from "./routes/characters";
 import { healthHandler } from "./routes/health";
+import { createItemService, type ItemService } from "./items/service";
 import { setServerServices, type CombatTuning } from "./services";
 import { createCryptoRandomSource } from "./util/random";
 
@@ -45,6 +46,7 @@ export interface ServerDeps {
   saveCharacter?: (characterId: string, save: CharacterSave) => Promise<boolean>;
   saveCharacters?: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   loadCharacter?: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  items?: ItemService;
   createRandomSource?: () => RandomSource;
   combatTuning?: CombatTuning;
   rateLimits?: {
@@ -90,6 +92,7 @@ export function createGameServer(deps: ServerDeps = {}) {
   const loadCharacter =
     deps.loadCharacter ??
     ((accountId, characterId) => getCharacterForAccount(db, accountId, characterId));
+  const itemService = deps.items ?? createItemService(db);
 
   setServerServices({
     db,
@@ -99,6 +102,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     saveCharacter,
     saveCharacters,
     loadCharacter,
+    items: itemService,
     createRandomSource: deps.createRandomSource ?? createCryptoRandomSource,
     combatTuning: deps.combatTuning ?? {},
   });

@@ -5,6 +5,7 @@ import type { SessionRegistry } from "./auth/sessionRegistry";
 import type { BulkCharacterSave, CharacterSave } from "./characters/characterService";
 import type { CharacterRecord } from "./characters/characterMappers";
 import type { Db } from "./db/client";
+import type { ItemService } from "./items/service";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
 export interface CombatTuning {
@@ -27,6 +28,8 @@ export interface ServerServices {
   saveCharacters: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   /** Re-read after a duplicate kick saved the previous session's state. */
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  /** Inventory/economy persistence; room tests inject an in-memory fake. */
+  items: ItemService;
   /** Fresh per-room RNG stream: crypto in production, seeded in tests. */
   createRandomSource: () => RandomSource;
   combatTuning: CombatTuning;

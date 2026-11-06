@@ -1,18 +1,26 @@
 import { randomUUID } from "node:crypto";
 import { vi, type Mock } from "vitest";
 import {
+  EQUIP_SLOTS,
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
+  emptyInventory,
   type ClassId,
   type Gender,
+  type InventoryState,
+  type ItemStack,
   type KingdomId,
   type MapId,
+  type WarehouseState,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
 import type { AccountAuthRecord } from "../../src/auth/accountService";
 import type { JoinAuthenticator, JoinIdentity } from "../../src/auth/joinAuth";
 import type { BulkCharacterSave, CharacterSave } from "../../src/characters/characterService";
 import type { CharacterRecord } from "../../src/characters/characterMappers";
+import type { ItemPlan } from "../../src/items/itemChanges";
+import { ItemError } from "../../src/items/errors";
+import type { ItemService } from "../../src/items/service";
 import { consumeWarpTokenPayload, type WarpTokenPayload } from "../../src/rooms/warpTokens";
 
 /**
@@ -45,6 +53,19 @@ export interface FakeServices {
   saveCharacter: Mock<(characterId: string, save: CharacterSave) => Promise<boolean>>;
   saveCharacters: Mock<(saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>>;
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  items: ItemService;
+  /** Seed an item row directly (room tests start with a clean inventory). */
+  giveItem: (row: {
+    id: string;
+    itemId: string;
+    location: "inventory" | "equipment" | "ground" | "warehouse";
+    slot: number | null;
+    quantity?: number;
+    ownerCharacterId?: string;
+    ownerAccountId?: string;
+    mapId?: string;
+  }) => void;
+  setGold: (characterId: string, gold: number) => void;
   identities: Map<string, JoinIdentity>;
   saved: BulkCharacterSave[];
   prepare: (options?: FakeJoinOptions) => JoinIdentity;
@@ -208,16 +229,176 @@ export function createFakeServices(): FakeServices {
     return identity;
   };
 
+  // In-memory item store. It applies the same ItemChange[] as the DB executor;
+  // the game rules remain in the planners, so this fake has no policy.
+  interface FakeItemRow {
+    stack: ItemStack;
+    location: "inventory" | "equipment" | "warehouse" | "ground";
+    ownerCharacterId: string | null;
+    ownerAccountId: string | null;
+    mapId: string | null;
+  }
+  const itemRows = new Map<string, FakeItemRow>();
+  const goldByCharacter = new Map<string, number>();
+
+  function inventoryFromRows(characterId: string): InventoryState {
+    const state = emptyInventory();
+    for (const row of itemRows.values()) {
+      if (row.ownerCharacterId !== characterId) {
+        continue;
+      }
+      if (row.location === "inventory") {
+        state.items.push({ ...row.stack, bonuses: [...row.stack.bonuses] });
+      } else if (row.location === "equipment") {
+        const index = row.stack.slot;
+        if (index >= 0 && index < EQUIP_SLOTS.length) {
+          state.equipment[index] = { ...row.stack, bonuses: [...row.stack.bonuses] };
+        }
+      }
+    }
+    state.items.sort((a, b) => a.slot - b.slot);
+    return state;
+  }
+
+  function warehouseFromRows(accountId: string): WarehouseState {
+    return {
+      items: [...itemRows.values()]
+        .filter(
+          (row) => row.ownerAccountId === accountId && row.location === "warehouse",
+        )
+        .map((row) => ({ ...row.stack, bonuses: [...row.stack.bonuses] }))
+        .sort((a, b) => a.slot - b.slot),
+    };
+  }
+
+  const itemsService: ItemService = {
+    async loadInventory(accountId, characterId) {
+      const identity = identities.get(characterId);
+      if (!identity || identity.account.id !== accountId) {
+        throw new ItemError("stale", "Character no longer exists.");
+      }
+      return {
+        inventory: inventoryFromRows(characterId),
+        gold: goldByCharacter.get(characterId) ?? 0,
+        repairs: [],
+      };
+    },
+    async loadWarehouse(accountId) {
+      return warehouseFromRows(accountId);
+    },
+    async apply(accountId, characterId, plan: ItemPlan) {
+      for (const change of plan.changes) {
+        if (change.kind === "insert") {
+          itemRows.set(change.id, {
+            stack: {
+              id: change.id,
+              itemId: change.itemId,
+              slot: change.slot,
+              quantity: change.quantity,
+              upgradeLevel: change.upgradeLevel,
+              bonuses: [...change.bonuses],
+            },
+            location: change.location,
+            ownerCharacterId: change.ownerCharacterId,
+            ownerAccountId: change.ownerAccountId,
+            mapId: null,
+          });
+        } else if (change.kind === "update") {
+          const row = itemRows.get(change.id);
+          if (!row) {
+            throw new ItemError("stale", "Item no longer exists.");
+          }
+          row.stack = {
+            ...row.stack,
+            slot: change.to.slot ?? row.stack.slot,
+            quantity: change.to.quantity,
+          };
+          row.location = change.to.location;
+          row.ownerCharacterId = change.to.ownerCharacterId;
+          row.ownerAccountId = change.to.ownerAccountId;
+          row.mapId = change.to.mapId;
+        } else {
+          itemRows.delete(change.id);
+        }
+      }
+      let gold = goldByCharacter.get(characterId) ?? 0;
+      if (plan.gold) {
+        gold = Math.max(0, gold + plan.gold.delta);
+        goldByCharacter.set(characterId, gold);
+      }
+      void accountId;
+      return { gold };
+    },
+    async insertGroundItem(row) {
+      itemRows.set(row.id, {
+        stack: {
+          id: row.id,
+          itemId: row.definitionId,
+          slot: row.slot ?? 0,
+          quantity: row.quantity ?? 1,
+          upgradeLevel: row.upgradeLevel ?? 0,
+          bonuses: row.bonuses ?? [],
+        },
+        location: "ground",
+        ownerCharacterId: row.ownerCharacterId ?? null,
+        ownerAccountId: row.ownerAccountId ?? null,
+        mapId: row.mapId ?? null,
+      });
+      return true;
+    },
+    async deleteGroundItem(id) {
+      const row = itemRows.get(id);
+      if (!row || row.location !== "ground") {
+        return false;
+      }
+      itemRows.delete(id);
+      return true;
+    },
+  };
+
+  function giveItem(row: {
+    id: string;
+    itemId: string;
+    location: "inventory" | "equipment" | "ground" | "warehouse";
+    slot: number | null;
+    quantity?: number;
+    ownerCharacterId?: string;
+    ownerAccountId?: string;
+    mapId?: string;
+  }): void {
+    itemRows.set(row.id, {
+      stack: {
+        id: row.id,
+        itemId: row.itemId,
+        slot: row.slot ?? 0,
+        quantity: row.quantity ?? 1,
+        upgradeLevel: 0,
+        bonuses: [],
+      },
+      location: row.location,
+      ownerCharacterId: row.ownerCharacterId ?? null,
+      ownerAccountId: row.ownerAccountId ?? null,
+      mapId: row.mapId ?? null,
+    });
+  }
+
   return {
     joinAuthenticator,
     saveCharacter,
     saveCharacters,
     loadCharacter,
+    items: itemsService,
+    giveItem,
+    setGold(characterId, gold) {
+      goldByCharacter.set(characterId, gold);
+    },
     identities,
     saved,
     prepare,
     reset() {
       identities.clear();
+      itemRows.clear();
+      goldByCharacter.clear();
       saved.length = 0;
       vi.clearAllMocks();
     },
