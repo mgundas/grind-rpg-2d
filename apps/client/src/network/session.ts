@@ -5,13 +5,17 @@ import {
   type AutoWalkPayload,
   type DeathPayload,
   type InputMessage,
+  type InventoryErrorPayload,
+  type InventorySnapshotPayload,
   type MapId,
   type MonsterDiedPayload,
+  type NpcDialogPayload,
   type RespawnOption,
   type SelfStatsPayload,
   type SessionKickedPayload,
   type StatKey,
   type WarpPayload,
+  type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { useUiStore } from "../ui/store";
 import { ApiError, api } from "./api";
@@ -145,6 +149,13 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setAutoWalk(false);
   leaving.setTargetMonster(null);
   leaving.setDeath(false, 0);
+  leaving.setInventory(null);
+  leaving.setInventoryOpen(false);
+  leaving.setInventoryError(null);
+  leaving.setNpcDialog(null);
+  leaving.setShopId(null);
+  leaving.setWarehouse(null);
+  leaving.setWarehouseOpen(false);
   if (!current) {
     return;
   }
@@ -197,6 +208,58 @@ export function sendAllocStat(stat: StatKey): void {
 
 export function requestStats(): void {
   room?.send(MSG.requestStats, {});
+}
+
+export function requestInventory(): void {
+  room?.send(MSG.requestInventory, {});
+}
+
+export function sendMoveItem(instanceId: string, toSlot: number): void {
+  room?.send(MSG.moveItem, { instanceId, toSlot });
+}
+
+export function sendSplitStack(instanceId: string, quantity: number, toSlot?: number | null): void {
+  room?.send(MSG.splitStack, { instanceId, quantity, toSlot: toSlot ?? null });
+}
+
+export function sendEquipItem(instanceId: string): void {
+  room?.send(MSG.equipItem, { instanceId });
+}
+
+export function sendUnequipItem(slot: number): void {
+  room?.send(MSG.unequipItem, { slot });
+}
+
+export function sendUseItem(instanceId: string): void {
+  room?.send(MSG.useItem, { instanceId });
+}
+
+export function sendPickup(dropId: string): void {
+  room?.send(MSG.pickup, { dropId });
+}
+
+export function sendInteractNpc(npcId: string): void {
+  room?.send(MSG.interactNpc, { npcId });
+}
+
+export function sendShopBuy(shopId: string, itemId: string, quantity = 1): void {
+  room?.send(MSG.shopBuy, { shopId, itemId, quantity });
+}
+
+export function sendShopSell(instanceId: string, quantity = 1): void {
+  room?.send(MSG.shopSell, { instanceId, quantity });
+}
+
+export function sendWarehouseOpen(npcId: string): void {
+  room?.send(MSG.warehouseOpen, { npcId });
+}
+
+export function sendWarehouseDeposit(instanceId: string): void {
+  room?.send(MSG.warehouseDeposit, { instanceId });
+}
+
+export function sendWarehouseWithdraw(instanceId: string, toSlot?: number | null): void {
+  room?.send(MSG.warehouseWithdraw, { instanceId, toSlot: toSlot ?? null });
 }
 
 function bindSessionEvents(current: Room): void {
@@ -254,8 +317,25 @@ function bindSessionEvents(current: Room): void {
     }
   });
 
+  current.onMessage(MSG.inventory, (payload: InventorySnapshotPayload) => {
+    useUiStore.getState().setInventory(payload);
+  });
+
+  current.onMessage(MSG.inventoryError, (payload: InventoryErrorPayload) => {
+    useUiStore.getState().setInventoryError(payload);
+  });
+
+  current.onMessage(MSG.npcDialog, (payload: NpcDialogPayload) => {
+    useUiStore.getState().setNpcDialog(payload);
+  });
+
+  current.onMessage(MSG.warehouse, (payload: WarehouseSnapshotPayload) => {
+    useUiStore.getState().setWarehouse(payload);
+  });
+
   // The join-time snapshot can arrive before the SDK listener is bound.
   current.send(MSG.requestStats, {});
+  current.send(MSG.requestInventory, {});
 
   current.onLeave((code) => {
     if (room === current) {

@@ -14,11 +14,43 @@ export const HAIR_COLORS = ["#2b1d14", "#8a5a2b", "#d9c18a"] as const;
 const SKIN = { male: "#c89b6a", female: "#dcae7e" } as const;
 const OUTLINE = "rgba(10, 14, 12, 0.55)";
 
-export type CharacterLook = CharacterAppearance;
+export type CharacterLook = CharacterAppearance & {
+  /** Equipped visual layers, e.g. `weapon.sword.t2`; empty/undefined = none. */
+  weaponLayer?: string;
+  armorLayer?: string;
+  helmetLayer?: string;
+  shieldLayer?: string;
+};
 
-/** Stable texture key; identical appearance always reuses one texture. */
+/** Stable texture key; identical appearance + equipment reuses one texture. */
 export function characterTextureKey(look: CharacterLook): string {
-  return `char.gen.${look.classId}.${look.gender}.${look.hairStyle}.${look.hairColor}`;
+  const layer = (value: string | undefined) => (value && value.length > 0 ? value : "-");
+  return [
+    "char.gen",
+    look.classId,
+    look.gender,
+    look.hairStyle,
+    look.hairColor,
+    layer(look.weaponLayer),
+    layer(look.armorLayer),
+    layer(look.helmetLayer),
+    layer(look.shieldLayer),
+  ].join(".");
+}
+
+function layerTier(layer: string | undefined): number {
+  const match = layer?.match(/t(\d)$/);
+  return match ? Number(match[1]) : 1;
+}
+
+function weaponColor(layer: string | undefined): string {
+  if (!layer) {
+    return "#b8bcc2";
+  }
+  if (layer.includes("dagger")) return "#9aa7b8";
+  if (layer.includes("bell")) return "#d8b44a";
+  if (layer.includes("hex")) return "#9b6bd1";
+  return "#c7ced6";
 }
 
 function shade(hex: string, factor: number): string {
@@ -91,6 +123,58 @@ export function drawCharacter(
   ctx.fillStyle = trim;
   ctx.fillRect(32 - hip / 2, 39, hip, 3);
 
+  // Equipped armour: a brighter chest plate with shoulder pads.
+  if (look.armorLayer) {
+    const tier = layerTier(look.armorLayer);
+    const plate = shade(outfit, 1.05 + tier * 0.04);
+    ctx.fillStyle = plate;
+    ctx.beginPath();
+    ctx.roundRect(32 - hip / 2 + 1, 23, hip - 2, 16, 4);
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.stroke();
+    ctx.fillStyle = shade(plate, 0.88);
+    ctx.fillRect(32 - shoulder / 2 - 3, 21, 6, 7);
+    ctx.fillRect(32 + shoulder / 2 - 3, 21, 6, 7);
+    ctx.fillStyle = "rgba(255,255,255,0.16)";
+    ctx.fillRect(32 - hip / 2 + 3, 25, 3, 10);
+  }
+
+  // Off-hand shield.
+  if (look.shieldLayer) {
+    const tier = layerTier(look.shieldLayer);
+    const shieldColor = shade("#8a6b4a", 0.9 + tier * 0.06);
+    ctx.fillStyle = shieldColor;
+    ctx.beginPath();
+    ctx.roundRect(32 - shoulder / 2 - 7, 27, 8, 14, 3);
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.stroke();
+    ctx.fillStyle = shade(shieldColor, 0.65);
+    ctx.fillRect(32 - shoulder / 2 - 4, 29, 2, 10);
+  }
+
+  // Weapon in the right hand.
+  if (look.weaponLayer) {
+    const tier = layerTier(look.weaponLayer);
+    const blade = weaponColor(look.weaponLayer);
+    const length = look.weaponLayer.includes("dagger") ? 10 : 16 + tier;
+    ctx.strokeStyle = "#2a2420";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(32 + shoulder / 2 + 1, 44);
+    ctx.lineTo(32 + shoulder / 2 + 1, 38);
+    ctx.stroke();
+    ctx.strokeStyle = blade;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(32 + shoulder / 2 + 1, 39);
+    ctx.lineTo(32 + shoulder / 2 + 1, 39 - length);
+    ctx.stroke();
+    ctx.fillStyle = shade(blade, 0.7);
+    ctx.fillRect(32 + shoulder / 2 - 2, 38, 7, 2);
+  }
+
   // Head.
   ctx.beginPath();
   ctx.roundRect(32 - 7, 8, 14, 14, 5);
@@ -137,6 +221,22 @@ export function drawCharacter(
   ctx.strokeStyle = OUTLINE;
   ctx.lineWidth = 1;
   ctx.strokeRect(25.5, 5.5, 13, 6);
+
+  // Helmet on top of the hair.
+  if (look.helmetLayer) {
+    const tier = layerTier(look.helmetLayer);
+    const metal = shade("#8a8f98", 0.9 + tier * 0.06);
+    ctx.fillStyle = metal;
+    ctx.beginPath();
+    ctx.roundRect(23, 4, 18, 9, 5);
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.stroke();
+    ctx.fillStyle = shade(metal, 0.72);
+    ctx.fillRect(23, 11, 18, 2);
+    ctx.fillStyle = "rgba(255,255,255,0.18)";
+    ctx.fillRect(26, 6, 5, 2);
+  }
 }
 
 /** Draw the composite into a fresh canvas (used by the React preview). */

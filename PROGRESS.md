@@ -150,11 +150,11 @@ Plan: `docs/plans/phase-4.md`.
 - [ ] Task 15 — Consumables and return scroll
 - [x] Task 16 — NPC dialog and shops (server)
 - [ ] Task 17 — Warehouse (server)
-- [ ] Task 18 — Client store, item icons and inventory UI
-- [ ] Task 19 — Client equipment panel and visual layers
-- [ ] Task 20 — Client hotbar, consumables and gold HUD
-- [ ] Task 21 — Client ground items, pickup FX and auto-loot
-- [ ] Task 22 — Client NPC dialog, shop and warehouse UI
+- [x] Task 18 — Client store, item icons and inventory UI
+- [x] Task 19 — Client equipment panel and visual layers
+- [x] Task 20 — Client hotbar, consumables and gold HUD
+- [x] Task 21 — Client ground items, pickup FX and auto-loot
+- [x] Task 22 — Client NPC dialog, shop and warehouse UI
 - [ ] Task 23 — Verification tooling and docs
 - [ ] Task 24 — Phase gate
 

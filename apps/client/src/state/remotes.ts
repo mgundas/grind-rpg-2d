@@ -87,6 +87,10 @@ export interface RemotePlayerData {
   gender: string;
   hairStyle: number;
   hairColor: number;
+  weaponLayer?: string;
+  armorLayer?: string;
+  helmetLayer?: string;
+  shieldLayer?: string;
   facing: number;
   x: number;
   y: number;
@@ -100,6 +104,10 @@ export interface RemoteEntity {
   gender: string;
   hairStyle: number;
   hairColor: number;
+  weaponLayer?: string;
+  armorLayer?: string;
+  helmetLayer?: string;
+  shieldLayer?: string;
   facing: number;
   buffer: SampleBuffer;
 }
@@ -130,6 +138,10 @@ export class RemoteRegistry {
           gender: player.gender,
           hairStyle: player.hairStyle,
           hairColor: player.hairColor,
+          weaponLayer: player.weaponLayer,
+          armorLayer: player.armorLayer,
+          helmetLayer: player.helmetLayer,
+          shieldLayer: player.shieldLayer,
           facing: player.facing,
           buffer: new SampleBuffer(),
         };
@@ -141,6 +153,10 @@ export class RemoteRegistry {
       entity.gender = player.gender;
       entity.hairStyle = player.hairStyle;
       entity.hairColor = player.hairColor;
+      entity.weaponLayer = player.weaponLayer;
+      entity.armorLayer = player.armorLayer;
+      entity.helmetLayer = player.helmetLayer;
+      entity.shieldLayer = player.shieldLayer;
       entity.facing = player.facing;
       entity.buffer.push(now, player.x, player.y);
     }

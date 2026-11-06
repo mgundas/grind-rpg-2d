@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import {
   KINGDOMS,
+  MSG,
+  PICKUP_RADIUS_PX,
+  RARITY_COLORS,
   REMOTE_INTERP_DELAY_MS,
   TILE_SIZE,
   buildCollisionGrid,
@@ -20,12 +23,16 @@ import {
   type LevelUpPayload,
   type MapId,
   type MonsterDiedPayload,
+  type NpcSpawn,
+  type PickupResultPayload,
   type TiledMapJson,
   type Vec2,
   type WarpPayload,
 } from "@jadethrone/shared";
 import { getMonster } from "@jadethrone/data/monsters";
 import { getClass } from "@jadethrone/data/classes";
+import { getItem, hasItem } from "@jadethrone/data/items";
+import { getNpc } from "@jadethrone/data/npcs";
 import {
   consumeWarp,
   getPingMs,
@@ -33,6 +40,8 @@ import {
   leave,
   sendAttack,
   sendInput,
+  sendInteractNpc,
+  sendPickup,
   sendSetTarget,
 } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
@@ -60,6 +69,10 @@ interface RemotePlayerState {
   gender: string;
   hairStyle: number;
   hairColor: number;
+  weaponLayer?: string;
+  armorLayer?: string;
+  helmetLayer?: string;
+  shieldLayer?: string;
   level: number;
   hp: number;
   maxHp: number;
@@ -82,9 +95,26 @@ interface MonstersCollection {
   forEach(callback: (monster: MonsterStateLike, monsterId: string) => void): void;
 }
 
+interface GroundItemData {
+  dropId: string;
+  kind: string;
+  itemId: string;
+  quantity: number;
+  rarity: string;
+  x: number;
+  y: number;
+  ownerCharacterId: string;
+  despawnAtMs: number;
+}
+
+interface GroundItemsCollection {
+  forEach(callback: (item: GroundItemData, dropId: string) => void): void;
+}
+
 interface RoomStateLike {
   players?: PlayersCollection;
   monsters?: MonstersCollection;
+  groundItems?: GroundItemsCollection;
 }
 
 interface RemoteVisual {
@@ -99,6 +129,12 @@ interface MonsterVisual {
   label: Phaser.GameObjects.Text;
   barBackground: Phaser.GameObjects.Rectangle;
   barFill: Phaser.GameObjects.Rectangle;
+}
+
+interface GroundVisual {
+  sprite: Phaser.GameObjects.GameObject & { destroy: () => void };
+  beam: Phaser.GameObjects.Rectangle;
+  label: Phaser.GameObjects.Text;
 }
 
 /**
@@ -129,6 +165,11 @@ export class WorldScene extends Phaser.Scene {
   private remoteVisuals = new Map<string, RemoteVisual>();
   private monsterRegistry = new MonsterRegistry();
   private monsterVisuals = new Map<string, MonsterVisual>();
+  private groundVisuals = new Map<string, GroundVisual>();
+  private groundData = new Map<string, GroundItemData>();
+  private npcPoints: NpcSpawn[] = [];
+  private altHeld = false;
+  private lastAutoLootAt = 0;
   private ownWalkBuffer = new SampleBuffer(32);
   private lastServerPosition = { x: 0, y: 0, lastSeq: 0 };
   private autoWalkPrev = false;
@@ -153,6 +194,15 @@ export class WorldScene extends Phaser.Scene {
     this.remoteVisuals.clear();
     this.monsterRegistry = new MonsterRegistry();
     this.monsterVisuals.clear();
+    for (const visual of this.groundVisuals.values()) {
+      visual.sprite.destroy();
+      visual.beam.destroy();
+      visual.label.destroy();
+    }
+    this.groundVisuals.clear();
+    this.groundData.clear();
+    this.altHeld = false;
+    this.lastAutoLootAt = 0;
     this.ownWalkBuffer = new SampleBuffer(32);
     this.autoWalkPrev = false;
     this.attackReadyAtMs = 0;
@@ -165,6 +215,7 @@ export class WorldScene extends Phaser.Scene {
 
     this.mapId = useUiStore.getState().mapId ?? DEFAULT_MAP;
     this.buildMap();
+    this.buildNpcVisuals();
     this.buildCharacter();
     this.setupInput();
 
@@ -181,6 +232,26 @@ export class WorldScene extends Phaser.Scene {
       }
       event.preventDefault();
       this.cycleTarget();
+    });
+
+    this.input.keyboard?.off("keydown-Z");
+    this.input.keyboard?.on("keydown-Z", (event: KeyboardEvent) => {
+      if (useUiStore.getState().chatFocused) {
+        return;
+      }
+      event.preventDefault();
+      this.pickupNearestOwned();
+    });
+    this.input.keyboard?.off("keydown-ALT");
+    this.input.keyboard?.on("keydown-ALT", (event: KeyboardEvent) => {
+      event.preventDefault();
+      this.altHeld = true;
+      this.refreshGroundLabels();
+    });
+    this.input.keyboard?.off("keyup-ALT");
+    this.input.keyboard?.on("keyup-ALT", () => {
+      this.altHeld = false;
+      this.refreshGroundLabels();
     });
 
     const keyboard = this.input.keyboard;
@@ -341,6 +412,7 @@ export class WorldScene extends Phaser.Scene {
     this.setOwnVisible(true);
     this.syncRemotes(state, sessionId);
     this.syncMonsters(state);
+    this.syncGroundItems(state);
 
     room.onStateChange((next: unknown) => {
       const snapshot = next as RoomStateLike;
@@ -356,10 +428,16 @@ export class WorldScene extends Phaser.Scene {
         if (useUiStore.getState().autoWalk) {
           this.ownWalkBuffer.push(this.time.now, me.x, me.y);
         }
+        const ownTexture = ensureCharacterTexture(this, lookFromPlayer(me));
+        if (this.character.texture.key !== ownTexture) {
+          this.character.setTexture(ownTexture);
+        }
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
       this.syncRemotes(snapshot, sessionId);
       this.syncMonsters(snapshot);
+      this.syncGroundItems(snapshot);
+      this.maybeAutoLoot();
     });
 
     room.onMessage("chatMsg", (payload: ChatMsgPayload) => {
@@ -379,6 +457,10 @@ export class WorldScene extends Phaser.Scene {
     });
     room.onMessage("levelUp", (payload: LevelUpPayload) => {
       this.showLevelUp(payload);
+    });
+
+    room.onMessage(MSG.pickupResult, (payload: PickupResultPayload) => {
+      this.showPickupResult(payload);
     });
   }
 
@@ -774,6 +856,10 @@ export class WorldScene extends Phaser.Scene {
         gender: player.gender,
         hairStyle: player.hairStyle,
         hairColor: player.hairColor,
+        weaponLayer: player.weaponLayer,
+        armorLayer: player.armorLayer,
+        helmetLayer: player.helmetLayer,
+        shieldLayer: player.shieldLayer,
         facing: player.facing,
         x: player.x,
         y: player.y,
@@ -826,6 +912,10 @@ export class WorldScene extends Phaser.Scene {
       if (!pos) {
         continue;
       }
+      const texture = ensureCharacterTexture(this, lookFromPlayer(entity));
+      if (visual.sprite.texture.key !== texture) {
+        visual.sprite.setTexture(texture);
+      }
       visual.sprite.setPosition(pos.x, pos.y);
       visual.sprite.setDepth(pos.y);
       visual.shadow.setPosition(pos.x, pos.y + 6);
@@ -833,6 +923,221 @@ export class WorldScene extends Phaser.Scene {
       visual.label.setPosition(pos.x, pos.y - 52);
       visual.label.setDepth(pos.y + 2);
     }
+  }
+
+  private buildNpcVisuals(): void {
+    for (const point of this.npcPoints) {
+      let info;
+      try {
+        info = getNpc(point.npcId);
+      } catch {
+        continue;
+      }
+      const color =
+        info.kind === "shop" ? "#5da88f" : info.kind === "warehouse" ? "#c9a227" : "#9b6bd1";
+      this.add.ellipse(point.x, point.y + 2, 20, 7, 0x000000, 0.28).setDepth(point.y - 1);
+      this.add.rectangle(point.x, point.y - 14, 18, 30, 0x3a3630).setDepth(point.y);
+      this.add.rectangle(point.x, point.y - 20, 18, 10, Phaser.Display.Color.HexStringToColor(color).color, 0.7).setDepth(point.y);
+      this.add.circle(point.x, point.y - 33, 7, 0xc89b6a).setDepth(point.y);
+      this.add
+        .text(point.x, point.y - 43, info.name, {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "9px",
+          color,
+          stroke: "#0b0f0d",
+          strokeThickness: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(point.y + 2);
+    }
+  }
+
+  private npcAtPointer(worldX: number, worldY: number): string | null {
+    let best: string | null = null;
+    let bestDistance = 26 * 26;
+    for (const npc of this.npcPoints) {
+      const dx = npc.x - worldX;
+      const dy = npc.y - worldY;
+      const distance = dx * dx + dy * dy;
+      if (distance <= bestDistance) {
+        bestDistance = distance;
+        best = npc.npcId;
+      }
+    }
+    return best;
+  }
+
+  private syncGroundItems(snapshot: RoomStateLike): void {
+    const seen = new Set<string>();
+    snapshot.groundItems?.forEach((item, dropId) => {
+      seen.add(dropId);
+      this.groundData.set(dropId, item);
+      if (!this.groundVisuals.has(dropId)) {
+        this.createGroundVisual(item);
+      }
+    });
+    for (const [dropId, visual] of this.groundVisuals) {
+      if (seen.has(dropId)) {
+        continue;
+      }
+      visual.sprite.destroy();
+      visual.beam.destroy();
+      visual.label.destroy();
+      this.groundVisuals.delete(dropId);
+      this.groundData.delete(dropId);
+    }
+  }
+
+  private createGroundVisual(item: GroundItemData): void {
+    const rarityColor = RARITY_COLORS[(item.rarity as keyof typeof RARITY_COLORS) ?? "common"] ??
+      RARITY_COLORS.common;
+    const color = Phaser.Display.Color.HexStringToColor(rarityColor).color;
+    const beam = this.add
+      .rectangle(item.x, item.y, 4, 28, color, 0)
+      .setOrigin(0.5, 1)
+      .setDepth(item.y - 1);
+    let sprite: GroundVisual["sprite"];
+    if (item.kind === "gold") {
+      sprite = this.add.circle(item.x, item.y - 6, 7, 0xd4a017).setDepth(item.y).setAlpha(0);
+    } else {
+      const definition = hasItem(item.itemId) ? getItem(item.itemId) : null;
+      sprite = this.add
+        .image(item.x, item.y - 4, definition?.iconKey ?? "icon.item.material_wolf_fang")
+        .setOrigin(0.5, 1)
+        .setScale(0.36)
+        .setDepth(item.y)
+        .setAlpha(0);
+    }
+    const label = this.add
+      .text(
+        item.x,
+        item.y - 34,
+        item.kind === "gold"
+          ? `${item.quantity} Gold`
+          : hasItem(item.itemId)
+            ? getItem(item.itemId).name
+            : "Item",
+        {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "9px",
+          color: rarityColor,
+          stroke: "#0b0f0d",
+          strokeThickness: 3,
+        },
+      )
+      .setOrigin(0.5, 1)
+      .setDepth(item.y + 2)
+      .setVisible(this.altHeld);
+
+    this.tweens.add({ targets: beam, alpha: 0.32, duration: 180 });
+    this.tweens.add({
+      targets: sprite,
+      alpha: 1,
+      y: item.y,
+      duration: 320,
+      ease: "Back.easeOut",
+    });
+    this.groundVisuals.set(item.dropId, { sprite, beam, label });
+  }
+
+  private refreshGroundLabels(): void {
+    for (const visual of this.groundVisuals.values()) {
+      visual.label.setVisible(this.altHeld);
+    }
+  }
+
+  private ownCharacterId(): string | null {
+    return useUiStore.getState().selectedCharacterId;
+  }
+
+  private ownPosition(): Vec2 {
+    return this.predictor?.position ?? { x: this.character.x, y: this.character.y };
+  }
+
+  private nearestOwnedDrop(radiusPx: number): GroundItemData | null {
+    const own = this.ownPosition();
+    const characterId = this.ownCharacterId();
+    let best: GroundItemData | null = null;
+    let bestDistance = radiusPx * radiusPx;
+    for (const item of this.groundData.values()) {
+      if (item.despawnAtMs <= Date.now()) {
+        continue;
+      }
+      if (item.ownerCharacterId && item.ownerCharacterId !== characterId) {
+        continue;
+      }
+      const dx = item.x - own.x;
+      const dy = item.y - own.y;
+      const distance = dx * dx + dy * dy;
+      if (distance <= bestDistance) {
+        bestDistance = distance;
+        best = item;
+      }
+    }
+    return best;
+  }
+
+  private pickupNearestOwned(): void {
+    const item = this.nearestOwnedDrop(PICKUP_RADIUS_PX);
+    if (item) {
+      sendPickup(item.dropId);
+    }
+  }
+
+  private maybeAutoLoot(): void {
+    if (!useUiStore.getState().autoLoot) {
+      return;
+    }
+    const now = this.time.now;
+    if (now - this.lastAutoLootAt < 250) {
+      return;
+    }
+    const item = this.nearestOwnedDrop(PICKUP_RADIUS_PX);
+    if (!item) {
+      return;
+    }
+    this.lastAutoLootAt = now;
+    sendPickup(item.dropId);
+  }
+
+  private showPickupResult(payload: PickupResultPayload): void {
+    if (!payload.ok) {
+      return;
+    }
+    const own = this.ownPosition();
+    if (payload.gold) {
+      this.showDamageNumber(
+        own.x,
+        own.y - 58,
+        `+${payload.gold.toLocaleString()} Gold`,
+        "#d4a017",
+        13,
+      );
+    } else if (payload.itemId) {
+      const name = hasItem(payload.itemId) ? getItem(payload.itemId).name : "Item";
+      this.showDamageNumber(
+        own.x,
+        own.y - 58,
+        `+${payload.quantity ?? 1} ${name}`,
+        "#8fd3b6",
+        12,
+      );
+    }
+  }
+
+  private groundItemAtPointer(worldX: number, worldY: number): string | null {
+    let best: string | null = null;
+    let bestDistance = 22 * 22;
+    for (const item of this.groundData.values()) {
+      const dx = item.x - worldX;
+      const dy = item.y - 12 - worldY;
+      const distance = dx * dx + dy * dy;
+      if (distance <= bestDistance) {
+        bestDistance = distance;
+        best = item.dropId;
+      }
+    }
+    return best;
   }
 
   private playerLevel(snapshot: RoomStateLike): number {
@@ -1082,6 +1387,18 @@ export class WorldScene extends Phaser.Scene {
       if (this.pointerHeld && connected()) {
         this.pointerWorld = { x: pointer.worldX, y: pointer.worldY };
       }
+      if (!connected()) {
+        return;
+      }
+      if (this.npcAtPointer(pointer.worldX, pointer.worldY)) {
+        this.input.setDefaultCursor("pointer");
+      } else if (this.monsterAtPointer(pointer.worldX, pointer.worldY)) {
+        this.input.setDefaultCursor("crosshair");
+      } else if (this.groundItemAtPointer(pointer.worldX, pointer.worldY)) {
+        this.input.setDefaultCursor("pointer");
+      } else {
+        this.input.setDefaultCursor("default");
+      }
     });
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {
       if (!connected()) {
@@ -1090,6 +1407,18 @@ export class WorldScene extends Phaser.Scene {
       }
       const heldMs = this.time.now - this.pointerDownAt;
       if (this.pointerHeld && heldMs <= CLICK_MAX_MS) {
+        const npcId = this.npcAtPointer(pointer.worldX, pointer.worldY);
+        if (npcId) {
+          sendInteractNpc(npcId);
+          this.pointerHeld = false;
+          return;
+        }
+        const dropId = this.groundItemAtPointer(pointer.worldX, pointer.worldY);
+        if (dropId) {
+          sendPickup(dropId);
+          this.pointerHeld = false;
+          return;
+        }
         const monsterId = this.monsterAtPointer(pointer.worldX, pointer.worldY);
         if (monsterId) {
           this.pathTarget = null;
@@ -1129,6 +1458,7 @@ export class WorldScene extends Phaser.Scene {
     const tiled = parseTiledMap(cached.data);
     this.grid = buildCollisionGrid(tiled);
     const objects = extractMapObjects(tiled);
+    this.npcPoints = objects.npcs;
     const spawn = objects.spawn;
     this.spawn = isWalkableAt(this.grid, spawn.x, spawn.y)
       ? spawn
@@ -1221,12 +1551,20 @@ function lookFromPlayer(player: {
   gender: string;
   hairStyle: number;
   hairColor: number;
+  weaponLayer?: string;
+  armorLayer?: string;
+  helmetLayer?: string;
+  shieldLayer?: string;
 }): CharacterLook {
   return {
     classId: isClassId(player.classId) ? player.classId : "warrior",
     gender: isGender(player.gender) ? player.gender : "male",
     hairStyle: Number.isInteger(player.hairStyle) ? player.hairStyle : 0,
     hairColor: Number.isInteger(player.hairColor) ? player.hairColor : 0,
+    weaponLayer: player.weaponLayer,
+    armorLayer: player.armorLayer,
+    helmetLayer: player.helmetLayer,
+    shieldLayer: player.shieldLayer,
   };
 }
 

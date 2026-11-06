@@ -35,6 +35,7 @@ export function Hud() {
   const account = useUiStore((state) => state.account);
   const characters = useUiStore((state) => state.characters);
   const selectedId = useUiStore((state) => state.selectedCharacterId);
+  const gold = useUiStore((state) => state.inventory?.gold ?? 0);
   if (!self) {
     return null;
   }
@@ -75,7 +76,7 @@ export function Hud() {
           Lv {self.level} {character?.name ?? account?.username ?? ""}
         </span>
         <span style={{ color: theme.muted }}>
-          {hp}/{maxHp} HP
+          {gold.toLocaleString()}g · {hp}/{maxHp} HP
         </span>
       </div>
       <div style={{ display: "grid", gap: 4 }}>

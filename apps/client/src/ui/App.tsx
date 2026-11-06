@@ -9,8 +9,13 @@ import { CharacterWindow } from "./CharacterWindow";
 import { Chat } from "./Chat";
 import { DeathScreen } from "./DeathScreen";
 import { DebugOverlay } from "./DebugOverlay";
+import { Hotbar } from "./Hotbar";
 import { Hud } from "./Hud";
+import { InventoryWindow, useInventoryHotkey } from "./InventoryWindow";
+import { NpcDialog } from "./NpcDialog";
+import { ShopWindow } from "./ShopWindow";
 import { TargetFrame } from "./TargetFrame";
+import { WarehouseWindow } from "./WarehouseWindow";
 import { useUiStore } from "./store";
 import { Panel, styles, theme } from "./theme";
 
@@ -32,6 +37,7 @@ export function App() {
   const account = useUiStore((state) => state.account);
   const connectionPhase = useUiStore((state) => state.connectionPhase);
   const sessionKickedReason = useUiStore((state) => state.sessionKickedReason);
+  useInventoryHotkey();
 
   useEffect(() => {
     let cancelled = false;
@@ -134,8 +140,13 @@ export function App() {
       ) : inGame ? (
         <>
           <Hud />
+          <Hotbar />
           <TargetFrame />
           <CharacterWindow />
+          <InventoryWindow />
+          <NpcDialog />
+          <ShopWindow />
+          <WarehouseWindow />
           <Chat />
           <DebugOverlay />
           <DeathScreen />

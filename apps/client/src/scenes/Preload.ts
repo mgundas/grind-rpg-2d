@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import villageMap from "@jadethrone/data/maps/map_ember_village.json";
 import fieldsMap from "@jadethrone/data/maps/map_ember_fields.json";
+import { ITEMS } from "@jadethrone/data/items";
 import { TILE_SIZE } from "@jadethrone/shared";
 import type { AssetManifest } from "../assets/manifest";
 import { createPlaceholder } from "../assets/placeholders";
@@ -73,6 +74,22 @@ export class PreloadScene extends Phaser.Scene {
       let placeholderCount = 0;
       for (const [key, entry] of Object.entries(manifest.assets)) {
         if (!this.textures.exists(key) && createPlaceholder(this, key, entry.placeholder)) {
+          placeholderCount++;
+        }
+      }
+      // Item icons are data-driven rather than one manifest entry per item, so
+      // a new item works without touching the asset manifest.
+      for (const item of ITEMS) {
+        if (this.textures.exists(item.iconKey)) {
+          continue;
+        }
+        if (
+          createPlaceholder(this, item.iconKey, {
+            kind: "icon",
+            rarity: item.rarity,
+            label: item.name.slice(0, 2).toUpperCase(),
+          })
+        ) {
           placeholderCount++;
         }
       }

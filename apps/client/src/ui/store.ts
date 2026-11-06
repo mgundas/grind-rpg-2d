@@ -3,9 +3,12 @@ import type {
   AccountPublic,
   CharacterSummary,
   ChatMsgPayload,
+  InventorySnapshotPayload,
   MapId,
+  NpcDialogPayload,
   SelfStatsPayload,
   SessionKickReason,
+  WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
@@ -87,6 +90,26 @@ interface UiState {
   characterOpen: boolean;
   toggleCharacter: () => void;
   setCharacterOpen: (open: boolean) => void;
+
+  /** Owner-only item/gold snapshot (Phase 4). */
+  inventory: InventorySnapshotPayload | null;
+  setInventory: (inventory: InventorySnapshotPayload | null) => void;
+  inventoryOpen: boolean;
+  toggleInventory: () => void;
+  setInventoryOpen: (open: boolean) => void;
+  inventoryError: { code: string; message?: string } | null;
+  setInventoryError: (error: UiState["inventoryError"]) => void;
+  autoLoot: boolean;
+  setAutoLoot: (enabled: boolean) => void;
+
+  npcDialog: NpcDialogPayload | null;
+  setNpcDialog: (dialog: NpcDialogPayload | null) => void;
+  shopId: string | null;
+  setShopId: (shopId: string | null) => void;
+  warehouse: WarehouseSnapshotPayload | null;
+  setWarehouse: (warehouse: WarehouseSnapshotPayload | null) => void;
+  warehouseOpen: boolean;
+  setWarehouseOpen: (open: boolean) => void;
 
   dead: boolean;
   respawnHereAtMs: number;
@@ -181,6 +204,25 @@ export const useUiStore = create<UiState>((set) => ({
   characterOpen: false,
   toggleCharacter: () => set((state) => ({ characterOpen: !state.characterOpen })),
   setCharacterOpen: (characterOpen) => set({ characterOpen }),
+
+  inventory: null,
+  setInventory: (inventory) => set({ inventory }),
+  inventoryOpen: false,
+  toggleInventory: () => set((state) => ({ inventoryOpen: !state.inventoryOpen })),
+  setInventoryOpen: (inventoryOpen) => set({ inventoryOpen }),
+  inventoryError: null,
+  setInventoryError: (inventoryError) => set({ inventoryError }),
+  autoLoot: true,
+  setAutoLoot: (autoLoot) => set({ autoLoot }),
+
+  npcDialog: null,
+  setNpcDialog: (npcDialog) => set({ npcDialog }),
+  shopId: null,
+  setShopId: (shopId) => set({ shopId }),
+  warehouse: null,
+  setWarehouse: (warehouse) => set({ warehouse }),
+  warehouseOpen: false,
+  setWarehouseOpen: (warehouseOpen) => set({ warehouseOpen }),
 
   dead: false,
   respawnHereAtMs: 0,
