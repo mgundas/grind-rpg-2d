@@ -1,3 +1,4 @@
+export * from "./chat";
 export * from "./collision";
 export * from "./constants";
 export * from "./direction";

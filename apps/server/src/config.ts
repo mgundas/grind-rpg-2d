@@ -11,6 +11,8 @@ import { DEFAULT_SERVER_PORT } from "@jadethrone/shared";
 const envSchema = z.object({
   GAME_SERVER_PORT: z.coerce.number().int().min(1).max(65535).default(DEFAULT_SERVER_PORT),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
+  /** Dev-only artificial latency (applied in both directions by the transport). */
+  SIMULATE_LATENCY_MS: z.coerce.number().int().min(0).max(5000).default(0),
 
   POSTGRES_HOST: z.string().min(1).default("localhost"),
   POSTGRES_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -31,6 +33,7 @@ const DEFAULT_DB_PASSWORDS = new Set(["", "jade_dev", "change-me-dev-only"]);
 export interface Config {
   port: number;
   logLevel: "debug" | "info" | "warn" | "error";
+  simulateLatencyMs: number;
   databaseUrl: string;
   /** True when a dev placeholder POSTGRES_PASSWORD is configured. */
   usingDefaultDbPassword: boolean;
@@ -60,6 +63,7 @@ function parseConfig(): Config {
   return {
     port: env.GAME_SERVER_PORT,
     logLevel: env.LOG_LEVEL,
+    simulateLatencyMs: env.SIMULATE_LATENCY_MS,
     databaseUrl:
       env.DATABASE_URL ??
       buildDatabaseUrl({

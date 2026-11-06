@@ -2,11 +2,14 @@ import { type Client, Room } from "@colyseus/core";
 import { StateView } from "@colyseus/schema";
 import { z } from "zod";
 import {
+  CHAT_COOLDOWN_MS,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
   SERVER_TICK_GRACE_TICKS,
   TICK_MS,
+  chatMessageSchema,
+  chatRecipients,
   facing4FromDelta,
   facing4FromIndex,
   facing4Index,
@@ -15,6 +18,7 @@ import {
   isWalkableAt,
   nearestWalkable,
   stepMover,
+  type ChatMsgPayload,
   type Dir8,
   type InputMessage,
   type MapId,
@@ -80,6 +84,46 @@ export class MapRoom extends Room {
         runtime.pending.shift();
       }
       runtime.pending.push(parsed.data);
+    });
+
+    this.onMessage(MSG.chat, (client, raw) => {
+      const parsed = chatMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid chat message");
+        return;
+      }
+      const runtime = this.runtimes.get(client.sessionId);
+      const player = this.state.players.get(client.sessionId);
+      if (!runtime || !player) {
+        return;
+      }
+      const now = Date.now();
+      if (now < runtime.chatReadyAtMs) {
+        return;
+      }
+      runtime.chatReadyAtMs = now + CHAT_COOLDOWN_MS;
+
+      const participants = [...this.state.players.entries()].map(([sessionId, other]) => ({
+        sessionId,
+        x: other.x,
+        y: other.y,
+      }));
+      const recipients = chatRecipients(participants, {
+        sessionId: client.sessionId,
+        x: player.x,
+        y: player.y,
+      });
+      const payload: ChatMsgPayload = {
+        from: client.sessionId,
+        name: player.name,
+        kingdom: player.kingdom,
+        text: parsed.data.text,
+      };
+      for (const otherClient of this.clients) {
+        if (recipients.includes(otherClient.sessionId)) {
+          otherClient.send(MSG.chatMsg, payload);
+        }
+      }
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);

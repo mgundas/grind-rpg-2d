@@ -15,6 +15,14 @@ import { createGameServer } from "./server";
  */
 const server = createGameServer();
 
+if (config.simulateLatencyMs > 0) {
+  server.simulateLatency(config.simulateLatencyMs);
+  logger.info(
+    { latencyMs: config.simulateLatencyMs },
+    "simulating network latency in both directions",
+  );
+}
+
 if (config.usingDefaultDbPassword) {
   logger.warn("POSTGRES_PASSWORD is not configured; using the built-in dev default.");
 }

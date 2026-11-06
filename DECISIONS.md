@@ -53,3 +53,7 @@ Maps are Tiled JSON (same format the spec calls `.tmj`) but named `*.json` so Vi
 ## D13 — Movement input: one tick per intent, dropped-not-kicked validation
 
 Each validated `input` intent is stepped for exactly one 50 ms tick (20 intents/s reproduces the client exactly), and the server keeps applying the last intent for up to 3 ticks (~150 ms) so jitter does not produce stutter; click-to-move `path` intents persist until the path is finished rather than needing a message per tick. Malformed payloads fail `safeParse` and are logged + dropped inside the handler instead of using Colyseus's schema-validated `onMessage` overload, because that overload disconnects the client on the first invalid message. Final path waypoints snap to the exact target when it is within one step and walkable, so clicks land where the player clicked.
+
+## D14 — Local chat is direct, range-filtered sends (not room broadcasts)
+
+Chat recipients are selected by the shared `chatRecipients` helper (900 px around the sender, sender included for the echo/bubble) and delivered with `client.send("chatMsg")` to just those clients; a per-sender 1 s cooldown is enforced server-side. This keeps chat consistent with interest management without coupling it to state patches, and Phase 8 can add shout/whisper/scramble on top. `SIMULATE_LATENCY_MS` calls `server.simulateLatency()` in both directions for the acceptance test (F3 ping therefore reads roughly double the configured value).

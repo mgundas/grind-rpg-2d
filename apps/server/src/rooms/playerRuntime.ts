@@ -21,6 +21,8 @@ export interface PlayerRuntime {
   ticksSinceInput: number;
   /** Last click-to-move target, to avoid re-running A* on repeats. */
   lastPathTarget: Vec2 | null;
+  /** Epoch ms before which chat is rate-limited. */
+  chatReadyAtMs: number;
 }
 
 export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
@@ -31,5 +33,6 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     lastIntent: { kind: "none" },
     ticksSinceInput: 999,
     lastPathTarget: null,
+    chatReadyAtMs: 0,
   };
 }

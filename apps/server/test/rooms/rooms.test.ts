@@ -32,6 +32,10 @@ function sendInput(client: unknown, message: InputMessage): void {
   (client as { send: (type: string, payload: unknown) => void }).send(MSG.input, message);
 }
 
+function sendChat(client: unknown, text: string): void {
+  (client as { send: (type: string, payload: unknown) => void }).send(MSG.chat, { text });
+}
+
 beforeAll(async () => {
   colyseus = await boot(createGameServer());
 }, 30_000);
@@ -275,5 +279,88 @@ describe("MapRoom movement", () => {
 
     sendInput(client, { seq: 1, kind: "dir", dir: 0 });
     await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+  });
+});
+
+describe("MapRoom chat", () => {
+  it("delivers local chat to nearby players, including the sender", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const bob = await colyseus.connectTo(room, {
+      name: "Bob",
+      x: VILLAGE_SPAWN.x + 64,
+      y: VILLAGE_SPAWN.y,
+    });
+    await room.waitForNextPatch();
+
+    const received = alice.waitForMessage(MSG.chatMsg);
+    let bobEcho = false;
+    bob.onMessage(MSG.chatMsg, () => {
+      bobEcho = true;
+    });
+    sendChat(bob, "hello village");
+
+    const message = (await received) as { from: string; name: string; text: string };
+    expect(message.from).toBe(bob.sessionId);
+    expect(message.name).toBe("Bob");
+    expect(message.text).toBe("hello village");
+    await sleep(50);
+    expect(bobEcho).toBe(true);
+  });
+
+  it("does not deliver chat beyond the local range", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const bob = await colyseus.connectTo(room, {
+      name: "Bob",
+      x: VILLAGE_SPAWN.x + 1000,
+      y: VILLAGE_SPAWN.y,
+    });
+    await room.waitForNextPatch();
+
+    let received = false;
+    alice.onMessage(MSG.chatMsg, () => {
+      received = true;
+    });
+    sendChat(bob, "too far");
+    await sleep(150);
+    expect(received).toBe(false);
+  });
+
+  it("enforces a per-sender chat cooldown", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const bob = await colyseus.connectTo(room, { name: "Bob" });
+    await room.waitForNextPatch();
+
+    const first = alice.waitForMessage(MSG.chatMsg);
+    sendChat(bob, "one");
+    await first;
+
+    let second = false;
+    alice.onMessage(MSG.chatMsg, () => {
+      second = true;
+    });
+    sendChat(bob, "two");
+    await sleep(150);
+    expect(second).toBe(false);
+  });
+
+  it("drops invalid chat payloads without killing the session", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const alice = await colyseus.connectTo(room, { name: "Alice" });
+    const bob = await colyseus.connectTo(room, { name: "Bob" });
+    await room.waitForNextPatch();
+
+    (bob as unknown as { send: (type: string, payload: unknown) => void }).send(MSG.chat, {
+      text: "x".repeat(500),
+    });
+    await sleep(100);
+    expect(room.state.players.has(bob.sessionId)).toBe(true);
+
+    const received = alice.waitForMessage(MSG.chatMsg);
+    sendChat(bob, "still here");
+    const message = (await received) as { text: string };
+    expect(message.text).toBe("still here");
   });
 });

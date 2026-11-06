@@ -1,3 +1,4 @@
+import { CHAT_MAX_LEN } from "./constants";
 import { z } from "zod";
 
 /**
@@ -28,3 +29,17 @@ export const inputMessageSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type InputMessage = z.infer<typeof inputMessageSchema>;
+
+export const chatMessageSchema = z.object({
+  text: z.string().trim().min(1).max(CHAT_MAX_LEN),
+});
+
+export type ChatMessage = z.infer<typeof chatMessageSchema>;
+
+/** Server → client local chat line (also used for bubbles above heads). */
+export interface ChatMsgPayload {
+  from: string;
+  name: string;
+  kingdom: string;
+  text: string;
+}

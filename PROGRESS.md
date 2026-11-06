@@ -32,7 +32,7 @@ Current plan: `docs/plans/phase-1.md` (Phase 0 complete — see `docs/reports/ph
 - [x] Task 6 — map generator: Ember Fields + invariants
 - [x] Task 7 — server: map registry, schema v2, join
 - [x] Task 8 — server: tick loop + authoritative movement
-- [ ] Task 9 — server: messages, chat, latency flag
+- [x] Task 9 — server: messages, chat, latency flag
 - [ ] Task 10 — server: StateView interest
 - [ ] Task 11 — server: warp between maps
 - [ ] Task 12 — client: session + guest join
