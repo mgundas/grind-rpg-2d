@@ -3,6 +3,7 @@ import { GAME_NAME } from "@jadethrone/shared";
 import { api } from "../network/api";
 import { getHealth } from "../network/http";
 import { logout } from "../network/session";
+import { AnnouncementBanner } from "./AnnouncementBanner";
 import { AuthScreen } from "./AuthScreen";
 import { CharacterSelect } from "./CharacterSelect";
 import { CharacterWindow } from "./CharacterWindow";
@@ -93,6 +94,10 @@ export function App() {
             ? "Signed in from another session."
             : "Logged out from another session.",
         );
+    } else if (sessionKickedReason === "ban") {
+      useUiStore.getState().setAnonymous("This account has been banned.");
+    } else if (sessionKickedReason === "admin") {
+      useUiStore.getState().setAuthError("You were removed from the game by an administrator.");
     }
   }, [sessionKickedReason]);
 
@@ -141,6 +146,7 @@ export function App() {
         <>
           <Hud />
           <Hotbar />
+          <AnnouncementBanner />
           <TargetFrame />
           <CharacterWindow />
           <InventoryWindow />

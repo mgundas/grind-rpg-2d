@@ -4,6 +4,7 @@ import {
   SESSION_KICK_CODE,
   type AutoWalkPayload,
   type DeathPayload,
+  type AnnouncementPayload,
   type InputMessage,
   type InventoryErrorPayload,
   type InventorySnapshotPayload,
@@ -154,6 +155,7 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setInventoryError(null);
   leaving.setNpcDialog(null);
   leaving.setShopId(null);
+  leaving.setAnnouncement(null);
   leaving.setWarehouse(null);
   leaving.setWarehouseOpen(false);
   if (!current) {
@@ -276,8 +278,8 @@ function bindSessionEvents(current: Room): void {
   current.onMessage(MSG.sessionKicked, (payload: SessionKickedPayload) => {
     const store = useUiStore.getState();
     store.setSessionKicked(payload.reason);
-    if (payload.reason !== "duplicate") {
-      // Login/logout bumped the token version; these tokens are dead.
+    if (payload.reason !== "duplicate" && payload.reason !== "admin") {
+      // Login/logout/ban bumped the token version; these tokens are dead.
       tokens.clear();
     }
     store.setConnectionPhase("left");
@@ -331,6 +333,10 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.warehouse, (payload: WarehouseSnapshotPayload) => {
     useUiStore.getState().setWarehouse(payload);
+  });
+
+  current.onMessage(MSG.announcement, (payload: AnnouncementPayload) => {
+    useUiStore.getState().setAnnouncement(payload);
   });
 
   // The join-time snapshot can arrive before the SDK listener is bound.

@@ -37,7 +37,7 @@ describeDb("admin mutation routes", () => {
   let targetToken = "";
   let targetCharacterId = "";
   let targetAccountId = "";
-  let targetCreds = credentials("Target");
+  const targetCreds = credentials("Target");
 
   async function request(path: string, options: { method?: string; token?: string; body?: unknown } = {}) {
     const headers: Record<string, string> = {};

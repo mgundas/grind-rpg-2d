@@ -1041,33 +1041,21 @@ export class MapRoom extends Room {
     sessionId: string,
     runtime: PlayerRuntime,
   ): AdminLiveActions {
-    const self = this;
     return {
       characterId: runtime.characterId,
       sessionId,
       roomId: this.roomId,
-      presence() {
-        const player = self.state.players.get(sessionId);
-        return player ? buildAdminPresence(sessionId, runtime, player, self.mapId) : null;
+      presence: () => {
+        const player = this.state.players.get(sessionId);
+        return player ? buildAdminPresence(sessionId, runtime, player, this.mapId) : null;
       },
-      grantItem(request) {
-        return self.adminGrantItem(sessionId, request);
-      },
-      removeItem(instanceId) {
-        return self.adminRemoveItem(sessionId, instanceId);
-      },
-      setGold(gold) {
-        return self.adminSetGold(sessionId, gold);
-      },
-      updateCharacter(update) {
-        return self.adminUpdateCharacter(sessionId, update);
-      },
-      teleportTown() {
-        return self.adminTeleportTown(sessionId);
-      },
-      spawnMonster(typeId, count, x, y) {
-        return self.adminSpawnMonster(sessionId, typeId, count, x, y);
-      },
+      grantItem: (request) => this.adminGrantItem(sessionId, request),
+      removeItem: (instanceId) => this.adminRemoveItem(sessionId, instanceId),
+      setGold: (gold) => this.adminSetGold(sessionId, gold),
+      updateCharacter: (update) => this.adminUpdateCharacter(sessionId, update),
+      teleportTown: () => this.adminTeleportTown(sessionId),
+      spawnMonster: (typeId, count, x, y) =>
+        this.adminSpawnMonster(sessionId, typeId, count, x, y),
     };
   }
 

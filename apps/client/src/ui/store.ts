@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type {
   AccountPublic,
+  AnnouncementPayload,
   CharacterSummary,
   ChatMsgPayload,
   InventorySnapshotPayload,
@@ -63,6 +64,10 @@ interface UiState {
 
   chatLog: ChatMsgPayload[];
   pushChat: (message: ChatMsgPayload) => void;
+
+  /** Latest server-wide banner (admin / scheduled / shutdown). */
+  announcement: AnnouncementPayload | null;
+  setAnnouncement: (announcement: AnnouncementPayload | null) => void;
 
   /** Owner-only progression snapshot from the server. */
   selfStats: SelfStatsPayload | null;
@@ -186,6 +191,9 @@ export const useUiStore = create<UiState>((set) => ({
 
   chatLog: [],
   pushChat: (message) => set((state) => ({ chatLog: [...state.chatLog, message].slice(-100) })),
+
+  announcement: null,
+  setAnnouncement: (announcement) => set({ announcement }),
 
   selfStats: null,
   setSelfStats: (selfStats) => set({ selfStats }),
