@@ -400,6 +400,7 @@ const FIELDS_CLEARINGS = [
   { x: 42, y: 42, r: 12 },
   { x: 80, y: 80, r: 18 },
   { x: 122, y: 112, r: 14 },
+  { x: 138, y: 129, r: 10 },
 ];
 
 function insideClearing(tx: number, ty: number, padding = 0): boolean {
@@ -559,6 +560,18 @@ export function generateFieldsMap(): TiledMapFile {
       type: "",
       visible: true,
       properties: [{ name: "zoneId", type: "string", value: "fields_stones" }],
+    },
+    {
+      id: 7,
+      name: "mob_zone",
+      x: 130 * TILE_SIZE,
+      y: 124 * TILE_SIZE,
+      width: 12 * TILE_SIZE,
+      height: 10 * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "spawnGroupId", type: "string", value: "field_boss" }],
     },
   ];
 

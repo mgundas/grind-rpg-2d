@@ -141,17 +141,34 @@ export interface WarpZone {
   targetY: number;
 }
 
+/** A Tiled `mob_zone` rectangle, linked to a spawn group in data. */
+export interface MobZone {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  spawnGroupId: string;
+}
+
 export interface MapObjects {
   spawn: Vec2;
   warps: WarpZone[];
   /** Parsed for later phases; unused in Phase 1. */
   npcs: TiledObjectJson[];
-  mobZones: TiledObjectJson[];
+  mobZones: MobZone[];
   stoneZones: TiledObjectJson[];
 }
 
 function objectProperty(object: TiledObjectJson, name: string): unknown {
   return object.properties?.find((prop) => prop.name === name)?.value;
+}
+
+function requiredString(object: TiledObjectJson, name: string): string {
+  const value = objectProperty(object, name);
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`object "${object.name}" needs a non-empty string "${name}" property`);
+  }
+  return value;
 }
 
 function requiredNumber(object: TiledObjectJson, name: string): number {
@@ -197,11 +214,21 @@ export function extractMapObjects(map: TiledMapJson): MapObjects {
       targetY: requiredNumber(object, "targetY"),
     }));
 
+  const mobZones: MobZone[] = objects
+    .filter((object) => object.name === "mob_zone")
+    .map((object) => ({
+      x: object.x,
+      y: object.y,
+      w: object.width ?? TILE_SIZE,
+      h: object.height ?? TILE_SIZE,
+      spawnGroupId: requiredString(object, "spawnGroupId"),
+    }));
+
   return {
     spawn: { x: spawnObject.x, y: spawnObject.y },
     warps,
     npcs: objects.filter((object) => object.name === "npc"),
-    mobZones: objects.filter((object) => object.name === "mob_zone"),
+    mobZones,
     stoneZones: objects.filter((object) => object.name === "stone_zone"),
   };
 }

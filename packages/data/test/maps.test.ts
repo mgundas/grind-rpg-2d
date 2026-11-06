@@ -24,6 +24,7 @@ import {
   type MapObjects,
   type TiledMapJson,
 } from "@jadethrone/shared";
+import { hasSpawnGroup } from "../src/spawnGroups";
 
 const tile = 32;
 
@@ -221,9 +222,21 @@ describe("generateFieldsMap", () => {
     expect(canReach(fields.grid, FIELDS_WIDTH, FIELDS_HEIGHT, FIELDS_SPAWN, 140, 80)).toBe(true);
   });
 
-  it("declares placeholder mob and stone zones for later phases", () => {
-    expect(fields.objects.mobZones).toHaveLength(3);
+  it("declares mob zones and links every one to a spawn group", () => {
+    expect(fields.objects.mobZones).toHaveLength(4);
     expect(fields.objects.stoneZones).toHaveLength(1);
+    for (const zone of fields.objects.mobZones) {
+      expect(hasSpawnGroup(zone.spawnGroupId)).toBe(true);
+      expect(zone.w).toBeGreaterThan(0);
+      expect(zone.h).toBeGreaterThan(0);
+    }
+  });
+
+  it("places the boss zone on walkable ground", () => {
+    const boss = fields.objects.mobZones.find((zone) => zone.spawnGroupId === "field_boss")!;
+    expect(
+      isWalkableAt(fields.grid, Math.floor(boss.x + boss.w / 2), Math.floor(boss.y + boss.h / 2)),
+    ).toBe(true);
   });
 });
 

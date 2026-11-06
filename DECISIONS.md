@@ -141,3 +141,7 @@ HP, MP, positions and monster HP stay in schema patches. Transient facts that st
 ## D35 — Monster, spawn-group and class-attack data are files, not constants
 
 `packages/data/monsters.json` holds all ten starter monsters; `packages/data/spawnGroups.json` holds the group composition and respawn windows keyed by the `spawnGroupId` already present in the Tiled `mob_zone` objects. Both are Zod-validated at import, cross-reference monster ids, and keep `dropTableId` nullable until Phase 4 (gold/drop fields are present but inert). Basic-attack range, cooldown and target cap live in a new `attack` block in `classes.json` (Warrior 64 px/900 ms/8 targets, Assassin 56 px/650 ms/6), which keeps the class schema the single source of truth for the client HUD and server validation.
+
+## D36 — `mob_zone` is parsed in shared; the fields map gains a dedicated boss clearing
+
+`extractMapObjects` now returns typed `MobZone` rectangles with a required `spawnGroupId` string, and `MapAssets` carries them to the server. The fields generator gained a fifth clearing at (138,129) and a fourth `mob_zone` (`field_boss`, 12×10 tiles) so the Wolf King has its own leash area instead of overlapping the bandit camp. Generation stays deterministic; the committed fields map changes only around the new clearing.

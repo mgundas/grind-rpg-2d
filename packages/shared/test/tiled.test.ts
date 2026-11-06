@@ -76,11 +76,30 @@ describe("extractMapObjects", () => {
     });
   });
 
-  it("parses but leaves future-phase objects untouched", () => {
+  it("parses mob zones with their spawn group id", () => {
     const objects = extractMapObjects(validMap());
     expect(objects.npcs).toHaveLength(1);
-    expect(objects.mobZones).toHaveLength(1);
+    expect(objects.mobZones).toEqual([
+      { x: 96, y: 160, w: 96, h: 96, spawnGroupId: "wolves" },
+    ]);
     expect(objects.stoneZones).toHaveLength(0);
+  });
+
+  it("rejects a mob zone without a spawn group id", () => {
+    const bad = structuredClone(miniMap) as unknown as {
+      layers: Array<{
+        name: string;
+        objects?: Array<{
+          name: string;
+          properties?: Array<{ name: string; value: unknown }>;
+        }>;
+      }>;
+    };
+    const zone = bad.layers
+      .find((layer) => layer.name === "objects")!
+      .objects!.find((object) => object.name === "mob_zone")!;
+    zone.properties = [];
+    expect(() => extractMapObjects(parseTiledMap(bad))).toThrow(/spawnGroupId/);
   });
 
   it("rejects an invalid warp target map", () => {

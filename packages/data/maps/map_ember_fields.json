@@ -10,7 +10,7 @@
   "tileheight": 32,
   "infinite": false,
   "nextlayerid": 6,
-  "nextobjectid": 7,
+  "nextobjectid": 8,
   "layers": [
     {
       "id": 1,
@@ -102583,6 +102583,24 @@
               "name": "zoneId",
               "type": "string",
               "value": "fields_stones"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "name": "mob_zone",
+          "x": 4160,
+          "y": 3968,
+          "width": 384,
+          "height": 320,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "spawnGroupId",
+              "type": "string",
+              "value": "field_boss"
             }
           ]
         }
