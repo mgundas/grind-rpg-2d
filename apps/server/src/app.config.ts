@@ -15,14 +15,6 @@ import { createGameServer } from "./server";
  */
 const server = createGameServer();
 
-if (config.simulateLatencyMs > 0) {
-  server.simulateLatency(config.simulateLatencyMs);
-  logger.info(
-    { latencyMs: config.simulateLatencyMs },
-    "simulating network latency in both directions",
-  );
-}
-
 if (config.usingDefaultDbPassword) {
   logger.warn("POSTGRES_PASSWORD is not configured; using the built-in dev default.");
 }
@@ -30,6 +22,15 @@ if (config.usingDefaultDbPassword) {
 server
   .listen(config.port)
   .then(() => {
+    // The transport only exists after listen(); simulateLatency() dereferences
+    // it, so this must run here rather than before listen().
+    if (config.simulateLatencyMs > 0) {
+      server.simulateLatency(config.simulateLatencyMs);
+      logger.info(
+        { latencyMs: config.simulateLatencyMs },
+        "simulating network latency in both directions",
+      );
+    }
     logger.info(`Jade Throne game server listening on port ${config.port}`);
     logger.info({ rooms: Object.keys(matchMaker.getAllHandlers()) }, "rooms registered");
   })

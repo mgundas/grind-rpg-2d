@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-1.md` (Phase 1 complete — see `docs/reports/phase-1.md`).
+Current plan: `docs/plans/phase-1.md` (Phase 1 complete and re-verified after a second `@reviewer` pass — see `docs/reports/phase-1.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -43,6 +43,27 @@ Current plan: `docs/plans/phase-1.md` (Phase 1 complete — see `docs/reports/ph
 - [x] Task 17 — client: warp UX
 - [x] Task 18 — phase gate: verification, reviewer, report
 - [x] Phase report: `docs/reports/phase-1.md`
+
+### Phase 1 — Known issues (minor, deferred)
+
+Found by the second `@reviewer` pass; every IMPORTANT finding was fixed, these are the accepted minors:
+
+- `apps/server/src/rooms/MapRoom.ts` still hardcodes `KINGDOM_IDS` instead of deriving it from `KINGDOMS` in `packages/shared`.
+- Balance/tuning constants live in `packages/shared/src/constants.ts` rather than `packages/data`/`formulas.ts`; `KEY_CHARACTER`, `HOLD_TO_STEER_MS`, `CLICK_MAX_MS` and camera `setZoom(2)` are hardcoded in `World.ts`.
+- `MapRoom.ts`, `World.ts` and `generate-maps.ts` are still large multi-responsibility files; split movement/chat/interest/warp systems and input/remote/chat/debug controllers in a later refactor.
+- `JoinPanel.tsx` calls `void connect(...).finally(...)` without `.catch`, so a rejected join is an unhandled rejection.
+- `World.ts` registers the F3 listener inside `ensurePredictor()`; a reconnect without a scene restart can add a second listener and toggle debug twice.
+- Scene restart resets predictor/remotes/warp but not `pointerHeld`, `pointerWorld`, `pointerDownAt` or `facing`; a warp while holding the mouse can steer toward a stale pointer.
+- The old room's `onLeave` calls the global `stopPingLoop()` unconditionally, so a delayed leave can stop the new room's ping loop.
+- `onLeave` does not call `updateInterest()`; the schema delete handles views, but the "recompute on leave" intent is implicit.
+- Chat range is 900 px while the interest add radius is 850 px, so a player at 860–900 px receives the chat log without a visible remote/bubble.
+- `placeholders.ts` draws tile noise on tile 0 (`addNoise` is called without `offsetX`); cosmetic only.
+- Dead code remains: `SPAWN_POINT` (shared), `onChatMessage` (client session), `MAP_NAMES` (map generator).
+- `packages/data/test/maps.test.ts` calls `writeMapFiles()` inside a test and mutates the working tree; the committed-file comparison already proves the writer output.
+- `MAX_PENDING_INPUTS` drops are counted but not logged; invalid input/chat logging is not rate-limited and can be flooded at 30 msgs/s.
+- The chat send loop calls `otherClient.send(...)` without a try/catch; a client leaving mid-iteration can throw.
+- All normal joins use the exact map spawn, so two tabs overlap until Phase 2 persistence/character positions.
+- Browser look-and-feel checks (smooth remote motion, bubbles, y-sorting, fade, 150 ms feel) remain a human pass; automated checks cover state/netcode only.
 
 ## Later phases (from GAME_DESIGN.md §12)
 

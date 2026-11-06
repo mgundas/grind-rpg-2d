@@ -19,6 +19,18 @@ describe("SampleBuffer", () => {
     expect(buffer.sample(5000)).toEqual({ x: 60, y: 10 });
   });
 
+  it("keeps the latest position when a burst shares one receipt timestamp", () => {
+    const buffer = new SampleBuffer();
+    buffer.push(1000, 0, 0);
+    buffer.push(1000, 10, 0);
+    buffer.push(1000, 20, 0);
+    expect(buffer.size).toBe(1);
+    expect(buffer.sample(1000)).toEqual({ x: 20, y: 0 });
+
+    buffer.push(1050, 30, 0);
+    expect(buffer.sample(1025)).toEqual({ x: 25, y: 0 });
+  });
+
   it("drops out-of-order samples", () => {
     const buffer = new SampleBuffer();
     buffer.push(1000, 0, 0);

@@ -75,6 +75,13 @@ export const WARP_COOLDOWN_MS = 2000;
 /** A* node expansion budget (a 160x160 map has 25,600 tiles). */
 export const MAX_PATH_EXPAND = 12000;
 
+/**
+ * Minimum delay between click-to-move retargets from one player. Repeating the
+ * same target is free (the server reuses the stored path), but a client that
+ * changes target every tick cannot force 20 full A* runs per second.
+ */
+export const PATH_RETARGET_MIN_MS = 100;
+
 /** Player feet collision box in px, centred on the ground position. */
 export const PLAYER_BODY = { halfW: 10, halfH: 6 } as const;
 

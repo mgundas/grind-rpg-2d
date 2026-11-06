@@ -1,10 +1,28 @@
 import { describe, expect, it } from "vitest";
 import miniMap from "./fixtures/mini-map.json";
-import { buildCollisionGrid, isWalkableAt, nearestWalkable } from "../src/collision";
+import {
+  buildCollisionGrid,
+  isWalkableAt,
+  nearestWalkable,
+  type CollisionGrid,
+} from "../src/collision";
 import { findPath, hasLineOfWalk, simplifyPath } from "../src/pathfinding";
 import { parseTiledMap } from "../src/tiled";
 
 const grid = buildCollisionGrid(parseTiledMap(structuredClone(miniMap)));
+
+/** Build a grid from ASCII rows: `#` is solid, anything else is walkable. */
+function gridFromRows(rows: string[]): CollisionGrid {
+  const width = rows[0]!.length;
+  const height = rows.length;
+  const solid = new Uint8Array(width * height);
+  rows.forEach((row, y) => {
+    for (let x = 0; x < width; x++) {
+      solid[y * width + x] = row[x] === "#" ? 1 : 0;
+    }
+  });
+  return { width, height, tileSize: 32, solid };
+}
 
 function expectWalkable(waypoints: Array<{ x: number; y: number }>): void {
   for (const waypoint of waypoints) {
@@ -62,6 +80,36 @@ describe("findPath", () => {
     const a = findPath(grid, { x: 48, y: 48 }, { x: 112, y: 160 });
     const b = findPath(grid, { x: 48, y: 48 }, { x: 112, y: 160 });
     expect(a).toEqual(b);
+  });
+
+  it("does not cut diagonally between two solid corner tiles", () => {
+    const cornerGrid = gridFromRows([".....", "..#..", ".#...", ".....", "....."]);
+    const start = { x: 48, y: 48 }; // tile (1,1)
+    const target = { x: 80, y: 80 }; // tile (2,2)
+    expect(hasLineOfWalk(cornerGrid, start, target)).toBe(false);
+
+    const path = findPath(cornerGrid, start, target);
+    expect(path.length).toBeGreaterThan(1);
+    expect(path[path.length - 1]).toEqual(target);
+    expect(path[0]).not.toEqual(target);
+    let previous = start;
+    for (const waypoint of path) {
+      expect(hasLineOfWalk(cornerGrid, previous, waypoint)).toBe(true);
+      previous = waypoint;
+    }
+  });
+
+  it("returns an empty path when the goal is walled off", () => {
+    const enclosed = gridFromRows([
+      ".......",
+      ".#####.",
+      ".#...#.",
+      ".#.#.#.",
+      ".#...#.",
+      ".#####.",
+      ".......",
+    ]);
+    expect(findPath(enclosed, { x: 16, y: 16 }, { x: 112, y: 112 })).toEqual([]);
   });
 });
 

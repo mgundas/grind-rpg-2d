@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import miniMap from "./fixtures/mini-map.json";
-import { buildCollisionGrid, rectOverlapsSolid } from "../src/collision";
+import { buildCollisionGrid, rectOverlapsSolid, type CollisionGrid } from "../src/collision";
 import { createMover, stepMover, type MoveIntent } from "../src/movement";
 import { parseTiledMap } from "../src/tiled";
 import { INV_SQRT2, WALK_SPEED } from "../src/constants";
@@ -14,6 +14,18 @@ function tick(mover: ReturnType<typeof createMover>, intent: MoveIntent, times =
     state = stepMover(state, intent, grid, TICK_MS);
   }
   return state;
+}
+
+function gridFromRows(rows: string[]): CollisionGrid {
+  const width = rows[0]!.length;
+  const height = rows.length;
+  const solid = new Uint8Array(width * height);
+  rows.forEach((row, y) => {
+    for (let x = 0; x < width; x++) {
+      solid[y * width + x] = row[x] === "#" ? 1 : 0;
+    }
+  });
+  return { width, height, tileSize: 32, solid };
 }
 
 describe("stepMover", () => {
@@ -96,6 +108,26 @@ describe("stepMover", () => {
       state = stepMover(state, { kind: "dir", dir: 1 }, grid, TICK_MS);
       expect(rectOverlapsSolid(grid, state.pos.x, state.pos.y)).toBe(false);
     }
+  });
+
+  it("walks through a one-tile door in a wall", () => {
+    const doorGrid = gridFromRows([
+      "#########",
+      "#...#...#",
+      "#...#...#",
+      "#.......#",
+      "#...#...#",
+      "#...#...#",
+      "#########",
+    ]);
+    let state = createMover({ x: 48, y: 112 });
+    for (let i = 0; i < 12; i++) {
+      state = stepMover(state, { kind: "dir", dir: 0 }, doorGrid, TICK_MS);
+      expect(rectOverlapsSolid(doorGrid, state.pos.x, state.pos.y)).toBe(false);
+    }
+    // Crossed the wall at column 4 through the row-3 gap.
+    expect(state.pos.x).toBeGreaterThan(160);
+    expect(state.pos.y).toBeCloseTo(112, 10);
   });
 
   it("clears a stored path when a direction intent arrives", () => {

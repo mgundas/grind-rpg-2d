@@ -14,6 +14,7 @@ import {
   type CollisionGrid,
   type Dir8,
   type MapId,
+  type TiledMapJson,
   type Vec2,
   type WarpPayload,
 } from "@jadethrone/shared";
@@ -453,8 +454,35 @@ export class WorldScene extends Phaser.Scene {
       throw new Error(`tileset texture for "${this.mapId}" is missing`);
     }
     map.createLayer("ground", tileset, 0, 0)?.setDepth(0);
-    map.createLayer("decor", tileset, 0, 0)?.setDepth(1);
+    // Tall decor (trees, fences) is rendered as individual images so it sorts
+    // against players by its base row instead of always drawing underneath.
+    this.buildSortedDecor(tiled, tilesetTextureKeyFor(this.mapId));
     map.createLayer("above", tileset, 0, 0)?.setDepth(100000);
+  }
+
+  private buildSortedDecor(tiled: TiledMapJson, textureKey: string): void {
+    const layer = tiled.layers.find((candidate) => candidate.name === "decor");
+    if (!layer || layer.type !== "tilelayer") {
+      return;
+    }
+    const firstGid = tiled.tilesets[0]?.firstgid ?? 1;
+    for (let ty = 0; ty < layer.height; ty++) {
+      for (let tx = 0; tx < layer.width; tx++) {
+        const gid = layer.data[ty * layer.width + tx]!;
+        if (gid === 0) {
+          continue;
+        }
+        const bottom = (ty + 1) * TILE_SIZE;
+        const image = this.add.image(
+          tx * TILE_SIZE + TILE_SIZE / 2,
+          bottom,
+          textureKey,
+          gid - firstGid,
+        );
+        image.setOrigin(0.5, 1);
+        image.setDepth(bottom);
+      }
+    }
   }
 
   private buildCharacter(): void {

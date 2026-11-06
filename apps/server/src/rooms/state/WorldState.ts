@@ -1,4 +1,4 @@
-import { MapSchema, Schema, type } from "@colyseus/schema";
+import { MapSchema, Schema, type, view } from "@colyseus/schema";
 
 /**
  * Synchronized room state (schema 4 legacy decorators). Client-visible fields
@@ -23,5 +23,9 @@ export class PlayerState extends Schema {
 }
 
 export class WorldState extends Schema {
-  @type({ map: PlayerState, view: true }) players = new MapSchema<PlayerState>();
+  // `view: true` inside `@type()` is ignored by the installed schema build;
+  // the separate `@view()` decorator is what tags the collection as filtered.
+  @view()
+  @type({ map: PlayerState })
+  players = new MapSchema<PlayerState>();
 }

@@ -135,6 +135,29 @@ describe("LocalPredictor", () => {
     expect(predictor.visualPosition.x).toBeCloseTo(predictor.position.x, 6);
   });
 
+  it("measures error against the prediction, not the decaying visual offset", () => {
+    const grid = openGrid();
+    const server = createVirtualServer(grid, { x: 100, y: 100 });
+    const predictor = new LocalPredictor(grid, { x: 100, y: 100 }, (m) => server.send(m));
+
+    for (let i = 0; i < 5; i++) {
+      predictor.update(TICK_MS, { kind: "dir", dir: 0 });
+    }
+    const ack = server.sent.length;
+    const authoritative = server.applyUntil(ack);
+
+    // A 60 px correction leaves a large visual offset that is still decaying.
+    const first = predictor.reconcile(authoritative.x + 60, authoritative.y, ack);
+    expect(first.snapped).toBe(false);
+
+    // A small 10 px prediction correction must not be added to the offset and
+    // mistaken for a 70 px divergence.
+    const second = predictor.reconcile(authoritative.x + 70, authoritative.y, ack + 1);
+    expect(second.snapped).toBe(false);
+    expect(second.errorPx).toBeCloseTo(10, 6);
+    expect(predictor.snaps).toBe(0);
+  });
+
   it("caps the unacknowledged history", () => {
     const grid = openGrid();
     const server = createVirtualServer(grid, { x: 100, y: 100 });

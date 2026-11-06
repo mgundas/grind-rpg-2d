@@ -115,6 +115,10 @@ export class LocalPredictor {
     if (ackSeq <= this.lastAck) {
       return { snapped: false, errorPx: 0 };
     }
+    // Prediction error is measured between the old and the replayed
+    // simulation positions. The visual offset is a rendering-only correction;
+    // including it would let a still-decaying offset trigger a false snap.
+    const previousPredicted = { x: this.mover.pos.x, y: this.mover.pos.y };
     const previousVisual = this.visualPosition;
     this.lastAck = ackSeq;
     this.history = this.history.filter((entry) => entry.seq > ackSeq);
@@ -125,9 +129,9 @@ export class LocalPredictor {
     }
     this.mover = mover;
 
-    const dx = previousVisual.x - mover.pos.x;
-    const dy = previousVisual.y - mover.pos.y;
-    const errorPx = Math.hypot(dx, dy);
+    const errorX = previousPredicted.x - mover.pos.x;
+    const errorY = previousPredicted.y - mover.pos.y;
+    const errorPx = Math.hypot(errorX, errorY);
     if (errorPx > SNAP_THRESHOLD_PX) {
       this.visualOffset = { x: 0, y: 0 };
       this.correctionMs = 0;
@@ -135,7 +139,10 @@ export class LocalPredictor {
       return { snapped: true, errorPx };
     }
     // Keep the sprite where it is and let the offset decay over 100 ms.
-    this.visualOffset = { x: dx, y: dy };
+    this.visualOffset = {
+      x: previousVisual.x - mover.pos.x,
+      y: previousVisual.y - mover.pos.y,
+    };
     this.correctionMs = ERROR_SMOOTH_MS;
     return { snapped: false, errorPx };
   }

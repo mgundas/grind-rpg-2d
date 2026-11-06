@@ -24,6 +24,18 @@ export interface PlayerRuntime {
   warping: boolean;
   /** Arrival guard so a warp cannot immediately bounce back. */
   warpCooldownUntilMs: number;
+  /** Ticks left to keep applying the last direction after input stops. */
+  graceTicksRemaining: number;
+  /** Last click-to-move target tile, used to reject rapid retargets. */
+  lastPathTargetKey: string | null;
+  /** Last time a new path target was accepted (rate limit). */
+  lastPathRetargetAtMs: number;
+  /** Recent A* failures keyed by goal tile, so hostile spam cannot repeat them. */
+  failedPathUntilMs: Map<string, number>;
+  /** Number of A* runs performed (debug/test counter). */
+  pathComputations: number;
+  /** Inputs dropped because the pending queue was full (debug/test counter). */
+  droppedInputs: number;
 }
 
 export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
@@ -35,5 +47,11 @@ export function createPlayerRuntime(spawn: Vec2): PlayerRuntime {
     chatReadyAtMs: 0,
     warping: false,
     warpCooldownUntilMs: 0,
+    graceTicksRemaining: 0,
+    lastPathTargetKey: null,
+    lastPathRetargetAtMs: 0,
+    failedPathUntilMs: new Map(),
+    pathComputations: 0,
+    droppedInputs: 0,
   };
 }

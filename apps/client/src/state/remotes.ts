@@ -25,13 +25,22 @@ export class SampleBuffer {
   push(t: number, x: number, y: number): void {
     const last = this.samples[this.samples.length - 1];
     if (last) {
-      if (t <= last.t) {
+      if (t < last.t) {
         return; // out-of-order receipt
       }
       const dx = x - last.x;
       const dy = y - last.y;
       if (dx * dx + dy * dy > TELEPORT_THRESHOLD_PX * TELEPORT_THRESHOLD_PX) {
-        this.samples = []; // discontinuity: drop history, snap to the new point
+        this.samples = [{ t, x, y }]; // discontinuity: drop history, snap to the new point
+        return;
+      }
+      if (t === last.t) {
+        // Patches can arrive in a burst within one render frame; keep the
+        // latest authoritative position for that instant instead of dropping
+        // everything after the first one.
+        last.x = x;
+        last.y = y;
+        return;
       }
     }
     this.samples.push({ t, x, y });

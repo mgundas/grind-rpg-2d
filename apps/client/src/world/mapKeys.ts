@@ -14,6 +14,8 @@ export function tilesetNameFor(mapId: MapId): string {
   return mapId === ROOM_NAME_FIELDS ? "fields" : "village";
 }
 
+export const TILESET_TEXTURE_KEYS = ["tileset.village", "tileset.fields"] as const;
+
 export function tilesetTextureKeyFor(mapId: MapId): string {
   return mapId === ROOM_NAME_FIELDS ? "tileset.fields" : "tileset.village";
 }

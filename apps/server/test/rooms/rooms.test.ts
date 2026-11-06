@@ -42,6 +42,25 @@ function sendChat(client: unknown, text: string): void {
   (client as { send: (type: string, payload: unknown) => void }).send(MSG.chat, { text });
 }
 
+/** What the SDK client actually received through its StateView. */
+function clientPlayers(client: unknown): { has: (key: string) => boolean } | undefined {
+  return (client as { state?: { players?: { has: (key: string) => boolean } } }).state?.players;
+}
+
+interface RuntimeProbe {
+  pathComputations: number;
+  droppedInputs: number;
+}
+
+function runtimeOf(room: MapRoom, sessionId: string): RuntimeProbe {
+  const runtimes = (room as unknown as { runtimes: Map<string, RuntimeProbe> }).runtimes;
+  const runtime = runtimes.get(sessionId);
+  if (!runtime) {
+    throw new Error(`missing runtime for ${sessionId}`);
+  }
+  return runtime;
+}
+
 beforeAll(async () => {
   colyseus = await boot(createGameServer());
 }, 30_000);
@@ -79,6 +98,7 @@ describe("MapRoom join", () => {
     const serverClient = room.clients.find((candidate) => candidate.sessionId === client.sessionId);
     const player = room.state.players.get(client.sessionId);
     expect(serverClient?.view?.has(player!)).toBe(true);
+    expect(clientPlayers(client)?.has(client.sessionId)).toBe(true);
   });
 
   it("lets two players see each other", async () => {
@@ -94,6 +114,9 @@ describe("MapRoom join", () => {
     const bobServer = room.clients.find((candidate) => candidate.sessionId === bob.sessionId)!;
     expect(aliceServer.view?.has(bobState)).toBe(true);
     expect(bobServer.view?.has(aliceState)).toBe(true);
+    // The wire matters, not only the server-side view.
+    expect(clientPlayers(alice)?.has(bob.sessionId)).toBe(true);
+    expect(clientPlayers(bob)?.has(alice.sessionId)).toBe(true);
   });
 
   it("spawns on the fields at their own spawn point", async () => {
@@ -241,7 +264,7 @@ describe("MapRoom movement", () => {
     expect(player.y).toBeCloseTo(target.y, 0);
   });
 
-  it("stops immediately when input stops", async () => {
+  it("keeps the last direction for up to three grace ticks after input stops", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const client = await colyseus.connectTo(room, { name: "Stopper" });
     await room.waitForNextPatch();
@@ -249,12 +272,32 @@ describe("MapRoom movement", () => {
 
     sendInput(client, { seq: 1, kind: "dir", dir: 0 });
     await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
-    await sleep(120);
+    const afterAckX = room.state.players.get(sessionId)!.x;
+    await sleep(300);
     const settled = room.state.players.get(sessionId)!;
     expect(settled.moving).toBe(false);
+    const graceDistance = settled.x - afterAckX;
+    expect(graceDistance).toBeGreaterThan(0);
+    expect(graceDistance).toBeLessThanOrEqual(3 * 12 + 0.001);
     const settledX = settled.x;
     await sleep(150);
     expect(room.state.players.get(sessionId)!.x).toBe(settledX);
+  });
+
+  it("stops immediately on an explicit none", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Stopper" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    sendInput(client, { seq: 1, kind: "dir", dir: 0 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    sendInput(client, { seq: 2, kind: "none" });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 2);
+    await waitUntil(() => room.state.players.get(sessionId)!.moving === false);
+    const stoppedX = room.state.players.get(sessionId)!.x;
+    await sleep(200);
+    expect(room.state.players.get(sessionId)!.x).toBe(stoppedX);
   });
 
   it("caps batched input to one step per tick", async () => {
@@ -273,6 +316,52 @@ describe("MapRoom movement", () => {
     const moved = room.state.players.get(sessionId)!.x - startX;
     expect(moved).toBeLessThanOrEqual(12 * 10 + 0.001);
     expect(moved).toBeGreaterThan(0);
+  });
+
+  it("drops the oldest queued inputs when a client floods the queue", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Flooder" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    for (let seq = 1; seq <= 20; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 0 });
+    }
+    await sleep(150);
+    expect(runtimeOf(room, sessionId).droppedInputs).toBeGreaterThan(0);
+    // The session must still be healthy and processing the newest inputs.
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq >= 8);
+  });
+
+  it("does not rerun A* for a repeated unreachable target", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Spammer" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const runtime = runtimeOf(room, sessionId);
+    const unreachable = { x: 60000, y: 60000 };
+
+    for (let seq = 1; seq <= 10; seq++) {
+      sendInput(client, { seq, kind: "path", ...unreachable });
+    }
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq >= 10);
+    expect(runtime.pathComputations).toBe(1);
+  });
+
+  it("rate-limits rapid click-to-move retargets", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const client = await colyseus.connectTo(room, { name: "Jitter" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+    const runtime = runtimeOf(room, sessionId);
+
+    sendInput(client, { seq: 1, kind: "path", x: 60000, y: 60000 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 1);
+    // A different goal tile, applied on the next 50 ms tick: inside the
+    // 100 ms retarget window, so it must not run a second A*.
+    sendInput(client, { seq: 2, kind: "path", x: 50000, y: 50000 });
+    await waitUntil(() => room.state.players.get(sessionId)!.lastSeq === 2);
+    expect(runtime.pathComputations).toBe(1);
   });
 
   it("matches the shared step exactly for a scripted input sequence", async () => {
@@ -375,6 +464,12 @@ describe("MapRoom chat", () => {
     sendChat(bob, "two");
     await sleep(150);
     expect(second).toBe(false);
+
+    // Exactly one cooldown later the sender is allowed again.
+    await sleep(1000);
+    const third = alice.waitForMessage(MSG.chatMsg, 1000);
+    sendChat(bob, "three");
+    expect(((await third) as { text: string }).text).toBe("three");
   });
 
   it("drops invalid chat payloads without killing the session", async () => {
@@ -413,6 +508,9 @@ describe("MapRoom interest management", () => {
     expect(aliceServer.view?.has(aliceState)).toBe(true);
     expect(aliceServer.view?.has(nearState)).toBe(true);
     expect(aliceServer.view?.has(farState)).toBe(false);
+    expect(clientPlayers(alice)?.has(alice.sessionId)).toBe(true);
+    expect(clientPlayers(alice)?.has(near.sessionId)).toBe(true);
+    expect(clientPlayers(alice)?.has(far.sessionId)).toBe(false);
   });
 
   it("uses 850/900 px hysteresis for add and remove", async () => {
@@ -430,10 +528,12 @@ describe("MapRoom interest management", () => {
     // 800 px: inside the add radius -> becomes visible.
     farState.x = aliceState.x + 800;
     await waitUntil(() => aliceServer.view?.has(farState) === true, 3000);
+    await waitUntil(() => clientPlayers(alice)?.has(far.sessionId) === true, 3000);
 
     // 950 px: beyond the remove radius -> hidden again.
     farState.x = aliceState.x + 950;
     await waitUntil(() => aliceServer.view?.has(farState) === false, 3000);
+    await waitUntil(() => clientPlayers(alice)?.has(far.sessionId) === false, 3000);
   });
 });
 
@@ -473,5 +573,46 @@ describe("MapRoom warp", () => {
 
     await sleep(300);
     expect(room.state.players.has(client.sessionId)).toBe(true);
+  });
+
+  it("cools down after a failed reservation instead of retrying every tick", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, { name: "Unlucky" });
+    await room.waitForNextPatch();
+    const sessionId = client.sessionId;
+
+    let attempts = 0;
+    (room as unknown as { reserveSeat: () => Promise<never> }).reserveSeat = () => {
+      attempts++;
+      return Promise.reject(new Error("matchmaker unavailable"));
+    };
+
+    for (let seq = 1; seq <= 20; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 4 });
+    }
+    await waitUntil(() => attempts > 0, 5000);
+    // The player is restored at the warp zone with a cooldown; no immediate
+    // second attempt (and no leaked token every 50 ms).
+    await sleep(500);
+    expect(attempts).toBe(1);
+    expect(room.state.players.has(sessionId)).toBe(true);
+  });
+
+  it("disconnects a client that ignores the warp message", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const client = await colyseus.connectTo(room, { name: "Ghost" });
+    await room.waitForNextPatch();
+
+    const leavePromise = new Promise<number>((resolve) => {
+      client.onLeave((code) => resolve(code));
+    });
+    const warpMessage = client.waitForMessage(MSG.warp, 5000);
+    for (let seq = 1; seq <= 20; seq++) {
+      sendInput(client, { seq, kind: "dir", dir: 4 });
+    }
+    await warpMessage;
+
+    const code = await Promise.race([leavePromise, sleep(4000).then(() => -1)]);
+    expect(code).toBe(4000);
   });
 });

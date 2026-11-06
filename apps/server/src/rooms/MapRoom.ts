@@ -9,7 +9,10 @@ import {
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
   MSG,
+  PATH_RETARGET_MIN_MS,
+  SERVER_TICK_GRACE_TICKS,
   TICK_MS,
+  TILE_SIZE,
   WARP_COOLDOWN_MS,
   chatMessageSchema,
   chatRecipients,
@@ -46,7 +49,15 @@ const joinOptionsSchema = z.looseObject({
 });
 
 /** Max queued input messages per player; older inputs are dropped. */
-const MAX_PENDING_INPUTS = 8; /**
+const MAX_PENDING_INPUTS = 8;
+
+/** Unreachable path targets are not retried before this delay. */
+const PATH_FAILURE_CACHE_MS = 1000;
+
+/** A client that never leaves after a warp is disconnected after this delay. */
+const WARP_CLIENT_LEAVE_TIMEOUT_MS = 2000;
+
+/**
  * One room instance per map (GAME_DESIGN.md §10.2). Phase 1 handles guest
  * join, movement, chat (task 9), interest management (task 10) and warps.
  */
@@ -85,6 +96,7 @@ export class MapRoom extends Room {
       }
       if (runtime.pending.length >= MAX_PENDING_INPUTS) {
         runtime.pending.shift();
+        runtime.droppedInputs++;
       }
       runtime.pending.push(parsed.data);
     });
@@ -153,10 +165,12 @@ export class MapRoom extends Room {
     player.facing = facing4Index("down");
     player.moving = false;
     player.lastSeq = 0;
+    // The view must exist before the player is added, so the very first
+    // encoded state is already filtered for this client.
+    client.view = new StateView();
     this.state.players.set(client.sessionId, player);
     this.runtimes.set(client.sessionId, runtime);
 
-    client.view = new StateView();
     // Immediate pass so joiners see everyone relevant without waiting for the
     // next 250 ms interval. Hysteresis inside updateInterest() prevents
     // boundary flicker.
@@ -268,7 +282,7 @@ export class MapRoom extends Room {
 
     try {
       const token = issueWarpToken(warp.targetMap, warp.targetX, warp.targetY);
-      const reservation = await matchMaker.joinOrCreate(warp.targetMap, {
+      const reservation = await this.reserveSeat(warp.targetMap, {
         name,
         kingdom,
         warpToken: token,
@@ -284,6 +298,20 @@ export class MapRoom extends Room {
         reservation,
       };
       client.send(MSG.warp, payload);
+
+      // A client that ignores the warp message must not keep occupying a seat
+      // here (and holding a target-room reservation) forever.
+      const leaveTimer = setTimeout(() => {
+        if (this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
+          logger.warn(
+            { roomId: this.roomId, session: client.sessionId },
+            "client did not leave after warp; disconnecting",
+          );
+          client.leave(4000);
+        }
+      }, WARP_CLIENT_LEAVE_TIMEOUT_MS);
+      leaveTimer.unref?.();
+
       logger.info(
         {
           roomId: this.roomId,
@@ -297,12 +325,27 @@ export class MapRoom extends Room {
       // Restore the player only if the client is still connected here.
       if (this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
         runtime.warping = false;
+        // Do not retry every tick while the warp zone still overlaps: without
+        // this cooldown a persistent matchmaker failure would issue a token
+        // and run a full reservation attempt 20 times per second.
+        runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
         this.state.players.set(client.sessionId, player);
         this.runtimes.set(client.sessionId, runtime);
         this.updateInterest();
       }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
     }
+  }
+
+  /**
+   * Overridable seam so tests can exercise matchmaker failures without
+   * replacing the ESM namespace (which is not configurable).
+   */
+  reserveSeat(
+    map: MapId,
+    options: { name: string; kingdom: string; warpToken: string },
+  ): ReturnType<typeof matchMaker.joinOrCreate> {
+    return matchMaker.joinOrCreate(map, options);
   }
 
   private stepPlayer(runtime: PlayerRuntime, player: PlayerState): void {
@@ -325,6 +368,12 @@ export class MapRoom extends Room {
     if (!applied) {
       if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
         // Click-to-move keeps following its path (speed-bounded by movement).
+        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+      } else if (runtime.lastIntent.kind === "dir" && runtime.graceTicksRemaining > 0) {
+        // Packet loss must not stop the character mid-step: keep the last
+        // direction for a few ticks. An explicit `none` clears the grace and
+        // stops immediately.
+        runtime.graceTicksRemaining--;
         runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
       } else {
         runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
@@ -354,23 +403,74 @@ export class MapRoom extends Room {
     switch (message.kind) {
       case "dir":
         runtime.mover.path = [];
+        runtime.graceTicksRemaining = SERVER_TICK_GRACE_TICKS;
         runtime.lastIntent = { kind: "dir", dir: message.dir as Dir8 };
         break;
       case "path": {
         // Recompute from the current position every tick: with the same
         // target and grid the client predictor reproduces this exactly during
         // reconciliation, regardless of which input got acknowledged.
+        runtime.graceTicksRemaining = 0;
         const target = { x: message.x, y: message.y };
-        runtime.mover.path = findPath(this.assets.grid, runtime.mover.pos, target);
+        this.applyPathIntent(runtime, target);
         runtime.lastIntent = { kind: "path" };
         break;
       }
       case "none":
         runtime.mover.path = [];
+        runtime.graceTicksRemaining = 0;
         runtime.lastIntent = { kind: "none" };
         break;
     }
     runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+  }
+
+  /**
+   * A* is bounded against hostile clients. A repeated unreachable goal is not
+   * retried for a second, and a client that changes goal more than
+   * PATH_RETARGET_MIN_MS apart keeps following its previous path. Legitimate
+   * click-to-move repeats the same goal, so it still recomputes every tick and
+   * stays bit-identical with the client predictor.
+   */
+  private applyPathIntent(runtime: PlayerRuntime, target: Vec2): void {
+    const now = Date.now();
+    const goalTx = Math.floor(target.x / TILE_SIZE);
+    const goalTy = Math.floor(target.y / TILE_SIZE);
+    const startTx = Math.floor(runtime.mover.pos.x / TILE_SIZE);
+    const startTy = Math.floor(runtime.mover.pos.y / TILE_SIZE);
+    const goalKey = `${goalTx},${goalTy}`;
+    const failureKey = `${startTx},${startTy}->${goalKey}`;
+
+    const failedUntil = runtime.failedPathUntilMs.get(failureKey);
+    if (failedUntil !== undefined) {
+      if (failedUntil > now) {
+        return; // known unreachable; keep following the current path
+      }
+      runtime.failedPathUntilMs.delete(failureKey);
+    }
+
+    const retargeting = runtime.lastPathTargetKey !== goalKey;
+    if (retargeting && now - runtime.lastPathRetargetAtMs < PATH_RETARGET_MIN_MS) {
+      return; // retarget flood; keep the previous path
+    }
+
+    runtime.lastPathTargetKey = goalKey;
+    runtime.lastPathRetargetAtMs = now;
+    runtime.pathComputations++;
+    const path = findPath(this.assets.grid, runtime.mover.pos, target);
+    runtime.mover.path = path;
+
+    const sameTile = startTx === goalTx && startTy === goalTy;
+    if (path.length === 0 && !sameTile) {
+      runtime.failedPathUntilMs.set(failureKey, now + PATH_FAILURE_CACHE_MS);
+    }
+    if (runtime.failedPathUntilMs.size > 32) {
+      for (const [key, until] of runtime.failedPathUntilMs) {
+        if (until <= now) {
+          runtime.failedPathUntilMs.delete(key);
+        }
+      }
+    }
   }
 
   /** Reservation position when valid, otherwise the map spawn; always walkable. */

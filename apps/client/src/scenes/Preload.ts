@@ -1,9 +1,26 @@
 import Phaser from "phaser";
 import villageMap from "@jadethrone/data/maps/map_ember_village.json";
 import fieldsMap from "@jadethrone/data/maps/map_ember_fields.json";
+import { TILE_SIZE } from "@jadethrone/shared";
 import type { AssetManifest } from "../assets/manifest";
 import { createPlaceholder } from "../assets/placeholders";
-import { TILEMAP_KEYS } from "../world/mapKeys";
+import { TILEMAP_KEYS, TILESET_TEXTURE_KEYS } from "../world/mapKeys";
+
+/**
+ * Tilesets are horizontal strips. Register one frame per tile so tall decor
+ * can be rendered as individual y-sorted images in World.
+ */
+function ensureTilesetFrames(scene: Phaser.Scene, key: string): void {
+  if (!scene.textures.exists(key)) {
+    return;
+  }
+  const texture = scene.textures.get(key);
+  const image = texture.getSourceImage();
+  const columns = Math.floor(image.width / TILE_SIZE);
+  for (let index = 0; index < columns; index++) {
+    texture.add(index, 0, index * TILE_SIZE, 0, TILE_SIZE, TILE_SIZE);
+  }
+}
 
 /**
  * Loads every manifest entry; files that exist win, files that 404 get a
@@ -58,6 +75,9 @@ export class PreloadScene extends Phaser.Scene {
         if (!this.textures.exists(key) && createPlaceholder(this, key, entry.placeholder)) {
           placeholderCount++;
         }
+      }
+      for (const key of TILESET_TEXTURE_KEYS) {
+        ensureTilesetFrames(this, key);
       }
       this.game.registry.set("placeholderCount", placeholderCount);
       this.scene.start("World");
