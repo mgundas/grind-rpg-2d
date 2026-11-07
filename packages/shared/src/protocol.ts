@@ -63,6 +63,7 @@ export const MSG = {
   partySetLoot: "partySetLoot",
   partyError: "partyError",
   skillError: "skillError",
+  requestBossTimer: "requestBossTimer",
   bossTimer: "bossTimer",
   stoneDestroyed: "stoneDestroyed",
 } as const;
@@ -220,6 +221,9 @@ export type PartyLeaveMessage = z.infer<typeof partyLeaveMessageSchema>;
 
 export const partySetLootMessageSchema = z.object({ rule: z.enum(PARTY_LOOT_RULES) }).strict();
 export type PartySetLootMessage = z.infer<typeof partySetLootMessageSchema>;
+
+export const requestBossTimerMessageSchema = z.object({}).strict();
+export type RequestBossTimerMessage = z.infer<typeof requestBossTimerMessageSchema>;
 
 // ---------------------------------------------------------------------------
 // Phase 4: items, inventory, NPCs and economy

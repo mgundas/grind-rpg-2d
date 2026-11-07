@@ -129,6 +129,28 @@ describe("room spirit stones", () => {
     expect(internals(room).groundItems.size).toBeGreaterThan(0);
   });
 
+  it("sends the field boss timer on request", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const identity = fake.prepare({ name: "BossWatcher", map: ROOM_NAME_FIELDS });
+    const client = await colyseus.connectTo(room, {
+      name: identity.character.name,
+      characterId: identity.character.id,
+    });
+    await room.waitForNextPatch();
+    const timerPromise = client.waitForMessage(MSG.bossTimer, 2000);
+    (client as { send: (type: string, payload: unknown) => void }).send(MSG.requestBossTimer, {});
+    const timer = (await timerPromise) as {
+      bossTypeId: string;
+      mapId: string;
+      alive: boolean;
+    };
+    expect(timer).toMatchObject({
+      bossTypeId: "wolf_king",
+      mapId: ROOM_NAME_FIELDS,
+      alive: true,
+    });
+  });
+
   it("respawns a destroyed stone through the manager tick", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
     const stones = internals(room).stones;

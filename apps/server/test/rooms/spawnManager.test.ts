@@ -12,6 +12,7 @@ import { createMonsterRuntime, type MonsterRuntime } from "../../src/rooms/monst
 import {
   ADMIN_MONSTER_GROUP,
   aggroGroup,
+  bossStatuses,
   createSpawnManager,
   notifyMonsterDeath,
   placeGroup,
@@ -165,6 +166,24 @@ describe("spawn manager", () => {
     expect(state.monsters.size).toBe(1);
     expect([...state.monsters.values()][0]?.isBoss).toBe(true);
     expect(manager.groups[0]?.group.respawnMinMs).toBe(20 * 60 * 1000);
+  });
+
+  it("reports the field boss clock through death and respawn", () => {
+    const bossZone: MobZone = { ...ZONE, spawnGroupId: "field_boss" };
+    const { manager } = makeManager({ zones: [bossZone] });
+    spawnAllGroups(manager, 0);
+    expect(bossStatuses(manager)).toMatchObject([
+      { groupId: "field_boss", typeId: "wolf_king", alive: true, respawnAtMs: null },
+    ]);
+
+    const bossId = [...manager.groups[0]!.members][0]!;
+    kill(manager, bossId, 1000);
+    const dead = bossStatuses(manager)[0]!;
+    expect(dead.alive).toBe(false);
+    expect(dead.respawnAtMs).toBe(20 * 60 * 1000 + 1000);
+
+    tickSpawns(manager, dead.respawnAtMs!);
+    expect(bossStatuses(manager)[0]?.alive).toBe(true);
   });
 
   it("respawns only after the last member dies", () => {

@@ -66,6 +66,7 @@ import {
   warehouseOpenMessageSchema,
   warehouseWithdrawMessageSchema,
   requestInventoryMessageSchema,
+  requestBossTimerMessageSchema,
   requestSkillStateMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
@@ -79,6 +80,7 @@ import {
   useItemMessageSchema,
   type AdminGiveItemRequest,
   type AdminUpdateCharacterRequest,
+  type BossTimerPayload,
   type ChatMsgPayload,
   type CombatEventPayload,
   type CombatHit,
@@ -177,6 +179,7 @@ import { stepMonsterAi, aggroMonster, type AiPlayerSnapshot } from "./monsterAi"
 import type { MonsterRuntime } from "./monsterRuntime";
 import {
   aggroGroup,
+  bossStatuses,
   createSpawnManager,
   notifyMonsterDeath,
   spawnAdminMonsters,
@@ -440,6 +443,13 @@ export class MapRoom extends Room {
         return;
       }
       this.sendSkillState(client.sessionId);
+    });
+
+    this.onMessage(MSG.requestBossTimer, (client, raw) => {
+      if (!requestBossTimerMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.sendBossTimersTo(client);
     });
 
     this.onMessage(MSG.partyInvite, (client, raw) => {
@@ -829,6 +839,7 @@ export class MapRoom extends Room {
     this.sendSelfStats(client.sessionId);
     this.sendInventory(client.sessionId);
     this.sendSkillState(client.sessionId);
+    this.sendBossTimersTo(client);
 
     // A duplicate join replaced and saved the previous session. Its save is
     // newer than the matchmaking snapshot, so refresh before the first tick
@@ -1681,6 +1692,7 @@ export class MapRoom extends Room {
     );
     if (spawned > 0) {
       this.updateInterest();
+      this.broadcastBossTimers();
     }
     const stonesSpawned = this.stones.tick(now);
     if (stonesSpawned.length > 0) {
@@ -1771,6 +1783,7 @@ export class MapRoom extends Room {
       this.state.monsters.delete(killed.monsterId);
       this.monsterRuntimes.delete(killed.monsterId);
       notifyMonsterDeath(this.spawns, killed.monsterId, now);
+      this.broadcastBossTimers();
       const died: MonsterDiedPayload = { ...killed, killerSessionId: sessionId };
       for (const client of recipients) {
         this.safeSend(client, MSG.monsterDied, died);
@@ -1930,6 +1943,34 @@ export class MapRoom extends Room {
         this.safeSend(client, MSG.stoneDestroyed, payload);
       }
     }
+  }
+
+  private sendBossTimersTo(client: Client): void {
+    for (const payload of this.bossTimerPayloads()) {
+      this.safeSend(client, MSG.bossTimer, payload);
+    }
+  }
+
+  private broadcastBossTimers(): void {
+    const payloads = this.bossTimerPayloads();
+    if (payloads.length === 0) {
+      return;
+    }
+    for (const client of this.clients) {
+      for (const payload of payloads) {
+        this.safeSend(client, MSG.bossTimer, payload);
+      }
+    }
+  }
+
+  private bossTimerPayloads(): BossTimerPayload[] {
+    return bossStatuses(this.spawns).map((status) => ({
+      bossTypeId: status.typeId,
+      name: status.name,
+      mapId: this.mapId,
+      alive: status.alive,
+      respawnAtMs: status.respawnAtMs,
+    }));
   }
 
   private tickGroundItems(now: number): void {

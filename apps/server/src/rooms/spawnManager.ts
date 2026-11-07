@@ -43,6 +43,14 @@ export interface SpawnManager {
   adminSeq: number;
 }
 
+export interface BossStatus {
+  groupId: string;
+  typeId: string;
+  name: string;
+  alive: boolean;
+  respawnAtMs: number | null;
+}
+
 export const ADMIN_MONSTER_GROUP = "@admin";
 
 export interface SpawnManagerInput {
@@ -415,6 +423,33 @@ export function notifyMonsterDeath(manager: SpawnManager, monsterId: string, now
  * Pack aggro: damaging one member makes every living member chase the attacker.
  * Returning monsters ignore it (they are invulnerable until they reach home).
  */
+/**
+ * Public boss clocks for the HUD. Field bosses are identified by their spawn
+ * group definition; regular packs are ignored.
+ */
+export function bossStatuses(manager: SpawnManager): BossStatus[] {
+  const result: BossStatus[] = [];
+  for (const group of manager.groups) {
+    const bossMember = group.group.members.find((member) => getMonster(member.monsterId).isBoss);
+    if (!bossMember) {
+      continue;
+    }
+    const spec = getMonster(bossMember.monsterId);
+    const alive = [...group.members].some((id) => {
+      const runtime = manager.runtimes.get(id);
+      return Boolean(runtime && runtime.typeId === spec.id && runtime.hp > 0);
+    });
+    result.push({
+      groupId: group.id,
+      typeId: spec.id,
+      name: spec.name,
+      alive,
+      respawnAtMs: alive ? null : group.respawnAtMs,
+    });
+  }
+  return result;
+}
+
 export function aggroGroup(
   manager: SpawnManager,
   monsterId: string,

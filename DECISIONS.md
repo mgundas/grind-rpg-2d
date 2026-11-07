@@ -245,3 +245,7 @@ Kill XP is awarded once per eligible member of the killer’s party (alive, pres
 ## D61 — Stone damage is rolled in combat but applied by the stone manager
 
 Basic attacks select monsters and spirit stones in one nearest-first arc using internal `m:` / `s:` keys, so a monster and a stone can share a raw id without colliding and monster-only ordering/RNG stays unchanged. Stones never miss; they use `StoneInfo.defense` and the normal crit roll, and combat returns stone damage intents without mutating stone HP or credit. The room applies each intent through `StoneManager.damage`, which remains the only writer of stone HP, wave thresholds and respawns. Applying a swing's stone hits immediately (before the next player's swing resolves) prevents two players in one tick from damaging a stone the other destroyed. Top-damage attribution is shared by `topDamageOwner`, which skips contributors who left. Stone respawn randomness uses a separate seeded generator so combat RNG stays reproducible.
+
+## D62 — Boss clocks are messages backed by spawn-group state
+
+`bossStatuses` reads each spawn group whose definition contains a boss, reports whether that boss currently lives in `runtimes`, and exposes the group's absolute `respawnAtMs` while dead. The room broadcasts `bossTimer` after a boss kill, after any group respawn, and on a client `requestBossTimer` (the join-time send can precede the SDK listener). Timer values are server epoch milliseconds so the client can count down without trusting its own spawn timing. Regular packs never produce boss messages.
