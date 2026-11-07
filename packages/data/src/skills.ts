@@ -123,6 +123,8 @@ const skillSchema = z
     maxTargets: z.number().int().min(1).max(20).optional(),
     castTimeMs: z.number().int().min(0).max(10_000),
     cooldownMs: z.number().int().min(0).max(600_000),
+    /** One-time health cost as a fraction of max HP (e.g. Blood Price). */
+    selfDamagePct: z.number().min(0).max(0.5).optional(),
     mpCost: mpCostSchema,
     damage: damageSchema.optional(),
     heal: healSchema.optional(),
@@ -215,6 +217,7 @@ export interface SkillInfo {
   maxTargets?: number;
   castTimeMs: number;
   cooldownMs: number;
+  selfDamagePct?: number;
   mpCost: { base: number; perRank: number };
   damage?: SkillDamage;
   heal?: SkillHeal;

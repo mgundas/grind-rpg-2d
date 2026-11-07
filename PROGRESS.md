@@ -197,7 +197,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 1 — Phase 6 shared protocol and formulas
 - [x] Task 2 — Skills data loader + Warrior skills
 - [x] Task 3 — Assassin skills
-- [ ] Task 4 — Hexblade skills
+- [x] Task 4 — Hexblade skills
 - [ ] Task 5 — Mystic skills and completeness
 - [ ] Task 6 — Spirit stone data and drop table
 - [ ] Task 7 — Preserve stone zones in map assets
