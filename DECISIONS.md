@@ -213,3 +213,23 @@ The React overlay renders the owner-only `inventory` snapshot and never mutates 
 ## D53 — Inventory pages, drag semantics and deferred item actions
 
 Both inventory pages are always open (the spec allowed “unlock at 20 or always open”); the server still enforces the 90-cell grid, so this is a UI-only choice. Dragging an item onto another item asks the server to merge or swap; dropping outside the window cancels; dropping onto an occupied multi-cell item targets its top-left cell. Dragging an item out of the bag to the ground (with confirmation) is deferred: the shared protocol only has pickup, not drop, and adding a drop intent would need its own ownership/valuation rules. Auto-loot only sends normal pickups the server already validates; a rejected drop is backed off for four seconds instead of retrying forever. Warehouse deposit/withdraw moves a whole stack, so a player splits first when they want to store part of it. Death closes item actions; the character can still respawn.
+
+## D54 — The admin live bus is in-process and keyed by character
+
+Each `MapRoom` registers a per-character action object after the session registry accepts the join; registration stores the owning session and room, and unregistering is conditional on both, so a late `onLeave` from an old room after a warp cannot remove the new session. Admin routes look the action up immediately before choosing the live or offline path, and a registration race is resolved by the DB path: an offline mutation commits to the database and the join loads it. This assumes one server process; Phase 10 can replace the bus with pub/sub when horizontal scaling lands. Announcements and kicks iterate the registered actions, so they only reach players in this process.
+
+## D55 — Bans bump `tokenVersion`, then kick; the monitor cookie carries the access token
+
+Ban locks the account row, sets `bannedUntil`/`banReason`, increments `tokenVersion`, writes `admin_log`, commits, and only then asks the session registry to kick with reason `"ban"`. The bump invalidates stale reservations, access tokens and refresh tokens before the socket closes, so an in-flight join cannot win the race. Unban clears the fields and does not bump the version. A plain admin kick sends `"admin"` and leaves tokens valid; the client returns to character select rather than the login screen. Because the Colyseus monitor iframe cannot send an `Authorization` header, an admin/gm login also sets an HttpOnly, SameSite=Lax `jt_admin` cookie holding that access token, and every monitor request re-checks its signature, token version, role and ban state. Permanent bans use the sentinel `9999-12-31T23:59:59.999Z` because `NULL` means "not banned".
+
+## D56 — Admin item and gold mutations reuse the existing item pipeline
+
+Live grants/removals run inside the room's inventory chain and apply the same `planAdminGive`/`planAdminRemove` + transaction executor as player actions; offline mutations load, plan and apply against the database. Both paths write `item_log` (`admin_grant`/`admin_remove`) through the transaction, and the route adds an `admin_log` row, so a grant is auditable from both the item history and the admin history. Item UUIDs are never reused, and a +5 grant is an ordinary row with `upgradeLevel: 5`; `effectiveItemStats` already reads the upgrade chain.
+
+## D57 — Rates, metrics, announcements and shutdown scheduling are in-memory
+
+XP/drop event multipliers, the online-history ring buffer, scheduled shutdown state and the announcement registry live in `AdminRuntime`, so they reset on restart and are not shared between processes. They are operational switches rather than persistent game data, and keeping them out of the database avoids a write per history sample. Announcement rows created by an admin are persisted (for history and auditing) while the live delivery list is rebuilt from the database at boot; shutdown sends countdown banners through the same admin bus.
+
+## D58 — Phase 5 game data is read-only and audited admin actions are never deleted
+
+The admin game-data page reads `@jadethrone/data` directly in the browser and has no editing UI: hot-reloadable data editing is a Phase 7 concern. Every mutating admin route writes an `admin_log` row with the actor account, target, action, optional detail and IP before returning; read routes are not logged to keep the table useful and small. Item/gold/chat logs remain append-only and are never pruned by the admin panel.
