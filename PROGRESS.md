@@ -190,6 +190,41 @@ Plan: `docs/plans/phase-5.md`.
 
 **Gate verification (2026-11-07):** `pnpm typecheck`, `pnpm lint` and `pnpm build` pass. Full suite against `jade_throne_test`: **68 files / 595 tests pass**, including the new ban-versus-stale-registration regression, the admin XP-multiplier room test and the persisted rate-audit assertion. `pnpm verify:phase5-e2e` against the live dev server passes all **20 checks** (admin login, monitor cookie 200/401, dashboard presence, live +5 sword, announcement banner, ban kick + 403 login, unban + login, audit rows). `@reviewer` findings were fixed before this gate. Report: `docs/reports/phase-5.md`.
 
+## Phase 6 — Spirit stones, skills, parties
+
+Plan: `docs/plans/phase-6.md`.
+
+- [x] Task 1 — Phase 6 shared protocol and formulas
+- [ ] Task 2 — Skills data loader + Warrior skills
+- [ ] Task 3 — Assassin skills
+- [ ] Task 4 — Hexblade skills
+- [ ] Task 5 — Mystic skills and completeness
+- [ ] Task 6 — Spirit stone data and drop table
+- [ ] Task 7 — Preserve stone zones in map assets
+- [ ] Task 8 — Admin read-only Skill/Stone tabs
+- [ ] Task 9 — `character_skills` table and service
+- [ ] Task 10 — Doctrine, skill points and skills in progression/save
+- [ ] Task 11 — Doctrine selection and skill upgrades
+- [ ] Task 12 — Pure party registry
+- [ ] Task 13 — Room party integration
+- [ ] Task 14 — Party XP and loot rules
+- [ ] Task 15 — Pure stone manager
+- [ ] Task 16 — Combat damage refactor and stone targets
+- [ ] Task 17 — Room spirit stone integration
+- [ ] Task 18 — Field boss timer server
+- [ ] Task 19 — Client stone rendering, targeting and boss timer
+- [ ] Task 20 — Pure skill validation and cast state
+- [ ] Task 21 — Buff/status model
+- [ ] Task 22 — Pure skill combat resolution
+- [ ] Task 23 — Room skill casting and buff integration
+- [ ] Task 24 — Client network and store fields
+- [ ] Task 25 — Skill window and doctrine selection
+- [ ] Task 26 — Two-row hotbar and skill casting
+- [ ] Task 27 — Skill FX, cast bar and buff bar
+- [ ] Task 28 — Party window, frames and invite-by-click
+- [ ] Task 29 — Phase 6 E2E, decisions and report
+- [ ] Task 30 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above

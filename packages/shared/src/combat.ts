@@ -91,3 +91,85 @@ export function findArcTargets(candidates: readonly ArcTarget[], query: ArcQuery
 
   return hits.slice(0, maxTargets).map((hit) => hit.id);
 }
+
+export interface CircleQuery {
+  center: Vec2;
+  radiusPx: number;
+  /** Extra reach for entity body radius. */
+  padPx?: number;
+  maxTargets?: number;
+}
+
+/** Ids inside a circle, nearest first with a stable id tie-break. */
+export function findCircleTargets(
+  candidates: readonly ArcTarget[],
+  query: CircleQuery,
+): string[] {
+  const padPx = query.padPx ?? ATTACK_RANGE_PAD_PX;
+  const maxTargets = Math.max(0, query.maxTargets ?? DEFAULT_MAX_TARGETS);
+  if (maxTargets === 0) {
+    return [];
+  }
+  const reach = Math.max(0, query.radiusPx) + Math.max(0, padPx);
+  const reachSquared = reach * reach;
+  const hits: Array<{ id: string; squared: number }> = [];
+  for (const candidate of candidates) {
+    const squared = distanceSquared(query.center, candidate);
+    if (squared <= reachSquared) {
+      hits.push({ id: candidate.id, squared });
+    }
+  }
+  hits.sort((a, b) => (a.squared !== b.squared ? a.squared - b.squared : compareIds(a.id, b.id)));
+  return hits.slice(0, maxTargets).map((hit) => hit.id);
+}
+
+export interface LineQuery {
+  origin: Vec2;
+  end: Vec2;
+  /** Total corridor width in pixels; half-width is used for the test. */
+  widthPx: number;
+  padPx?: number;
+  maxTargets?: number;
+}
+
+function distanceToSegmentSquared(point: Vec2, start: Vec2, end: Vec2): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) {
+    return distanceSquared(point, start);
+  }
+  const projection = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+  const t = Math.min(1, Math.max(0, projection));
+  const closestX = start.x + dx * t;
+  const closestY = start.y + dy * t;
+  const offsetX = point.x - closestX;
+  const offsetY = point.y - closestY;
+  return offsetX * offsetX + offsetY * offsetY;
+}
+
+/** Ids inside a line corridor between `origin` and `end`, nearest first. */
+export function findLineTargets(candidates: readonly ArcTarget[], query: LineQuery): string[] {
+  const maxTargets = Math.max(0, query.maxTargets ?? DEFAULT_MAX_TARGETS);
+  if (maxTargets === 0) {
+    return [];
+  }
+  const halfWidth = Math.max(0, query.widthPx) / 2 + Math.max(0, query.padPx ?? 0);
+  const halfWidthSquared = halfWidth * halfWidth;
+  const hits: Array<{ id: string; squared: number }> = [];
+  for (const candidate of candidates) {
+    const fromOrigin = distanceSquared(query.origin, candidate);
+    if (
+      distanceToSegmentSquared(candidate, query.origin, query.end) <= halfWidthSquared &&
+      fromOrigin <= distanceSquared(query.origin, query.end) + halfWidthSquared
+    ) {
+      hits.push({ id: candidate.id, squared: fromOrigin });
+    }
+  }
+  hits.sort((a, b) => (a.squared !== b.squared ? a.squared - b.squared : compareIds(a.id, b.id)));
+  return hits.slice(0, maxTargets).map((hit) => hit.id);
+}
+
+function compareIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}

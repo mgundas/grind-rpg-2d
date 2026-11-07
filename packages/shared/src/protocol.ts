@@ -1,6 +1,8 @@
 import { CHAT_MAX_LEN, type MapId, type Stats } from "./constants";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
+import { PARTY_LOOT_RULES } from "./party";
+import type { CastCancelReason, SkillType } from "./skills";
 import { z } from "zod";
 
 /**
@@ -45,6 +47,22 @@ export const MSG = {
   warehouseDeposit: "warehouseDeposit",
   warehouseWithdraw: "warehouseWithdraw",
   announcement: "announcement",
+  castSkill: "castSkill",
+  skillCastStart: "skillCastStart",
+  skillCast: "skillCast",
+  skillCastCancel: "skillCastCancel",
+  skillState: "skillState",
+  chooseDoctrine: "chooseDoctrine",
+  upgradeSkill: "upgradeSkill",
+  buffState: "buffState",
+  partyState: "partyState",
+  partyInvite: "partyInvite",
+  partyRespond: "partyRespond",
+  partyLeave: "partyLeave",
+  partySetLoot: "partySetLoot",
+  partyError: "partyError",
+  bossTimer: "bossTimer",
+  stoneDestroyed: "stoneDestroyed",
 } as const;
 
 /**
@@ -141,6 +159,62 @@ export type AllocStatMessage = z.infer<typeof allocStatMessageSchema>;
 /** Client → server: ask for a fresh owner-only progression snapshot. */
 export const requestStatsMessageSchema = z.object({});
 export type RequestStatsMessage = z.infer<typeof requestStatsMessageSchema>;
+
+// ---------------------------------------------------------------------------
+// Phase 6: skills, buffs, parties and spirit stones
+// ---------------------------------------------------------------------------
+
+const skillIdSchema = z.string().min(1).max(64);
+
+export const chooseDoctrineMessageSchema = z
+  .object({ doctrineId: z.string().min(1).max(64) })
+  .strict();
+export type ChooseDoctrineMessage = z.infer<typeof chooseDoctrineMessageSchema>;
+
+export const upgradeSkillMessageSchema = z.object({ skillId: skillIdSchema }).strict();
+export type UpgradeSkillMessage = z.infer<typeof upgradeSkillMessageSchema>;
+
+/**
+ * Skill intent. Self/ground/ally skills use different optional fields; the
+ * server validates the combination against the skill's type.
+ */
+export const castSkillMessageSchema = z
+  .object({
+    skillId: skillIdSchema,
+    dir: z.number().int().min(0).max(7).optional(),
+    targetMonsterId: z.string().min(1).max(64).optional(),
+    targetStoneId: z.string().min(1).max(64).optional(),
+    targetCharacterId: z.string().uuid().optional(),
+    x: pxSchema.optional(),
+    y: pxSchema.optional(),
+  })
+  .strict()
+  .refine((value) => (value.x === undefined) === (value.y === undefined), {
+    message: "x and y must be supplied together",
+  });
+export type CastSkillMessage = z.infer<typeof castSkillMessageSchema>;
+
+export const partyInviteMessageSchema = z
+  .object({
+    characterId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(16).optional(),
+  })
+  .strict()
+  .refine((value) => value.characterId !== undefined || value.name !== undefined, {
+    message: "characterId or name is required",
+  });
+export type PartyInviteMessage = z.infer<typeof partyInviteMessageSchema>;
+
+export const partyRespondMessageSchema = z
+  .object({ inviteId: z.string().uuid(), accept: z.boolean() })
+  .strict();
+export type PartyRespondMessage = z.infer<typeof partyRespondMessageSchema>;
+
+export const partyLeaveMessageSchema = z.object({}).strict();
+export type PartyLeaveMessage = z.infer<typeof partyLeaveMessageSchema>;
+
+export const partySetLootMessageSchema = z.object({ rule: z.enum(PARTY_LOOT_RULES) }).strict();
+export type PartySetLootMessage = z.infer<typeof partySetLootMessageSchema>;
 
 // ---------------------------------------------------------------------------
 // Phase 4: items, inventory, NPCs and economy
@@ -310,7 +384,9 @@ export interface AnnouncementPayload {
 
 /** Identifies a combatant in a combat event. */
 export type CombatEntityRef =
-  { kind: "player"; sessionId: string } | { kind: "monster"; monsterId: string };
+  | { kind: "player"; sessionId: string }
+  | { kind: "monster"; monsterId: string }
+  | { kind: "stone"; stoneId: string };
 
 export interface CombatHit {
   target: CombatEntityRef;
@@ -327,6 +403,8 @@ export interface CombatEventPayload {
   eventSeq: number;
   attacker: CombatEntityRef;
   hits: CombatHit[];
+  /** Present when the swing came from a skill cast. */
+  skillId?: string;
 }
 
 /** Sent when a monster dies; the state entity is removed in the same patch. */
@@ -365,6 +443,83 @@ export interface SelfStatsPayload {
   attack: number;
   defense: number;
   critChance: number;
+  /** Filled from Phase 6 onward; optional during the increment. */
+  doctrine?: string | null;
+  skillPoints?: number;
+}
+
+/** One learned skill and its absolute cooldown timestamp. */
+export interface SkillRankView {
+  skillId: string;
+  /** 0 means visible but not learned. */
+  rank: number;
+  /** Epoch ms before which a new cast is rejected; 0 = ready. */
+  readyAtMs: number;
+}
+
+/** Owner-only skill/doctrine snapshot, sent on join and after every change. */
+export interface SkillStatePayload {
+  doctrine: string | null;
+  skillPoints: number;
+  totalSkillPoints: number;
+  skills: SkillRankView[];
+}
+
+export interface BuffView {
+  id: string;
+  sourceSkillId: string;
+  name: string;
+  iconKey: string;
+  kind: "buff" | "debuff";
+  expiresAtMs: number;
+  stacks: number;
+}
+
+export interface BuffStatePayload {
+  buffs: BuffView[];
+}
+
+export interface SkillCastStartPayload {
+  skillId: string;
+  name: string;
+  completesAtMs: number;
+  castTimeMs: number;
+}
+
+export interface SkillCastCancelPayload {
+  skillId: string;
+  reason: CastCancelReason;
+}
+
+export interface SkillHealResult {
+  targetSessionId: string;
+  targetCharacterId: string;
+  amount: number;
+  x: number;
+  y: number;
+}
+
+export interface SkillBuffResult {
+  targetSessionId: string;
+  buff: BuffView;
+}
+
+/** Broadcast skill feedback for FX and floating numbers. */
+export interface SkillCastPayload {
+  eventSeq: number;
+  caster: { kind: "player"; sessionId: string };
+  skillId: string;
+  name: string;
+  type: SkillType;
+  /** Client FX preset key from skills.json. */
+  fx: string;
+  x: number;
+  y: number;
+  targetX: number;
+  targetY: number;
+  hits: CombatHit[];
+  heals: SkillHealResult[];
+  buffs: SkillBuffResult[];
 }
 
 /** Owner-only switch between local prediction and server-driven auto-walk. */

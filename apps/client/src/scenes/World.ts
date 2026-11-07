@@ -559,7 +559,10 @@ export class WorldScene extends Phaser.Scene {
             until: this.time.now + 90,
           });
         }
-      } else if (hit.target.sessionId === useUiStore.getState().sessionId) {
+      } else if (
+        hit.target.kind === "player" &&
+        hit.target.sessionId === useUiStore.getState().sessionId
+      ) {
         this.character.setTint(0xff6b5f);
         this.time.delayedCall(80, () => this.character.clearTint());
       }

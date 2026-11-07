@@ -8,6 +8,7 @@
 import type { ClassId } from "./characterRules";
 import { MAX_LEVEL, STAT_POINTS_PER_LEVEL, type Stats } from "./constants";
 import type { RandomSource } from "./rng";
+import type { BuffModifier, BuffStat } from "./skills";
 
 export interface MaxHpInput {
   baseHp: number;
@@ -113,6 +114,87 @@ export function rollHit(rng: RandomSource, chance: number): boolean {
 /** critChance = 0.02 + DEX×0.001 + item bonus. */
 export function critChance(dex: number, itemCritBonus = 0): number {
   return 0.02 + dex * 0.001 + itemCritBonus;
+}
+
+/** Magic attack from INT and level (GAME_DESIGN.md §4.3, Phase 6 skills). */
+export function magicAttackOf(int: number, level: number): number {
+  return Math.max(0, int) * 2 + Math.max(1, level);
+}
+
+/** Skill power multiplier at a 1-based rank: base + perRank × (rank − 1). */
+export function skillPowerAtRank(basePower: number, perRank: number, rank: number): number {
+  const safeRank = Math.max(1, Math.floor(rank));
+  return Math.max(0, basePower + perRank * (safeRank - 1));
+}
+
+/** Skill hit using the same 0.9–1.1 roll as basic attacks, scaled by power. */
+export function skillDamage(
+  rng: RandomSource,
+  attackerAttack: number,
+  defenderDefense: number,
+  power: number,
+): number {
+  return Math.max(
+    1,
+    Math.round(
+      damageRoll(rng) * Math.max(0, attackerAttack * power) - Math.max(0, defenderDefense) * 0.7,
+    ),
+  );
+}
+
+/** Direct heal: flat base/per-rank plus half of magic attack. */
+export function skillHealAmount(
+  base: number,
+  perRank: number,
+  rank: number,
+  magicAttack: number,
+): number {
+  const safeRank = Math.max(1, Math.floor(rank));
+  return Math.max(1, Math.round(base + perRank * (safeRank - 1) + magicAttack * 0.5));
+}
+
+/** Skill points available from level 5 onward, one per level. */
+export function skillPointsForLevel(level: number): number {
+  return Math.max(0, Math.floor(level) - 4);
+}
+
+/** Party XP multiplier: +10% per eligible member beyond the first. */
+export function partyXpMultiplier(memberCount: number): number {
+  return 1 + 0.1 * Math.max(0, Math.floor(memberCount) - 1);
+}
+
+/**
+ * Total a buff stat modifier set into flat and percent parts. Buffs stack
+ * additively; callers cap percentages before applying them.
+ */
+export function buffModifierTotals(
+  modifiers: readonly BuffModifier[],
+  stat: BuffStat,
+): { flat: number; percent: number } {
+  let flat = 0;
+  let percent = 0;
+  for (const modifier of modifiers) {
+    if (modifier.stat !== stat) {
+      continue;
+    }
+    if (modifier.mode === "flat") {
+      flat += modifier.value;
+    } else {
+      percent += modifier.value;
+    }
+  }
+  return { flat, percent };
+}
+
+/** Apply flat then percent modifiers to a base stat, never below zero. */
+export function applyBuffModifiers(
+  base: number,
+  modifiers: readonly BuffModifier[],
+  stat: BuffStat,
+): number {
+  const { flat, percent } = buffModifierTotals(modifiers, stat);
+  const cappedPercent = Math.min(2, Math.max(-0.9, percent));
+  return Math.max(0, (base + flat) * (1 + cappedPercent));
 }
 
 export function rollCrit(rng: RandomSource, chance: number): boolean {
