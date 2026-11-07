@@ -5,10 +5,29 @@ import { DROP_TABLES } from "@jadethrone/data/dropTables";
 import { SHOPS } from "@jadethrone/data/shops";
 import { SPAWN_GROUPS } from "@jadethrone/data/spawnGroups";
 import { NPCS } from "@jadethrone/data/npcs";
+import { SKILLS } from "@jadethrone/data/skills";
+import { STONES } from "@jadethrone/data/stones";
 
-type DataTab = "ITEMS" | "MONSTERS" | "DROP_TABLES" | "SHOPS" | "SPAWN_GROUPS" | "NPCS";
+type DataTab =
+  | "ITEMS"
+  | "MONSTERS"
+  | "SKILLS"
+  | "STONES"
+  | "DROP_TABLES"
+  | "SHOPS"
+  | "SPAWN_GROUPS"
+  | "NPCS";
 
-const TABS: DataTab[] = ["ITEMS", "MONSTERS", "DROP_TABLES", "SHOPS", "SPAWN_GROUPS", "NPCS"];
+const TABS: DataTab[] = [
+  "ITEMS",
+  "MONSTERS",
+  "SKILLS",
+  "STONES",
+  "DROP_TABLES",
+  "SHOPS",
+  "SPAWN_GROUPS",
+  "NPCS",
+];
 
 interface DataEntry {
   id: string;
@@ -78,6 +97,47 @@ function buildEntries(tab: DataTab): DataEntry[] {
           { label: "Leash range", value: String(monster.leashRange) },
           { label: "Attack cooldown", value: `${monster.attackCooldownMs}ms` },
           { label: "Size", value: monster.size },
+        ],
+      }));
+    case "SKILLS":
+      return SKILLS.map((skill) => ({
+        id: skill.id,
+        title: skill.name,
+        subtitle: `${skill.classId} / ${skill.doctrineId} · ${skill.type} · Lv ${skill.unlockLevel}`,
+        fields: [
+          { label: "Target", value: skill.target },
+          { label: "MP cost", value: `${skill.mpCost.base} + ${skill.mpCost.perRank}/rank` },
+          { label: "Cooldown / cast", value: `${skill.cooldownMs}ms / ${skill.castTimeMs}ms` },
+          { label: "Range / radius", value: `${skill.rangePx}px / ${skill.radiusPx}px` },
+          { label: "Max targets", value: String(skill.maxTargets ?? "—") },
+          { label: "Damage", value: skill.damage ? JSON.stringify(skill.damage) : "none" },
+          { label: "Heal", value: skill.heal ? JSON.stringify(skill.heal) : "none" },
+          {
+            label: "Effects",
+            value: skill.effects.length > 0 ? JSON.stringify(skill.effects) : "none",
+          },
+          { label: "FX", value: skill.fx },
+          { label: "Description", value: skill.description },
+        ],
+      }));
+    case "STONES":
+      return STONES.map((stone) => ({
+        id: stone.id,
+        title: stone.name,
+        subtitle: `${stone.mapId} · ${stone.zoneId} · Lv ${stone.level}`,
+        fields: [
+          { label: "HP / defense", value: `${stone.hp} / ${stone.defense}` },
+          { label: "XP / gold", value: `${stone.xp} XP / ${stone.goldMin}–${stone.goldMax}g` },
+          { label: "Drop table", value: stone.dropTableId },
+          { label: "Max per zone", value: String(stone.maxPerZone) },
+          {
+            label: "Respawn",
+            value: `${seconds(stone.respawnMinMs)} – ${seconds(stone.respawnMaxMs)}`,
+          },
+          { label: "Wave triggers", value: `${stone.waveTriggers.join("% / ")}%` },
+          { label: "Wave size", value: `${stone.waveMin}–${stone.waveMax}` },
+          { label: "Wave monsters", value: stone.waveMonsters.join(", ") },
+          { label: "Sprite", value: stone.spriteKey },
         ],
       }));
     case "DROP_TABLES":
