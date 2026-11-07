@@ -182,7 +182,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 16 — Admin app foundation
 - [x] Task 17 — Admin dashboard and Live Rooms pages
 - [x] Task 18 — Admin player search and detail
-- [ ] Task 19 — Admin player actions
+- [x] Task 19 — Admin player actions
 - [ ] Task 20 — Admin announcements, server controls, game data
 - [ ] Task 21 — Admin logs page
 - [ ] Task 22 — Verification tooling and docs

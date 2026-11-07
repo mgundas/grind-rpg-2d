@@ -9,6 +9,7 @@ import { getItem, hasItem } from "@jadethrone/data/items";
 import { getClass } from "@jadethrone/data/classes";
 import { adminApi } from "../network/api";
 import { AdminItemTooltip } from "../components/AdminItemTooltip";
+import { PlayerActions } from "../components/PlayerActions";
 
 type Tab = "stats" | "inventory" | "equipment" | "warehouse";
 
@@ -66,6 +67,7 @@ export function PlayersPage() {
   const [hover, setHover] = useState<{ item: ItemInstanceDto; x: number; y: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refresh, setRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -114,7 +116,7 @@ export function PlayersPage() {
     return () => {
       cancelled = true;
     };
-  }, [selected]);
+  }, [selected, refresh]);
 
   const characters = search?.characters ?? [];
   const className = useMemo(() => {
@@ -248,6 +250,11 @@ export function PlayersPage() {
                 />
               )}
             </div>
+            <PlayerActions
+              key={`${detail.character.id}:${detail.character.level}:${detail.character.gold}:${detail.character.stats.vit}:${detail.character.stats.int}:${detail.character.stats.str}:${detail.character.stats.dex}:${detail.account.bannedUntil ?? "0"}`}
+              detail={detail}
+              onChanged={() => setRefresh((value) => value + 1)}
+            />
           </div>
         )}
       </div>
