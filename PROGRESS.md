@@ -183,7 +183,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 17 — Admin dashboard and Live Rooms pages
 - [x] Task 18 — Admin player search and detail
 - [x] Task 19 — Admin player actions
-- [ ] Task 20 — Admin announcements, server controls, game data
+- [x] Task 20 — Admin announcements, server controls, game data
 - [ ] Task 21 — Admin logs page
 - [ ] Task 22 — Verification tooling and docs
 - [ ] Task 23 — Phase gate

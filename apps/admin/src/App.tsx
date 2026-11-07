@@ -3,6 +3,9 @@ import { GAME_NAME } from "@jadethrone/shared";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LiveRoomsPage } from "./pages/LiveRoomsPage";
 import { PlayersPage } from "./pages/PlayersPage";
+import { GameDataPage } from "./pages/GameDataPage";
+import { AnnouncementsPage } from "./pages/AnnouncementsPage";
+import { ServerPage } from "./pages/ServerPage";
 import { currentPageLabel, useAdminStore, type AdminPage } from "./store";
 
 const NAV: AdminPage[] = ["dashboard", "live", "players", "data", "announcements", "logs", "server"];
@@ -137,6 +140,12 @@ function Shell() {
             <LiveRoomsPage />
           ) : page === "players" ? (
             <PlayersPage />
+          ) : page === "data" ? (
+            <GameDataPage />
+          ) : page === "announcements" ? (
+            <AnnouncementsPage />
+          ) : page === "server" ? (
+            <ServerPage />
           ) : (
             <PlaceholderPage page={page} />
           )}
