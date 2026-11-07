@@ -22,6 +22,13 @@
       "when": 1794001917060,
       "tag": "0002_old_electro",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794041938941,
+      "tag": "0003_stiff_nitro",
+      "breakpoints": true
     }
   ]
 }

@@ -7,6 +7,8 @@ import {
   integer,
   jsonb,
   pgTable,
+  primaryKey,
+  check,
   real,
   smallint,
   text,
@@ -85,6 +87,24 @@ export const characters = pgTable(
     index("characters_account_idx").on(table.accountId),
   ],
 );
+
+export const characterSkills = pgTable(
+  "character_skills",
+  {
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    skillId: text("skill_id").notNull(),
+    rank: smallint("rank").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.characterId, table.skillId], name: "character_skills_pk" }),
+    check("character_skills_rank_check", sql`${table.rank} >= 1 AND ${table.rank} <= 20`),
+  ],
+);
+
+export type CharacterSkillRow = typeof characterSkills.$inferSelect;
 
 export const sessions = pgTable(
   "sessions",
