@@ -186,12 +186,14 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 20 — Admin announcements, server controls, game data
 - [x] Task 21 — Admin logs page
 - [x] Task 22 — Verification tooling and docs
-- [ ] Task 23 — Phase gate
+- [x] Task 23 — Phase gate
+
+**Gate verification (2026-11-07):** `pnpm typecheck`, `pnpm lint` and `pnpm build` pass. Full suite against `jade_throne_test`: **68 files / 595 tests pass**, including the new ban-versus-stale-registration regression, the admin XP-multiplier room test and the persisted rate-audit assertion. `pnpm verify:phase5-e2e` against the live dev server passes all **20 checks** (admin login, monitor cookie 200/401, dashboard presence, live +5 sword, announcement banner, ban kick + 403 login, unban + login, audit rows). `@reviewer` findings were fixed before this gate. Report: `docs/reports/phase-5.md`.
 
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
-- [ ] Phase 5 — Admin panel (see the Phase 5 section above)
+- [x] Phase 5 — Admin panel (see the Phase 5 section above)
 - [ ] Phase 6 — Spirit stones, skills, parties
 - [ ] Phase 7 — Upgrades, bonuses, trading
 - [ ] Phase 8 — Social and progression depth
