@@ -4,6 +4,7 @@ import { getMonster } from "@jadethrone/data/monsters";
 import { MonsterState, PlayerState, WorldState } from "../../src/rooms/state/WorldState";
 import { createPlayerRuntime, type PlayerRuntime } from "../../src/rooms/playerRuntime";
 import { createMonsterRuntime, type MonsterRuntime } from "../../src/rooms/monsterRuntime";
+import type { StoneRuntime } from "../../src/rooms/stoneManager";
 import {
   resolvePlayerSwing,
   resolveMonsterAttack,
@@ -114,8 +115,37 @@ function context(
   monsters: Map<string, MonsterRuntime>,
   values: number[],
   now = 0,
+  stones: Map<string, StoneRuntime> = new Map(),
 ): CombatContext {
-  return { now, rng: fixed(values), state, runtimes, monsterRuntimes: monsters };
+  return {
+    now,
+    rng: fixed(values),
+    state,
+    runtimes,
+    monsterRuntimes: monsters,
+    stoneRuntimes: stones,
+  };
+}
+
+function addStone(
+  stones: Map<string, StoneRuntime>,
+  id: string,
+  pos: Vec2,
+  hp = 12_000,
+): StoneRuntime {
+  const runtime: StoneRuntime = {
+    stoneId: id,
+    infoId: "ember_fields_stone",
+    zoneId: "fields_stones",
+    x: pos.x,
+    y: pos.y,
+    hp,
+    maxHp: 12_000,
+    damageBy: new Map(),
+    nextWaveIndex: 0,
+  };
+  stones.set(id, runtime);
+  return runtime;
 }
 
 describe("resolvePlayerSwing", () => {
@@ -352,5 +382,88 @@ describe("resolveMonsterAttack", () => {
     expect(
       resolveMonsterAttack(context(dead.state, dead.runtimes, dead.monsters, [0]), "nope", "s1"),
     ).toBeNull();
+  });
+});
+
+describe("resolvePlayerSwing against spirit stones", () => {
+  it("returns a stone hit without mutating stone HP or damage credit", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const stones = new Map<string, StoneRuntime>();
+    const player = makePlayer(state);
+    runtimes.set("s1", player);
+    const stone = addStone(stones, "stone-1", { x: 230, y: 200 });
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, monsters, [0.5, 0.9], 100, stones),
+      "s1",
+      0,
+    );
+
+    expect(outcome?.stoneHits).toHaveLength(1);
+    expect(outcome?.stoneHits[0]).toMatchObject({
+      target: { kind: "stone", stoneId: "stone-1" },
+      miss: false,
+      crit: false,
+      damage: 10,
+    });
+    expect(outcome?.hits).toContain(outcome?.stoneHits[0]);
+    expect(outcome?.killed).toEqual([]);
+    expect(outcome?.damagedMonsterIds).toEqual([]);
+    expect(stone.hp).toBe(12_000);
+    expect(stone.damageBy.size).toBe(0);
+    expect(player.lastCombatAtMs).toBe(100);
+  });
+
+  it("crits stones using their defense and no hit roll", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    const stones = new Map<string, StoneRuntime>();
+    addStone(stones, "stone-1", { x: 230, y: 200 });
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, new Map(), [0, 0], 0, stones),
+      "s1",
+      0,
+    );
+    expect(outcome?.stoneHits[0]).toMatchObject({ crit: true, damage: 16 });
+  });
+
+  it("can hit a monster and a stone with the same raw id", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const stones = new Map<string, StoneRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    addMonster(state, monsters, "shared", "wild_dog", { x: 220, y: 200 });
+    addStone(stones, "shared", { x: 240, y: 200 });
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, monsters, [0.5, 0.9, 0.5, 0.9], 0, stones),
+      "s1",
+      0,
+    );
+    const kinds = outcome?.hits.map((hit) => hit.target.kind).sort();
+    expect(kinds).toEqual(["monster", "stone"]);
+  });
+
+  it("ignores stones behind the player or out of range", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    runtimes.set("s1", makePlayer(state));
+    const stones = new Map<string, StoneRuntime>();
+    addStone(stones, "behind", { x: 150, y: 200 });
+    const far = addStone(stones, "far", { x: 400, y: 200 });
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, new Map(), [0.5, 0.9], 0, stones),
+      "s1",
+      0,
+    );
+    expect(outcome?.stoneHits).toEqual([]);
+    expect(outcome?.hits).toEqual([]);
+    expect(far.hp).toBe(12_000);
   });
 });

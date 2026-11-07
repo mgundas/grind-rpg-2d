@@ -20,9 +20,11 @@ import {
 import { getClass } from "@jadethrone/data/classes";
 import { equipmentBonusStats } from "../items/equipment";
 import { getMonster } from "@jadethrone/data/monsters";
+import { getStone } from "@jadethrone/data/stones";
 import type { MonsterRuntime } from "./monsterRuntime";
 import type { PlayerRuntime } from "./playerRuntime";
 import type { WorldState } from "./state/WorldState";
+import type { StoneRuntime } from "./stoneManager";
 
 /**
  * Player basic-attack resolution (GAME_DESIGN.md §5, §6). Pure: it never sends
@@ -36,6 +38,8 @@ export interface CombatContext {
   state: WorldState;
   runtimes: ReadonlyMap<string, PlayerRuntime>;
   monsterRuntimes: ReadonlyMap<string, MonsterRuntime>;
+  /** Optional so monster-only tests and rooms keep working. */
+  stoneRuntimes?: ReadonlyMap<string, StoneRuntime>;
 }
 
 export interface KilledMonster {
@@ -47,12 +51,120 @@ export interface KilledMonster {
   ownerSessionId: string;
 }
 
+export type StoneHit = CombatHit & {
+  target: { kind: "stone"; stoneId: string };
+};
+
+/** Symmetric record for the room; never produced by the swing resolver. */
+export interface KilledStone {
+  stoneId: string;
+  infoId: string;
+  x: number;
+  y: number;
+  ownerSessionId: string;
+}
+
+export interface MonsterDamageResult {
+  hp: number;
+  killed: KilledMonster | null;
+}
+
 export interface SwingOutcome {
   /** Every target in the arc, nearest first; misses included. */
   hits: CombatHit[];
   killed: KilledMonster[];
   /** Monsters that actually took damage; used for pack aggro. */
   damagedMonsterIds: string[];
+  /** Stone damage intents; the room applies these through StoneManager. */
+  stoneHits: StoneHit[];
+}
+
+/** Highest damage contributor, skipping players who are no longer present. */
+export function topDamageOwner(
+  damageBy: ReadonlyMap<string, number>,
+  liveSessions: ReadonlyMap<string, PlayerRuntime>,
+  fallbackSessionId: string,
+): string {
+  let ownerSessionId = fallbackSessionId;
+  let bestDamage = -1;
+  for (const [contributor, amount] of damageBy) {
+    if (!liveSessions.has(contributor)) {
+      continue;
+    }
+    if (amount > bestDamage) {
+      bestDamage = amount;
+      ownerSessionId = contributor;
+    }
+  }
+  return ownerSessionId;
+}
+
+/**
+ * Apply damage to one monster. Combat remains the only place that writes
+ * monster HP/damage credit; the room handles death cleanup from the returned
+ * kill record.
+ */
+export function applyDamageToMonster(
+  ctx: CombatContext,
+  sessionId: string,
+  monsterId: string,
+  damage: number,
+  _now: number,
+): MonsterDamageResult | null {
+  void _now;
+  const monsterRuntime = ctx.monsterRuntimes.get(monsterId);
+  const monster = ctx.state.monsters.get(monsterId);
+  if (!monsterRuntime || !monster || monsterRuntime.hp <= 0) {
+    return null;
+  }
+  const safeDamage = Math.max(0, Math.floor(damage));
+  if (safeDamage === 0) {
+    return { hp: monsterRuntime.hp, killed: null };
+  }
+  monsterRuntime.hp = Math.max(0, monsterRuntime.hp - safeDamage);
+  monster.hp = monsterRuntime.hp;
+  monsterRuntime.damageBy.set(
+    sessionId,
+    (monsterRuntime.damageBy.get(sessionId) ?? 0) + safeDamage,
+  );
+  if (monsterRuntime.hp > 0) {
+    return { hp: monsterRuntime.hp, killed: null };
+  }
+  return {
+    hp: 0,
+    killed: {
+      monsterId,
+      typeId: monsterRuntime.typeId,
+      x: monsterRuntime.mover.pos.x,
+      y: monsterRuntime.mover.pos.y,
+      ownerSessionId: topDamageOwner(monsterRuntime.damageBy, ctx.runtimes, sessionId),
+    },
+  };
+}
+
+/** Stones always hit; only damage and crit rolls are consumed. */
+export function resolveStoneHit(
+  ctx: CombatContext,
+  sessionId: string,
+  stoneId: string,
+  attack: number,
+  critChanceValue: number,
+): StoneHit | null {
+  const runtime = ctx.stoneRuntimes?.get(stoneId);
+  if (!runtime || runtime.hp <= 0) {
+    return null;
+  }
+  const info = getStone(runtime.infoId);
+  const base = resolveDamage(ctx.rng, attack, info.defense);
+  const crit = rollCrit(ctx.rng, critChanceValue);
+  return {
+    target: { kind: "stone", stoneId },
+    x: runtime.x,
+    y: runtime.y,
+    miss: false,
+    crit,
+    damage: crit ? critDamage(base) : base,
+  };
 }
 
 /** Null means the swing was rejected (no runtime, dead, warping, cooldown). */
@@ -84,6 +196,7 @@ export function resolvePlayerSwing(
   // Candidates come from authoritative movers; returning and dead monsters are
   // removed before the arc test so they cannot consume max-target slots.
   const candidates: ArcTarget[] = [];
+  const refs = new Map<string, { kind: "monster" | "stone"; id: string }>();
   for (const [monsterId, monsterRuntime] of ctx.monsterRuntimes) {
     if (monsterRuntime.hp <= 0 || monsterRuntime.ai === "return") {
       continue;
@@ -91,11 +204,21 @@ export function resolvePlayerSwing(
     if (!ctx.state.monsters.has(monsterId)) {
       continue;
     }
+    const key = `m:${monsterId}`;
+    refs.set(key, { kind: "monster", id: monsterId });
     candidates.push({
-      id: monsterId,
+      id: key,
       x: monsterRuntime.mover.pos.x,
       y: monsterRuntime.mover.pos.y,
     });
+  }
+  for (const [stoneId, stoneRuntime] of ctx.stoneRuntimes ?? []) {
+    if (stoneRuntime.hp <= 0) {
+      continue;
+    }
+    const key = `s:${stoneId}`;
+    refs.set(key, { kind: "stone", id: stoneId });
+    candidates.push({ id: key, x: stoneRuntime.x, y: stoneRuntime.y });
   }
 
   const origin = runtime.mover.pos;
@@ -114,12 +237,31 @@ export function resolvePlayerSwing(
     level: runtime.progression.level,
     weaponAttack: equipment.attack,
   });
+  const critChanceValue = critChance(stats.dex, equipment.critChance);
 
   const hits: CombatHit[] = [];
   const killed: KilledMonster[] = [];
   const damagedMonsterIds: string[] = [];
+  const stoneHits: StoneHit[] = [];
+  let damaged = false;
 
-  for (const monsterId of targetIds) {
+  for (const key of targetIds) {
+    const ref = refs.get(key);
+    // A target can disappear between candidate collection and resolution.
+    if (!ref) {
+      continue;
+    }
+    if (ref.kind === "stone") {
+      const hit = resolveStoneHit(ctx, sessionId, ref.id, attack, critChanceValue);
+      if (hit) {
+        hits.push(hit);
+        stoneHits.push(hit);
+        damaged = true;
+      }
+      continue;
+    }
+
+    const monsterId = ref.id;
     const monsterRuntime = ctx.monsterRuntimes.get(monsterId);
     const monster = ctx.state.monsters.get(monsterId);
     // Another swing in the same tick may already have removed it.
@@ -143,42 +285,24 @@ export function resolvePlayerSwing(
     }
 
     const base = resolveDamage(ctx.rng, attack, spec.defense);
-    const crit = rollCrit(ctx.rng, critChance(stats.dex, equipment.critChance));
+    const crit = rollCrit(ctx.rng, critChanceValue);
     const damage = crit ? critDamage(base) : base;
-
-    monsterRuntime.hp = Math.max(0, monsterRuntime.hp - damage);
-    monster.hp = monsterRuntime.hp;
-    monsterRuntime.damageBy.set(
-      sessionId,
-      (monsterRuntime.damageBy.get(sessionId) ?? 0) + damage,
-    );
+    const applied = applyDamageToMonster(ctx, sessionId, monsterId, damage, ctx.now);
+    if (!applied) {
+      continue;
+    }
     hits.push({ target, x, y, miss: false, crit, damage });
     damagedMonsterIds.push(monsterId);
-    runtime.lastCombatAtMs = ctx.now;
-
-    if (monsterRuntime.hp === 0) {
-      let ownerSessionId = sessionId;
-      let bestDamage = -1;
-      for (const [contributor, amount] of monsterRuntime.damageBy) {
-        if (!ctx.runtimes.has(contributor)) {
-          continue;
-        }
-        if (amount > bestDamage) {
-          bestDamage = amount;
-          ownerSessionId = contributor;
-        }
-      }
-      killed.push({
-        monsterId,
-        typeId: monsterRuntime.typeId,
-        x,
-        y,
-        ownerSessionId,
-      });
+    damaged = true;
+    if (applied.killed) {
+      killed.push(applied.killed);
     }
   }
 
-  return { hits, killed, damagedMonsterIds };
+  if (damaged) {
+    runtime.lastCombatAtMs = ctx.now;
+  }
+  return { hits, killed, damagedMonsterIds, stoneHits };
 }
 
 export interface MonsterAttackOutcome {
