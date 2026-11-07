@@ -4,9 +4,14 @@ import { DROP_TABLES, getDropTable, hasDropTable } from "@jadethrone/data/dropTa
 import { getItem } from "@jadethrone/data/items";
 
 describe("dropTables.json", () => {
-  it("defines one table per starter monster", () => {
-    expect(DROP_TABLES).toHaveLength(MONSTERS.length);
+  it("defines one table per starter monster plus special tables", () => {
+    expect(DROP_TABLES.length).toBeGreaterThanOrEqual(MONSTERS.length);
     expect(new Set(DROP_TABLES.map((table) => table.id)).size).toBe(DROP_TABLES.length);
+    for (const monster of MONSTERS) {
+      if (monster.dropTableId) {
+        expect(hasDropTable(monster.dropTableId)).toBe(true);
+      }
+    }
   });
 
   it("references real items with valid quantities and chances", () => {

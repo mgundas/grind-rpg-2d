@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "stones": [
+    {
+      "id": "ember_fields_stone",
+      "zoneId": "fields_stones",
+      "mapId": "map_ember_fields",
+      "name": "Corrupted Spirit Stone",
+      "level": 8,
+      "hp": 12000,
+      "defense": 6,
+      "xp": 450,
+      "goldMin": 30,
+      "goldMax": 80,
+      "dropTableId": "spirit_stone",
+      "maxPerZone": 3,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [80, 60, 40, 20],
+      "waveMin": 4,
+      "waveMax": 6,
+      "waveMonsters": ["wild_dog", "gray_wolf", "corrupted_deer"],
+      "spriteKey": "mob.stone.spirit",
+      "color": "#7bd3c4"
+    }
+  ]
+}

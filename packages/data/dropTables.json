@@ -91,6 +91,18 @@
         { "itemId": "armor_warrior_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
         { "itemId": "armor_assassin_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 }
       ]
+    },
+    {
+      "id": "spirit_stone",
+      "drops": [
+        { "itemId": "material_spirit_shard", "chance": 1, "minQty": 2, "maxQty": 5 },
+        { "itemId": "material_corrupted_crystal", "chance": 0.6, "minQty": 1, "maxQty": 2 },
+        { "itemId": "potion_hp_m", "chance": 0.5, "minQty": 1, "maxQty": 2 },
+        { "itemId": "potion_mp_m", "chance": 0.4, "minQty": 1, "maxQty": 1 },
+        { "itemId": "scroll_enchant", "chance": 0.04, "minQty": 1, "maxQty": 1 },
+        { "itemId": "sword_hex_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 },
+        { "itemId": "bell_ember_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+      ]
     }
   ]
 }

@@ -13,6 +13,7 @@
     "./skills": "./src/skills.ts",
     "./starterKits": "./src/starterKits.ts",
     "./spawnGroups": "./src/spawnGroups.ts",
+    "./stones": "./src/stones.ts",
     "./maps/*": "./maps/*"
   },
   "types": "./src/index.ts",

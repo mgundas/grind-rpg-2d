@@ -199,7 +199,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 3 — Assassin skills
 - [x] Task 4 — Hexblade skills
 - [x] Task 5 — Mystic skills and completeness
-- [ ] Task 6 — Spirit stone data and drop table
+- [x] Task 6 — Spirit stone data and drop table
 - [ ] Task 7 — Preserve stone zones in map assets
 - [ ] Task 8 — Admin read-only Skill/Stone tabs
 - [ ] Task 9 — `character_skills` table and service
