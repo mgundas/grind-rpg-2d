@@ -5,9 +5,11 @@ import {
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
   TICK_MS,
+  applyXpGain,
   createMover,
   dir8Towards,
   isWalkableAt,
+  monsterXpGain,
   stepMover,
   type CombatEventPayload,
   type InputMessage,
@@ -17,7 +19,9 @@ import {
   type WarpPayload,
 } from "@jadethrone/shared";
 import { FIELDS_SPAWN, VILLAGE_SPAWN } from "@jadethrone/data";
+import { getMonster } from "@jadethrone/data/monsters";
 import { createGameServer } from "../../src/server";
+import { getServerServices } from "../../src/services";
 import { loadMapAssets } from "../../src/maps/mapRegistry";
 import { issueWarpToken } from "../../src/rooms/warpTokens";
 import { MapRoom } from "../../src/rooms/MapRoom";
@@ -1059,6 +1063,33 @@ describe("player attack", () => {
     expect(death.killerSessionId).toBe(client.sessionId);
     expect(room.state.monsters.has(targetId)).toBe(false);
     expect(monsterRuntimes(room).has(targetId)).toBe(false);
+  });
+
+  it("applies the admin XP multiplier to kill XP", async () => {
+    const services = getServerServices();
+    services.adminRuntime.setRates(2, 1);
+    try {
+      const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+      const { client } = await joinAtWolfCamp(room, "Boosted");
+      const targetId = nearestMonsterId(room, client.sessionId);
+      const runtime = monsterRuntimes(room).get(targetId)!;
+      const monster = room.state.monsters.get(targetId)!;
+      const spec = getMonster(monster.typeId);
+      runtime.hp = 1;
+      monster.hp = 1;
+      const player = room.state.players.get(client.sessionId)!;
+      const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
+      const stats = client.waitForMessage(MSG.selfStats, 2000);
+
+      sendAttack(client, dir);
+      const payload = (await stats) as SelfStatsPayload;
+      const gain = Math.floor(monsterXpGain(spec.xp, spec.level, 1) * 2);
+      const expected = applyXpGain(1, 0, gain);
+      expect(payload.level).toBe(expected.level);
+      expect(payload.xp).toBe(expected.xp);
+    } finally {
+      services.adminRuntime.setRates(1, 1);
+    }
   });
 
   it("only sends combat events to clients within the event radius", async () => {

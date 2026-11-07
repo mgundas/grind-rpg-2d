@@ -3,6 +3,16 @@ import type { AdminServerStatus } from "@jadethrone/shared";
 import { MONSTERS } from "@jadethrone/data/monsters";
 import { adminApi } from "../network/api";
 
+/** Empty or non-numeric input is reported instead of silently becoming NaN. */
+function finite(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function StatusLine({ status }: { status: AdminServerStatus }) {
   return (
     <div className="grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -81,11 +91,15 @@ function Controls({
           <button
             type="button"
             disabled={busy}
-            onClick={() =>
-              void run("Rate update", () =>
-                adminApi.setRates(Number(xpRate), Number(dropRate)),
-              )
-            }
+            onClick={() => {
+              const xp = finite(xpRate);
+              const drop = finite(dropRate);
+              if (xp === null || drop === null || xp < 0 || drop < 0) {
+                setError("Rates must be non-negative numbers.");
+                return;
+              }
+              void run("Rate update", () => adminApi.setRates(xp, drop));
+            }}
             className="self-end rounded bg-[var(--jade)] px-3 py-1 text-xs font-semibold text-[#0f1210]"
           >
             Apply
@@ -128,16 +142,29 @@ function Controls({
           <button
             type="button"
             disabled={busy}
-            onClick={() =>
+            onClick={() => {
+              const spawnCount = finite(count);
+              const spawnX = x.trim() === "" ? null : finite(x);
+              const spawnY = y.trim() === "" ? null : finite(y);
+              if (
+                spawnCount === null ||
+                spawnCount < 1 ||
+                !Number.isInteger(spawnCount) ||
+                (x.trim() !== "" && spawnX === null) ||
+                (y.trim() !== "" && spawnY === null)
+              ) {
+                setError("Count must be a whole number and coordinates must be numeric.");
+                return;
+              }
               void run("Spawn", () =>
                 adminApi.spawn({
                   typeId,
-                  count: Math.max(1, Number(count) || 1),
-                  ...(x.trim() === "" ? {} : { x: Number(x) }),
-                  ...(y.trim() === "" ? {} : { y: Number(y) }),
+                  count: spawnCount,
+                  ...(spawnX === null ? {} : { x: spawnX }),
+                  ...(spawnY === null ? {} : { y: spawnY }),
                 }),
-              )
-            }
+              );
+            }}
             className="rounded bg-[var(--jade)] px-3 py-1 text-xs font-semibold text-[#0f1210]"
           >
             Spawn
@@ -165,11 +192,14 @@ function Controls({
           <button
             type="button"
             disabled={busy}
-            onClick={() =>
-              void run("Shutdown schedule", () =>
-                adminApi.scheduleShutdown(Math.max(1, Number(delay) || 30), message),
-              )
-            }
+            onClick={() => {
+              const minutes = finite(delay);
+              if (minutes === null || minutes < 1 || !Number.isInteger(minutes)) {
+                setError("Shutdown delay must be a whole number of minutes.");
+                return;
+              }
+              void run("Shutdown schedule", () => adminApi.scheduleShutdown(minutes, message));
+            }}
             className="rounded border border-[#7a3b36] px-3 py-1 text-xs text-[#ff8f84]"
           >
             Schedule
@@ -227,7 +257,7 @@ export function ServerPage() {
       </section>
       {status ? (
         <Controls
-          key={`${status.xpRate}:${status.dropRate}:${status.shutdownAtMs ?? 0}:${status.online}`}
+          key={`${status.xpRate}:${status.dropRate}:${status.shutdownAtMs ?? 0}`}
           status={status}
           onChanged={() => setRefresh((value) => value + 1)}
         />

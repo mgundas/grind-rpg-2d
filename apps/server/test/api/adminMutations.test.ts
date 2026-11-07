@@ -121,12 +121,31 @@ describeDb("admin mutation routes", () => {
   });
 
   it("bans, refuses login, then unbans", async () => {
+    const db = getDb();
+    const [beforeBan] = await db
+      .select({ tokenVersion: accounts.tokenVersion })
+      .from(accounts)
+      .where(eq(accounts.id, targetAccountId));
     const banned = await request(`/api/admin/players/${targetCharacterId}/ban`, {
       method: "POST",
       token: adminToken,
       body: { durationMinutes: 60, reason: "test" },
     });
     expect(banned.status).toBe(200);
+
+    // A join that passed onAuth before the ban must be rejected by its stale
+    // token generation instead of registering after the kick.
+    const registry = getServerServices().sessionRegistry;
+    const accepted = await registry.register({
+      accountId: targetAccountId,
+      characterId: targetCharacterId,
+      sessionId: `stale-${suffix()}`,
+      tokenVersion: beforeBan?.tokenVersion ?? 0,
+      saveForKick: async () => {},
+      send: () => {},
+      leave: () => {},
+    });
+    expect(accepted).toBe(false);
 
     const login = await request(`/api/auth/login`, {
       method: "POST",

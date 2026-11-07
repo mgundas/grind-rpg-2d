@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAX_GOLD, MAP_IDS } from "./constants";
+import { MAX_ADMIN_SPAWN, MAX_GOLD, MAX_LEVEL, MAP_IDS, STAT_POINT_CAP } from "./constants";
 import type { AccountRole } from "./auth";
 import type { ClassId } from "./characterRules";
 import type { ItemInstanceDto } from "./protocol";
@@ -29,12 +29,12 @@ export type AdminGiveItemRequest = z.infer<typeof adminGiveItemSchema>;
 
 export const adminUpdateCharacterSchema = z
   .object({
-    level: z.number().int().min(1).max(99).optional(),
+    level: z.number().int().min(1).max(MAX_LEVEL).optional(),
     gold: z.number().int().min(0).max(MAX_GOLD).optional(),
-    statVit: z.number().int().min(0).max(90).optional(),
-    statInt: z.number().int().min(0).max(90).optional(),
-    statStr: z.number().int().min(0).max(90).optional(),
-    statDex: z.number().int().min(0).max(90).optional(),
+    statVit: z.number().int().min(0).max(STAT_POINT_CAP).optional(),
+    statInt: z.number().int().min(0).max(STAT_POINT_CAP).optional(),
+    statStr: z.number().int().min(0).max(STAT_POINT_CAP).optional(),
+    statDex: z.number().int().min(0).max(STAT_POINT_CAP).optional(),
     x: z.number().finite().min(0).max(65_535).optional(),
     y: z.number().finite().min(0).max(65_535).optional(),
   })
@@ -64,7 +64,7 @@ export type AdminRatesRequest = z.infer<typeof adminRatesSchema>;
 export const adminSpawnSchema = z
   .object({
     typeId: z.string().min(1).max(64),
-    count: z.number().int().min(1).max(50).default(1),
+    count: z.number().int().min(1).max(MAX_ADMIN_SPAWN).default(1),
     /** Optional world position; defaults to the admin's current position. */
     x: z.number().finite().min(0).max(65_535).optional(),
     y: z.number().finite().min(0).max(65_535).optional(),
@@ -141,6 +141,13 @@ export interface AdminDashboardResponse {
   registrationsToday: number;
   goldInEconomy: number;
   history: Array<{ atMs: number; online: number }>;
+  rooms: Array<{
+    roomId: string;
+    mapId: string;
+    startedAtMs: number;
+    maxClients: number;
+    players: number;
+  }>;
 }
 
 export interface AdminAccountSummary {
@@ -148,6 +155,7 @@ export interface AdminAccountSummary {
   email: string;
   username: string;
   role: AccountRole;
+  banned: boolean;
   bannedUntil: string | null;
   banReason: string | null;
   characters: AdminCharacterSummary[];
@@ -165,6 +173,7 @@ export interface AdminCharacterSummary {
   gold: number;
   online: boolean;
   role: AccountRole;
+  banned: boolean;
   bannedUntil: string | null;
   banReason: string | null;
 }

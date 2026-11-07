@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ColyseusTestServer } from "@colyseus/testing";
 import { eq } from "drizzle-orm";
 import type { CreateCharacterRequest } from "@jadethrone/shared";
-import { accounts } from "../../src/db/schema";
+import { accounts, adminLog } from "../../src/db/schema";
 import { createCharacter } from "../../src/characters/characterService";
 import { getDb, closeDb } from "../../src/db/client";
 import { runMigrations } from "../../src/db/migrate";
@@ -110,6 +110,14 @@ describeDb("admin control routes", () => {
     expect(rates.status).toBe(200);
     const status = await request("/api/admin/server", { token: adminToken });
     expect(status.body).toMatchObject({ xpRate: 2, dropRate: 0.5 });
+
+    const logs = await getDb()
+      .select()
+      .from(adminLog)
+      .where(eq(adminLog.action, "server_rates"));
+    expect(
+      logs.some((row) => (row.detail as { xpRate?: number } | null)?.xpRate === 2),
+    ).toBe(true);
   });
 
   it("schedules and cancels a shutdown", async () => {

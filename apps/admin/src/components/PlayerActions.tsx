@@ -54,8 +54,7 @@ export function PlayerActions({
     }
   };
 
-  // Any recorded ban date shows the unban action; expired rows are harmless.
-  const banned = account.bannedUntil !== null;
+  const banned = account.banned;
 
   const removeButton = (item: ItemInstanceDto, location: string) => (
     <button
@@ -117,18 +116,30 @@ export function PlayerActions({
           <button
             type="button"
             disabled={busy}
-            onClick={() =>
+            onClick={() => {
+              // Send only edited fields so a stale detail snapshot cannot roll
+              // back live level, XP or gold the player earned meanwhile.
+              const body: Record<string, number> = {};
+              const nextLevel = numberValue(level, character.level);
+              const nextGold = numberValue(gold, character.gold);
+              const nextVit = numberValue(vit, character.stats.vit);
+              const nextInt = numberValue(int, character.stats.int);
+              const nextStr = numberValue(str, character.stats.str);
+              const nextDex = numberValue(dex, character.stats.dex);
+              if (nextLevel !== character.level) body.level = nextLevel;
+              if (nextGold !== character.gold) body.gold = nextGold;
+              if (nextVit !== character.stats.vit) body.statVit = nextVit;
+              if (nextInt !== character.stats.int) body.statInt = nextInt;
+              if (nextStr !== character.stats.str) body.statStr = nextStr;
+              if (nextDex !== character.stats.dex) body.statDex = nextDex;
+              if (Object.keys(body).length === 0) {
+                setFeedback("No changes to save.");
+                return;
+              }
               void run("Character update", () =>
-                adminApi.updateCharacter(character.id, {
-                  level: numberValue(level, character.level),
-                  gold: numberValue(gold, character.gold),
-                  statVit: numberValue(vit, character.stats.vit),
-                  statInt: numberValue(int, character.stats.int),
-                  statStr: numberValue(str, character.stats.str),
-                  statDex: numberValue(dex, character.stats.dex),
-                }),
-              )
-            }
+                adminApi.updateCharacter(character.id, body),
+              );
+            }}
             className="rounded bg-[var(--jade)] px-3 py-1 font-semibold text-[#0f1210] disabled:opacity-50"
           >
             Save character

@@ -43,6 +43,7 @@ import { adminCookieStatus } from "../http/adminCookie";
 import { authedAccount, requireAuth } from "../http/requireAuth";
 import { requireAdmin } from "../http/requireRole";
 import { parseBody } from "../http/validation";
+import { logger } from "../logger";
 
 export interface AdminRouteDeps {
   db: Db;
@@ -53,6 +54,22 @@ export interface AdminRouteDeps {
 }
 
 const characterIdSchema = z.string().uuid();
+
+/**
+ * Post-commit audit writes must never turn a successful mutation into a 500
+ * (the admin would retry and duplicate the action). Offline mutations keep
+ * their audit inside the transaction instead.
+ */
+async function writeAuditLog(
+  deps: AdminRouteDeps,
+  entry: Parameters<typeof writeAdminLog>[1],
+): Promise<void> {
+  try {
+    await writeAdminLog(deps.db, entry);
+  } catch (error) {
+    logger.error({ err: error, action: entry.action }, "admin audit log write failed");
+  }
+}
 
 export function createAdminRouter(deps: AdminRouteDeps): Router {
   const router = Router();
@@ -133,7 +150,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
     const actions = deps.adminBus.get(characterId);
     if (actions) {
       await actions.updateCharacter(update);
-      await writeAdminLog(deps.db, {
+      await writeAuditLog(deps, {
         actorAccountId: account.id,
         action: "character_update",
         targetCharacterId: characterId,
@@ -146,6 +163,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
         characterId,
         update,
         ip: req.ip,
+        isOnline: (id) => Boolean(deps.adminBus.get(id)),
       });
     }
     res.json({ ok: true });
@@ -161,7 +179,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       return;
     }
     await actions.teleportTown();
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "teleport_town",
       targetCharacterId: characterId,
@@ -174,7 +192,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   router.post("/players/:characterId/kick", async (req, res) => {
     const characterId = parseBody(characterIdSchema, req.params.characterId);
     await deps.sessionRegistry.kickCharacter(characterId, "admin");
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "kick",
       targetCharacterId: characterId,
@@ -198,8 +216,11 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       ban,
       ip: req.ip,
     });
+    // Advance the generation before the kick, so a join that passed onAuth
+    // before this ban cannot register with its stale reservation afterwards.
+    deps.sessionRegistry.noteAccount(accountId, result.tokenVersion);
     await deps.sessionRegistry.kickAccount(accountId, "ban");
-    res.json(result);
+    res.json({ bannedUntil: result.bannedUntil, banReason: result.banReason });
   });
 
   router.post("/accounts/:accountId/unban", async (req, res) => {
@@ -218,7 +239,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
     const actions = deps.adminBus.get(characterId);
     if (actions) {
       const item = await actions.grantItem(request);
-      await writeAdminLog(deps.db, {
+      await writeAuditLog(deps, {
         actorAccountId: authedAccount(res).id,
         action: "item_grant",
         targetCharacterId: characterId,
@@ -245,11 +266,11 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
 
   router.delete("/players/:characterId/items/:itemId", async (req, res) => {
     const characterId = parseBody(characterIdSchema, req.params.characterId);
-    const itemId = parseBody(characterIdSchema, req.params.itemId);
+    const itemId = parseBody(z.string().uuid(), req.params.itemId);
     const actions = deps.adminBus.get(characterId);
     if (actions) {
       await actions.removeItem(itemId);
-      await writeAdminLog(deps.db, {
+      await writeAuditLog(deps, {
         actorAccountId: authedAccount(res).id,
         action: "item_remove",
         targetCharacterId: characterId,
@@ -262,6 +283,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
         characterId,
         itemId,
         ip: req.ip,
+        isOnline: (id) => Boolean(deps.adminBus.get(id)),
       });
     }
     res.status(204).end();
@@ -306,7 +328,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
         sentAtMs: now,
       });
     }
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: account.id,
       action: "announcement_create",
       detail: {
@@ -330,7 +352,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       res.status(404).json({ error: { code: "not_found", message: "Announcement not found." } });
       return;
     }
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "announcement_delete",
       detail: { id },
@@ -342,7 +364,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   router.post("/server/rates", async (req, res) => {
     const input = parseBody(adminRatesSchema, req.body);
     deps.adminRuntime.setRates(input.xpRate, input.dropRate);
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "server_rates",
       detail: input,
@@ -367,7 +389,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       return;
     }
     const count = await actions.spawnMonster(input.typeId, input.count, input.x, input.y);
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "server_spawn",
       targetCharacterId: target.characterId,
@@ -380,7 +402,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   router.post("/server/shutdown", async (req, res) => {
     const input = parseBody(adminShutdownSchema, req.body);
     deps.adminRuntime.scheduleShutdown(input.delayMinutes, input.message);
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "server_shutdown_schedule",
       detail: input,
@@ -391,7 +413,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
 
   router.post("/server/shutdown/cancel", async (req, res) => {
     deps.adminRuntime.cancelShutdown();
-    await writeAdminLog(deps.db, {
+    await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "server_shutdown_cancel",
       detail: {},

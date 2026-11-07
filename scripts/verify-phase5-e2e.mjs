@@ -21,8 +21,9 @@ const { Client } = require("../apps/client/node_modules/@colyseus/sdk");
 
 const WS_URL = process.env.E2E_SERVER_URL ?? "ws://localhost:2567";
 const HTTP_URL = WS_URL.replace(/^ws/, "http").replace(/\/$/, "");
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@example.com";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "change-me-please-8-chars";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
+const ADMIN_PASSWORD =
+  process.env.ADMIN_PASSWORD ?? process.env.SEED_ADMIN_PASSWORD ?? "change-me-please-8-chars";
 const PASSWORD = "correct-horse-battery";
 const SWORD = "sword_ember_t1";
 
@@ -259,7 +260,7 @@ async function main() {
     "admin log records the ban",
     adminLogs.status === 200 &&
       adminLogs.data.entries.some(
-        (row) => row.action === "account_ban" && row.characterId === character.id,
+        (row) => row.action === "account_ban" && row.accountId === player.account.id,
       ),
   );
   const itemLogs = await api(
@@ -272,7 +273,7 @@ async function main() {
       itemLogs.data.entries.some((row) => row.definitionId === SWORD),
   );
 
-  await session.room.leave().catch(() => {});
+  await Promise.race([session.room.leave().catch(() => {}), wait(1500)]);
 }
 
 try {

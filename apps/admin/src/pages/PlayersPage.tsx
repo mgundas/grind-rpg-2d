@@ -119,6 +119,7 @@ export function PlayersPage() {
   }, [selected, refresh]);
 
   const characters = search?.characters ?? [];
+  const accountOnly = (search?.accounts ?? []).filter((account) => account.characters.length === 0);
   const className = useMemo(() => {
     if (!detail) {
       return "";
@@ -150,6 +151,7 @@ export function PlayersPage() {
               type="button"
               onClick={() => {
                 setSelected(character.id);
+                setDetail(null);
                 setTab("stats");
               }}
               className={`rounded border px-3 py-2 text-left text-xs transition-colors ${
@@ -168,7 +170,7 @@ export function PlayersPage() {
               </div>
               <div className="mt-1 text-[#7d8a84]">
                 {character.accountUsername} · {MAP_LABELS[character.mapId as keyof typeof MAP_LABELS] ?? character.mapId}
-                {character.bannedUntil ? " · BANNED" : ""}
+                {character.banned ? " · BANNED" : ""}
               </div>
             </button>
           ))}
@@ -176,11 +178,57 @@ export function PlayersPage() {
             <p className="text-xs text-[#7d8a84]">No matching characters.</p>
           ) : null}
         </div>
+
+        {accountOnly.length > 0 ? (
+          <div className="mt-3 border-t border-[#1d2622] pt-3">
+            <p className="mb-2 text-[10px] tracking-wide uppercase text-[#7d8a84]">
+              Accounts without characters
+            </p>
+            <div className="grid gap-1">
+              {accountOnly.map((account) => (
+                <div
+                  key={account.id}
+                  className="rounded border border-[#1d2622] px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[#cfd8d3]">{account.username}</span>
+                    <span className={account.banned ? "text-[#ff8f84]" : "text-[#7d8a84]"}>
+                      {account.banned ? "banned" : account.role}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-[#7d8a84]">{account.email}</div>
+                  {account.banned ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void adminApi
+                          .unban(account.id)
+                          .then(() => setRefresh((value) => value + 1))
+                          .catch((unbanError: unknown) =>
+                            setError(
+                              unbanError instanceof Error
+                                ? unbanError.message
+                                : "Unban failed.",
+                            ),
+                          )
+                      }
+                      className="mt-1 rounded bg-[var(--jade)] px-2 py-0.5 text-[10px] font-semibold text-[#0f1210]"
+                    >
+                      Unban account
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-4">
         {!detail ? (
-          <p className="text-sm text-[#8d9a94]">Select a character to inspect it.</p>
+          <p className="text-sm text-[#8d9a94]">
+            {selected ? "Loading character…" : "Select a character to inspect it."}
+          </p>
         ) : (
           <div>
             <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#1d2622] pb-3">

@@ -1,4 +1,4 @@
-import type { AccountRole } from "@jadethrone/shared";
+import { MAX_ADMIN_SPAWN, MAX_LEVEL, type AccountRole } from "@jadethrone/shared";
 
 export type GmCommand =
   | { kind: "goto"; x: number; y: number }
@@ -45,7 +45,7 @@ export function parseGmCommand(text: string): GmCommand | null {
         return { kind: "unknown", raw: trimmed };
       }
       const count = args[1] === undefined ? 1 : Number(args[1]);
-      if (!Number.isInteger(count) || count < 1) {
+      if (!Number.isInteger(count) || count < 1 || count > MAX_ADMIN_SPAWN) {
         return { kind: "unknown", raw: trimmed };
       }
       return name === "spawn"
@@ -54,7 +54,7 @@ export function parseGmCommand(text: string): GmCommand | null {
     }
     case "level": {
       const level = Number(args[0]);
-      if (!Number.isInteger(level) || level < 1 || level > 99) {
+      if (!Number.isInteger(level) || level < 1 || level > MAX_LEVEL) {
         return { kind: "unknown", raw: trimmed };
       }
       return { kind: "level", level };

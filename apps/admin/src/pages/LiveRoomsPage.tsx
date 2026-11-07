@@ -69,6 +69,39 @@ export function LiveRoomsPage() {
       {error ? <div className="text-xs text-[#ff8f84]">{error}</div> : null}
 
       <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-4">
+        <h3 className="mb-3 text-sm font-semibold text-[var(--gold)]">Rooms</h3>
+        <table className="w-full text-left text-xs">
+          <thead className="text-[#7d8a84]">
+            <tr>
+              <th className="pb-2">Map</th>
+              <th className="pb-2">Room</th>
+              <th className="pb-2 text-right">Players</th>
+              <th className="pb-2 text-right">Capacity</th>
+              <th className="pb-2 text-right">Started</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.rooms ?? []).map((room) => (
+              <tr key={room.roomId} className="border-t border-[#1d2622]">
+                <td className="py-2">
+                  {(MAP_LABELS as Record<string, string>)[room.mapId] ?? room.mapId}
+                </td>
+                <td className="py-2 font-mono text-[10px]">{room.roomId.slice(0, 8)}</td>
+                <td className="py-2 text-right">{room.players}</td>
+                <td className="py-2 text-right">{room.maxClients}</td>
+                <td className="py-2 text-right">
+                  {new Date(room.startedAtMs).toLocaleTimeString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!data || data.rooms.length === 0 ? (
+          <p className="mt-3 text-xs text-[#7d8a84]">No rooms are running yet.</p>
+        ) : null}
+      </div>
+
+      <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-4">
         <h3 className="mb-3 text-sm font-semibold text-[var(--gold)]">Room overview</h3>
         <table className="w-full text-left text-xs">
           <thead className="text-[#7d8a84]">
@@ -95,14 +128,21 @@ export function LiveRoomsPage() {
         ) : null}
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-[var(--jade-soft)] bg-white">
-        <iframe
-          key={refreshKey}
-          title="Colyseus monitor"
-          src="/colyseus/"
-          className="h-[70vh] w-full"
-        />
-      </div>
+      {status?.ok ? (
+        <div className="overflow-hidden rounded-lg border border-[var(--jade-soft)] bg-white">
+          <iframe
+            key={refreshKey}
+            title="Colyseus monitor"
+            src="/colyseus/"
+            className="h-[70vh] w-full"
+          />
+        </div>
+      ) : (
+        <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-4 text-xs text-[#8d9a94]">
+          The Colyseus monitor is hidden because the admin cookie is missing or expired. Log out
+          and back in, then use “Open separately”.
+        </div>
+      )}
     </div>
   );
 }

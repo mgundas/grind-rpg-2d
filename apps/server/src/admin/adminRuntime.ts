@@ -80,8 +80,13 @@ export function createAdminRuntime(options: AdminRuntimeOptions): AdminRuntime {
   let shutdownTimer: ReturnType<typeof setInterval> | null = null;
   let shutdownStarted = false;
   let stopped = false;
+  let processingAnnouncements = false;
 
   async function processRecurringAnnouncements(now = Date.now()): Promise<void> {
+    if (processingAnnouncements) {
+      return;
+    }
+    processingAnnouncements = true;
     try {
       const rows = await loadRecurring(options.db, now);
       for (const row of rows) {
@@ -98,6 +103,8 @@ export function createAdminRuntime(options: AdminRuntimeOptions): AdminRuntime {
       }
     } catch (error) {
       logger.error({ error }, "recurring announcement scan failed");
+    } finally {
+      processingAnnouncements = false;
     }
   }
 

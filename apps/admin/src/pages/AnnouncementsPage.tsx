@@ -36,12 +36,21 @@ export function AnnouncementsPage() {
   }, [refresh]);
 
   const send = async () => {
-    setBusy(true);
     setError(null);
     setFeedback(null);
+    const intervalMinutes = interval.trim() === "" ? null : Number(interval);
+    const expiresInMinutes = expires.trim() === "" ? undefined : Number(expires);
+    if (
+      (intervalMinutes !== null &&
+        (!Number.isFinite(intervalMinutes) || intervalMinutes < 1 || !Number.isInteger(intervalMinutes))) ||
+      (expiresInMinutes !== undefined &&
+        (!Number.isFinite(expiresInMinutes) || expiresInMinutes < 1 || !Number.isInteger(expiresInMinutes)))
+    ) {
+      setError("Repeat and expiry must be whole minutes of at least 1.");
+      return;
+    }
+    setBusy(true);
     try {
-      const intervalMinutes = interval.trim() === "" ? null : Number(interval);
-      const expiresInMinutes = expires.trim() === "" ? undefined : Number(expires);
       await adminApi.createAnnouncement({
         message: message.trim(),
         intervalMinutes,

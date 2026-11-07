@@ -52,6 +52,13 @@ export interface AdminBus extends AdminOnlineSource {
   registerRoom(handle: AdminRoomHandle): void;
   unregisterRoom(roomId: string): void;
   roomHandles(): readonly AdminRoomHandle[];
+  rooms(): Array<{
+    roomId: string;
+    mapId: MapId;
+    startedAtMs: number;
+    maxClients: number;
+    players: number;
+  }>;
   broadcastAnnouncement(payload: AnnouncementPayload): number;
 
   sampleOnlineHistory(now?: number): void;
@@ -143,6 +150,15 @@ export function createAdminBus(): AdminBus {
     },
     roomHandles() {
       return [...rooms.values()];
+    },
+    rooms() {
+      return [...rooms.values()].map((room) => ({
+        roomId: room.roomId,
+        mapId: room.mapId,
+        startedAtMs: room.startedAtMs,
+        maxClients: room.maxClients,
+        players: room.playerCount(),
+      }));
     },
     broadcastAnnouncement(payload) {
       let delivered = 0;

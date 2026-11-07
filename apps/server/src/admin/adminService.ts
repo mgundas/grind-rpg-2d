@@ -30,11 +30,21 @@ import { progressionFromCharacter } from "../characters/progression";
 import { equipmentBonusStats } from "../items/equipment";
 import { toItemDto } from "../items/itemMappers";
 import { loadInventory, loadWarehouse } from "../items/itemRepository";
+import { isBanned } from "../auth/accountService";
 
 /** Minimal read surface the live admin bus must provide. */
+export interface AdminRoomInfo {
+  roomId: string;
+  mapId: string;
+  startedAtMs: number;
+  maxClients: number;
+  players: number;
+}
+
 export interface AdminOnlineSource {
   list(): AdminOnlinePlayer[];
   history(): Array<{ atMs: number; online: number }>;
+  rooms?(): AdminRoomInfo[];
 }
 
 function roleOf(value: string): AccountRole {
@@ -71,6 +81,7 @@ function toCharacterSummary(
     gold: row.gold,
     online,
     role: roleOf(account.role),
+    banned: isBanned(account.bannedUntil),
     bannedUntil: iso(account.bannedUntil),
     banReason: account.banReason,
   };
@@ -86,6 +97,7 @@ function toAccountSummary(
     email: account.email,
     username: account.username,
     role: roleOf(account.role),
+    banned: isBanned(account.bannedUntil),
     bannedUntil: iso(account.bannedUntil),
     banReason: account.banReason,
     characters: characterRows.map((row) => toCharacterSummary(row, account, isOnline(row.id))),
@@ -418,6 +430,7 @@ export async function dashboard(
     registrationsToday: registration?.count ?? 0,
     goldInEconomy: Number(gold?.total ?? 0),
     history: history.length > 0 ? history : [{ atMs: Date.now(), online: players.length }],
+    rooms: onlineSource.rooms?.() ?? [],
   };
 }
 

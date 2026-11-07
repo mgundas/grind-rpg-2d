@@ -16,6 +16,7 @@ import {
   INTEREST_RADIUS_PX,
   ITEM_USE_COOLDOWN_MS,
   MAX_ASTAR_PER_TICK,
+  MAX_ADMIN_SPAWN,
   MAX_GOLD,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
@@ -1303,8 +1304,8 @@ export class MapRoom extends Room {
         if (!hasMonster(typeId)) {
           throw new ServiceError("validation", "Unknown monster type.");
         }
-        if (!Number.isInteger(count) || count < 1 || count > 50) {
-          throw new ServiceError("validation", "Spawn count must be 1-50.");
+        if (!Number.isInteger(count) || count < 1 || count > MAX_ADMIN_SPAWN) {
+          throw new ServiceError("validation", `Spawn count must be 1-${MAX_ADMIN_SPAWN}.`);
         }
         const anchor =
           x !== undefined || y !== undefined

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   isClassId,
   isMapId,
@@ -59,7 +59,7 @@ export async function banAccount(
     ban: AdminBanRequest;
     ip?: string | null;
   },
-): Promise<{ bannedUntil: string; banReason: string | null }> {
+): Promise<{ bannedUntil: string; banReason: string | null; tokenVersion: number }> {
   const bannedUntil =
     input.ban.durationMinutes === null
       ? PERMANENT_BAN_UNTIL
@@ -67,7 +67,7 @@ export async function banAccount(
 
   const result = await db.transaction(async (tx) => {
     const [row] = await tx
-      .select({ id: accounts.id })
+      .select({ id: accounts.id, tokenVersion: accounts.tokenVersion })
       .from(accounts)
       .where(eq(accounts.id, input.accountId))
       .for("update")
@@ -75,12 +75,13 @@ export async function banAccount(
     if (!row) {
       throw new ServiceError("not_found", "Account not found.");
     }
+    const tokenVersion = row.tokenVersion + 1;
     await tx
       .update(accounts)
       .set({
         bannedUntil,
         banReason: input.ban.reason ?? null,
-        tokenVersion: sql`${accounts.tokenVersion} + 1`,
+        tokenVersion,
       })
       .where(eq(accounts.id, input.accountId));
     await writeAdminLog(tx, {
@@ -94,7 +95,7 @@ export async function banAccount(
       },
       ip: input.ip,
     });
-    return { bannedUntil: bannedUntil.toISOString(), banReason: input.ban.reason ?? null };
+    return { bannedUntil: bannedUntil.toISOString(), banReason: input.ban.reason ?? null, tokenVersion };
   });
   return result;
 }
@@ -160,6 +161,8 @@ export async function updateCharacterOffline(
     characterId: string;
     update: AdminUpdateCharacterRequest;
     ip?: string | null;
+    /** Re-checked inside the transaction; the player may join after the route lookup. */
+    isOnline?: (characterId: string) => boolean;
   },
 ): Promise<OfflineCharacterUpdateResult> {
   return db.transaction(async (tx) => {
@@ -171,6 +174,9 @@ export async function updateCharacterOffline(
       .limit(1);
     if (!row) {
       throw new ServiceError("not_found", "Character not found.");
+    }
+    if (input.isOnline?.(input.characterId)) {
+      throw new ServiceError("conflict", "Character is online; retry the live edit.");
     }
 
     const update = input.update;
@@ -332,7 +338,14 @@ export async function grantItemOffline(
 
   const created =
     plan.state.items.find((item) => generatedIds.includes(item.id)) ??
-    loaded.inventory.items.find((item) => item.itemId === definition.id);
+    plan.state.items.find((item) => {
+      if (item.itemId !== definition.id) {
+        return false;
+      }
+      const before = loaded.inventory.items.find((old) => old.id === item.id);
+      return !before || before.quantity !== item.quantity;
+    }) ??
+    plan.state.items.find((item) => item.itemId === definition.id);
   if (!created) {
     throw new ServiceError("internal", "Item grant did not produce a stack.");
   }
@@ -346,10 +359,15 @@ export async function removeItemOffline(
     characterId: string;
     itemId: string;
     ip?: string | null;
+    /** Re-checked after loading; the player may join after the route lookup. */
+    isOnline?: (characterId: string) => boolean;
   },
 ): Promise<void> {
   const owner = await characterAccount(db, input.characterId);
   const loaded = await loadInventory(db, owner.accountId, input.characterId);
+  if (input.isOnline?.(input.characterId)) {
+    throw new ServiceError("conflict", "Character is online; retry the live removal.");
+  }
   let plan;
   try {
     plan = planAdminRemove(loaded.inventory, input.characterId, input.itemId);

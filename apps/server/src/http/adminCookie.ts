@@ -28,7 +28,13 @@ export function readCookie(header: string | undefined, name: string): string | n
     if (part.slice(0, separator).trim() !== name) {
       continue;
     }
-    return decodeURIComponent(part.slice(separator + 1).trim());
+    const value = part.slice(separator + 1).trim();
+    try {
+      return decodeURIComponent(value);
+    } catch {
+      // A malformed cookie is treated as absent rather than a 500.
+      return null;
+    }
   }
   return null;
 }
