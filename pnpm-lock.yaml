@@ -316,6 +316,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@jadethrone/data':
+        specifier: workspace:*
+        version: link:../../packages/data
       '@jadethrone/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -325,6 +328,9 @@ importers:
       react-dom:
         specifier: 'catalog:'
         version: 19.3.1(react@19.3.1)
+      zustand:
+        specifier: 'catalog:'
+        version: 5.0.16(@types/react@19.3.0)(react@19.3.1)
     devDependencies:
       '@tailwindcss/vite':
         specifier: 'catalog:'
