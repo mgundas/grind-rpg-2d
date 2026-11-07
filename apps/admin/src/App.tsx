@@ -1,5 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { GAME_NAME } from "@jadethrone/shared";
+import { DashboardPage } from "./pages/DashboardPage";
+import { LiveRoomsPage } from "./pages/LiveRoomsPage";
+import { PlayersPage } from "./pages/PlayersPage";
 import { currentPageLabel, useAdminStore, type AdminPage } from "./store";
 
 const NAV: AdminPage[] = ["dashboard", "live", "players", "data", "announcements", "logs", "server"];
@@ -128,7 +131,15 @@ function Shell() {
           </div>
         </header>
         <main className="min-h-0 flex-1 overflow-auto p-6">
-          <PlaceholderPage page={page} />
+          {page === "dashboard" ? (
+            <DashboardPage />
+          ) : page === "live" ? (
+            <LiveRoomsPage />
+          ) : page === "players" ? (
+            <PlayersPage />
+          ) : (
+            <PlaceholderPage page={page} />
+          )}
         </main>
       </div>
     </div>

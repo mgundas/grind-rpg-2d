@@ -180,8 +180,8 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 14 — Colyseus monitor mount
 - [x] Task 15 — Client announcement banner and kick reasons
 - [x] Task 16 — Admin app foundation
-- [ ] Task 17 — Admin dashboard and Live Rooms pages
-- [ ] Task 18 — Admin player search and detail
+- [x] Task 17 — Admin dashboard and Live Rooms pages
+- [x] Task 18 — Admin player search and detail
 - [ ] Task 19 — Admin player actions
 - [ ] Task 20 — Admin announcements, server controls, game data
 - [ ] Task 21 — Admin logs page

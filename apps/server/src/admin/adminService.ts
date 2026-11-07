@@ -26,6 +26,8 @@ import {
   type CharacterRow,
 } from "../db/schema";
 import { toCharacterRecord } from "../characters/characterMappers";
+import { progressionFromCharacter } from "../characters/progression";
+import { equipmentBonusStats } from "../items/equipment";
 import { toItemDto } from "../items/itemMappers";
 import { loadInventory, loadWarehouse } from "../items/itemRepository";
 
@@ -192,6 +194,10 @@ export async function getCharacterDetail(
 
   const loaded = await loadInventory(db, row.account.id, characterId);
   const warehouse = await loadWarehouse(db, row.account.id);
+  const progression = progressionFromCharacter(
+    record,
+    equipmentBonusStats(loaded.inventory),
+  );
   const summary = toCharacterSummary(row.character, row.account, isOnline(characterId));
 
   return {
@@ -203,7 +209,9 @@ export async function getCharacterDetail(
       channel: record.channel,
       xp: record.xp,
       hp: record.hp,
+      maxHp: progression.maxHp,
       mp: record.mp,
+      maxMp: progression.maxMp,
       stats: {
         vit: record.statVit,
         int: record.statInt,

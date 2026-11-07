@@ -182,7 +182,9 @@ export interface AdminCharacterDetail {
     channel: number;
     xp: number;
     hp: number;
+    maxHp: number;
     mp: number;
+    maxMp: number;
     stats: { vit: number; int: number; str: number; dex: number };
     statPoints: number;
     skillPoints: number;
