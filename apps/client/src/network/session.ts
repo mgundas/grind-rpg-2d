@@ -6,15 +6,23 @@ import {
   type DeathPayload,
   type AnnouncementPayload,
   type BossTimerPayload,
+  type BuffView,
+  type CastSkillMessage,
   type InputMessage,
   type InventoryErrorPayload,
   type InventorySnapshotPayload,
   type MapId,
   type MonsterDiedPayload,
   type NpcDialogPayload,
+  type PartyErrorPayload,
+  type PartyInvitePayload,
+  type PartyStatePayload,
   type RespawnOption,
   type SelfStatsPayload,
   type SessionKickedPayload,
+  type SkillCastStartPayload,
+  type SkillErrorPayload,
+  type SkillStatePayload,
   type StatKey,
   type WarpPayload,
   type WarehouseSnapshotPayload,
@@ -209,6 +217,34 @@ export function sendAllocStat(stat: StatKey): void {
   room?.send(MSG.allocStat, { stat });
 }
 
+export function sendCastSkill(request: CastSkillMessage): void {
+  room?.send(MSG.castSkill, request);
+}
+
+export function sendChooseDoctrine(doctrineId: string): void {
+  room?.send(MSG.chooseDoctrine, { doctrineId });
+}
+
+export function sendUpgradeSkill(skillId: string): void {
+  room?.send(MSG.upgradeSkill, { skillId });
+}
+
+export function sendPartyInvite(target: { characterId?: string; name?: string }): void {
+  room?.send(MSG.partyInvite, target);
+}
+
+export function sendPartyRespond(inviteId: string, accept: boolean): void {
+  room?.send(MSG.partyRespond, { inviteId, accept });
+}
+
+export function sendPartyLeave(): void {
+  room?.send(MSG.partyLeave, {});
+}
+
+export function sendPartySetLoot(rule: "free_for_all" | "round_robin"): void {
+  room?.send(MSG.partySetLoot, { rule });
+}
+
 export function requestStats(): void {
   room?.send(MSG.requestStats, {});
 }
@@ -344,9 +380,52 @@ function bindSessionEvents(current: Room): void {
     useUiStore.getState().setBossTimer(payload);
   });
 
+  current.onMessage(MSG.skillState, (payload: SkillStatePayload) => {
+    useUiStore.getState().setSkillState(payload);
+  });
+
+  current.onMessage(MSG.skillCastStart, (payload: SkillCastStartPayload) => {
+    useUiStore.getState().setCastState(payload);
+  });
+
+  current.onMessage(MSG.skillCastCancel, () => {
+    useUiStore.getState().setCastState(null);
+  });
+
+  current.onMessage(MSG.buffState, (payload: { buffs: BuffView[] }) => {
+    useUiStore.getState().setBuffState(payload);
+  });
+
+  current.onMessage(MSG.partyState, (payload: PartyStatePayload) => {
+    useUiStore.getState().setParty(payload);
+  });
+
+  current.onMessage(MSG.partyInvite, (payload: PartyInvitePayload) => {
+    useUiStore.getState().setPartyInvite(payload);
+  });
+
+  current.onMessage(MSG.partyError, (payload: PartyErrorPayload) => {
+    useUiStore.getState().pushChat({
+      from: "system",
+      name: "Party",
+      kingdom: "system",
+      text: payload.message,
+    });
+  });
+
+  current.onMessage(MSG.skillError, (payload: SkillErrorPayload) => {
+    useUiStore.getState().pushChat({
+      from: "system",
+      name: "System",
+      kingdom: "system",
+      text: payload.message,
+    });
+  });
+
   // The join-time snapshot can arrive before the SDK listener is bound.
   current.send(MSG.requestStats, {});
   current.send(MSG.requestInventory, {});
+  current.send(MSG.requestSkillState, {});
   current.send(MSG.requestBossTimer, {});
 
   current.onLeave((code) => {

@@ -217,7 +217,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 21 — Buff/status model
 - [x] Task 22 — Pure skill combat resolution
 - [x] Task 23 — Room skill casting and buff integration
-- [ ] Task 24 — Client network and store fields
+- [x] Task 24 — Client network and store fields
 - [ ] Task 25 — Skill window and doctrine selection
 - [ ] Task 26 — Two-row hotbar and skill casting
 - [ ] Task 27 — Skill FX, cast bar and buff bar

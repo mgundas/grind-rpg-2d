@@ -3,13 +3,19 @@ import type {
   AccountPublic,
   AnnouncementPayload,
   BossTimerPayload,
+  BuffStatePayload,
+  BuffView,
   CharacterSummary,
   ChatMsgPayload,
   InventorySnapshotPayload,
   MapId,
   NpcDialogPayload,
+  PartyInvitePayload,
+  PartyStatePayload,
   SelfStatsPayload,
   SessionKickReason,
+  SkillCastStartPayload,
+  SkillStatePayload,
   WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 
@@ -101,6 +107,22 @@ interface UiState {
   /** Latest boss clocks received from the server. */
   bossTimers: BossTimerPayload[];
   setBossTimer: (timer: BossTimerPayload) => void;
+
+  /** Owner-only skill/doctrine snapshot. */
+  skillState: SkillStatePayload | null;
+  setSkillState: (state: SkillStatePayload | null) => void;
+  /** Active cast bar, or null when idle. */
+  castState: SkillCastStartPayload | null;
+  setCastState: (state: SkillCastStartPayload | null) => void;
+  /** Player buffs/debuffs with absolute expiry. */
+  buffs: BuffView[];
+  setBuffState: (state: BuffStatePayload) => void;
+
+  /** Runtime party snapshot and pending invite. */
+  party: PartyStatePayload | null;
+  setParty: (party: PartyStatePayload | null) => void;
+  partyInvite: PartyInvitePayload | null;
+  setPartyInvite: (invite: PartyInvitePayload | null) => void;
 
   characterOpen: boolean;
   toggleCharacter: () => void;
@@ -242,6 +264,17 @@ export const useUiStore = create<UiState>((set) => ({
         timer,
       ],
     })),
+  skillState: null,
+  setSkillState: (skillState) => set({ skillState }),
+  castState: null,
+  setCastState: (castState) => set({ castState }),
+  buffs: [],
+  setBuffState: (state) => set({ buffs: state.buffs }),
+  party: null,
+  setParty: (party) =>
+    set({ party: party && party.partyId ? party : null }),
+  partyInvite: null,
+  setPartyInvite: (partyInvite) => set({ partyInvite }),
 
   characterOpen: false,
   toggleCharacter: () => set((state) => ({ characterOpen: !state.characterOpen })),
