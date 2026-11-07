@@ -85,6 +85,13 @@ export const SKILL_ERROR_CODES = [
   "no_skill_points",
   "not_in_doctrine",
   "unknown_skill",
+  "not_enough_mp",
+  "on_cooldown",
+  "out_of_range",
+  "invalid_target",
+  "already_casting",
+  "dead",
+  "warping",
   "internal",
 ] as const;
 export type SkillErrorCode = (typeof SKILL_ERROR_CODES)[number];

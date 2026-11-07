@@ -213,7 +213,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 17 — Room spirit stone integration
 - [x] Task 18 — Field boss timer server
 - [x] Task 19 — Client stone rendering, targeting and boss timer
-- [ ] Task 20 — Pure skill validation and cast state
+- [x] Task 20 — Pure skill validation and cast state
 - [ ] Task 21 — Buff/status model
 - [ ] Task 22 — Pure skill combat resolution
 - [ ] Task 23 — Room skill casting and buff integration
