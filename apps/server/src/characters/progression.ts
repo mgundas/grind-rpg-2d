@@ -81,6 +81,15 @@ export function progressionFromCharacter(
   };
 }
 
+/** Recompute the derived unspent skill points after level/rank changes. */
+export function recomputeSkillPoints(progression: PlayerProgression): void {
+  const spent = Object.values(progression.skills).reduce(
+    (total, rank) => total + Math.max(0, Math.floor(rank)),
+    0,
+  );
+  progression.skillPoints = Math.max(0, skillPointsForLevel(progression.level) - spent);
+}
+
 /** Recompute max HP/MP after a level-up, stat allocation or equip change. */
 export function recomputeMaxima(
   progression: PlayerProgression,

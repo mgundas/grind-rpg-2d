@@ -36,6 +36,7 @@ import {
   attackMessageSchema,
   chatMessageSchema,
   chatRecipients,
+  chooseDoctrineMessageSchema,
   deathXpLoss,
   dir8Towards,
   equipItemMessageSchema,
@@ -58,6 +59,7 @@ import {
   warehouseOpenMessageSchema,
   warehouseWithdrawMessageSchema,
   requestInventoryMessageSchema,
+  requestSkillStateMessageSchema,
   requestStatsMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
@@ -66,6 +68,7 @@ import {
   splitStackMessageSchema,
   stepMover,
   unequipItemMessageSchema,
+  upgradeSkillMessageSchema,
   useItemMessageSchema,
   type AdminGiveItemRequest,
   type AdminUpdateCharacterRequest,
@@ -130,8 +133,19 @@ import { getServerServices } from "../services";
 import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
 import { ServiceError } from "../errors";
 import { buildSelfStats } from "../characters/selfStats";
-import { progressionFromCharacter, recomputeMaxima } from "../characters/progression";
+import {
+  progressionFromCharacter,
+  recomputeMaxima,
+  recomputeSkillPoints,
+} from "../characters/progression";
 import { defaultSpawn, type CharacterSave } from "../characters/spawn";
+import {
+  buildSkillState,
+  chooseDoctrine as validateDoctrineChoice,
+  SkillRuleError,
+  toSkillErrorPayload,
+  upgradeSkill as validateSkillUpgrade,
+} from "../skills/skillState";
 import {
   resolveMonsterAttack,
   resolvePlayerSwing,
@@ -355,6 +369,31 @@ export class MapRoom extends Room {
         return;
       }
       this.allocateStat(client.sessionId, parsed.data.stat);
+    });
+
+    this.onMessage(MSG.chooseDoctrine, (client, raw) => {
+      const parsed = chooseDoctrineMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid doctrine choice");
+        return;
+      }
+      this.chooseDoctrine(client, parsed.data.doctrineId);
+    });
+
+    this.onMessage(MSG.upgradeSkill, (client, raw) => {
+      const parsed = upgradeSkillMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid skill upgrade");
+        return;
+      }
+      this.upgradeSkill(client, parsed.data.skillId);
+    });
+
+    this.onMessage(MSG.requestSkillState, (client, raw) => {
+      if (!requestSkillStateMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.sendSkillState(client.sessionId);
     });
 
     this.onMessage(MSG.requestStats, (client, raw) => {
@@ -648,7 +687,9 @@ export class MapRoom extends Room {
       progression.xp !== auth.character.xp ||
       progression.hp !== auth.character.hp ||
       progression.mp !== auth.character.mp ||
-      progression.statPoints !== auth.character.statPoints;
+      progression.statPoints !== auth.character.statPoints ||
+      progression.doctrine !== auth.character.doctrine ||
+      progression.skillPoints !== auth.character.skillPoints;
     if (auth.warpSpawn) {
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
     }
@@ -707,6 +748,7 @@ export class MapRoom extends Room {
 
     this.sendSelfStats(client.sessionId);
     this.sendInventory(client.sessionId);
+    this.sendSkillState(client.sessionId);
 
     // A duplicate join replaced and saved the previous session. Its save is
     // newer than the matchmaking snapshot, so refresh before the first tick
@@ -743,6 +785,7 @@ export class MapRoom extends Room {
       await this.reloadRuntimeInventory(activeRuntime);
       this.sendSelfStats(client.sessionId);
       this.sendInventory(client.sessionId);
+      this.sendSkillState(client.sessionId);
       this.updateInterest();
     }
 
@@ -2488,6 +2531,7 @@ export class MapRoom extends Room {
     runtime.progression.level = result.level;
     runtime.progression.xp = result.xp;
     runtime.progression.statPoints += result.statPointsGained;
+    recomputeSkillPoints(runtime.progression);
 
     if (result.levelsGained > 0 && isClassId(player.classId)) {
       recomputeMaxima(
@@ -2526,11 +2570,110 @@ export class MapRoom extends Room {
 
     runtime.dirty = true;
     this.sendSelfStats(sessionId);
+    this.sendSkillState(sessionId);
     void this.enqueueSave(runtime, {
       mapId: this.mapId,
       x: runtime.mover.pos.x,
       y: runtime.mover.pos.y,
     });
+  }
+
+  /**
+   * Skill/doctrine commands share the inventory chain so two purchases cannot
+   * both read the same point balance in one tick.
+   */
+  private runSkillCommand(
+    client: Client,
+    handler: (runtime: PlayerRuntime) => Promise<void>,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    const run = async (): Promise<void> => {
+      if (runtime.inventoryClosed) {
+        return;
+      }
+      try {
+        await handler(runtime);
+      } catch (error) {
+        if (error instanceof SkillRuleError) {
+          this.safeSend(client, MSG.skillError, toSkillErrorPayload(error));
+          return;
+        }
+        logger.error(
+          { roomId: this.roomId, characterId: runtime.characterId, error },
+          "skill command failed",
+        );
+        this.safeSend(client, MSG.skillError, {
+          code: "internal",
+          message: "Could not update your skills. Try again.",
+        });
+      }
+    };
+    const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
+    runtime.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  private chooseDoctrine(client: Client, doctrineId: string): void {
+    this.runSkillCommand(client, async (runtime) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !isClassId(player.classId)) {
+        throw new SkillRuleError("internal", "Character class is not playable.");
+      }
+      const chosen = validateDoctrineChoice(runtime.progression, player.classId, doctrineId);
+      const saved = await getServerServices().saveSkillState(runtime.characterId, {
+        doctrine: chosen,
+        skillPoints: runtime.progression.skillPoints,
+      });
+      if (!saved) {
+        throw new SkillRuleError("internal", "Character no longer exists.");
+      }
+      runtime.progression.doctrine = chosen;
+      runtime.dirty = true;
+      this.sendSkillState(client.sessionId);
+      this.sendSelfStats(client.sessionId);
+      this.sendSystemMessage(client, `Doctrine chosen: ${chosen}.`);
+    });
+  }
+
+  private upgradeSkill(client: Client, skillId: string): void {
+    this.runSkillCommand(client, async (runtime) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player || !isClassId(player.classId)) {
+        throw new SkillRuleError("internal", "Character class is not playable.");
+      }
+      const result = validateSkillUpgrade(runtime.progression, player.classId, skillId);
+      const saved = await getServerServices().saveSkillState(runtime.characterId, {
+        ranks: { [skillId]: result.rank },
+        skillPoints: result.skillPoints,
+      });
+      if (!saved) {
+        throw new SkillRuleError("internal", "Character no longer exists.");
+      }
+      runtime.progression.skills[skillId] = result.rank;
+      runtime.progression.skillPoints = result.skillPoints;
+      runtime.dirty = true;
+      this.sendSkillState(client.sessionId);
+      this.sendSelfStats(client.sessionId);
+    });
+  }
+
+  private sendSkillState(sessionId: string): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    const client = this.clientFor(sessionId);
+    if (!runtime || !player || !client || !isClassId(player.classId)) {
+      return;
+    }
+    this.safeSend(
+      client,
+      MSG.skillState,
+      buildSkillState(runtime.progression, player.classId, runtime.skillCooldowns),
+    );
   }
 
   private allocateStat(sessionId: string, stat: StatKey): void {

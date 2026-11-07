@@ -7,6 +7,7 @@ import type { AdminLogInput } from "./admin/adminLog";
 import type { AdminRuntime } from "./admin/adminRuntime";
 import type { AdminBus } from "./admin/liveBus";
 import type { CharacterRecord } from "./characters/characterMappers";
+import type { SkillStateChange } from "./characters/characterSkills";
 import type { Db } from "./db/client";
 import type { ItemService } from "./items/service";
 
@@ -39,6 +40,8 @@ export interface ServerServices {
   saveCharacters: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   /** Re-read after a duplicate kick saved the previous session's state. */
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  /** Persist doctrine/skill points/ranks; room tests inject an in-memory fake. */
+  saveSkillState: (characterId: string, change: SkillStateChange) => Promise<boolean>;
   /** Inventory/economy persistence; room tests inject an in-memory fake. */
   items: ItemService;
   /** In-process registry of live players/rooms for the admin panel. */

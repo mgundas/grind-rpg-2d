@@ -19,6 +19,7 @@ import type { AccountAuthRecord } from "../../src/auth/accountService";
 import type { JoinAuthenticator, JoinIdentity } from "../../src/auth/joinAuth";
 import type { BulkCharacterSave, CharacterSave } from "../../src/characters/characterService";
 import type { CharacterRecord } from "../../src/characters/characterMappers";
+import type { SkillStateChange } from "../../src/characters/characterSkills";
 import type { ItemPlan } from "../../src/items/itemChanges";
 import { ItemError } from "../../src/items/errors";
 import type { ItemService } from "../../src/items/service";
@@ -58,6 +59,7 @@ export interface FakeServices {
   saveCharacter: Mock<(characterId: string, save: CharacterSave) => Promise<boolean>>;
   saveCharacters: Mock<(saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>>;
   loadCharacter: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  saveSkillState: Mock<(characterId: string, change: SkillStateChange) => Promise<boolean>>;
   items: ItemService;
   adminBus: AdminBus;
   logChat: () => Promise<void>;
@@ -185,6 +187,32 @@ export function createFakeServices(): FakeServices {
     }
     return null;
   }
+
+  const saveSkillState = vi.fn(
+    async (characterId: string, change: SkillStateChange): Promise<boolean> => {
+      const identity = identities.get(characterId);
+      if (!identity) {
+        return false;
+      }
+      const character = identity.character;
+      if (change.doctrine !== undefined) {
+        character.doctrine = change.doctrine;
+      }
+      if (change.skillPoints !== undefined) {
+        character.skillPoints = change.skillPoints;
+      }
+      if (change.ranks) {
+        for (const [skillId, rank] of Object.entries(change.ranks)) {
+          if (rank <= 0) {
+            delete character.skills[skillId];
+          } else {
+            character.skills[skillId] = rank;
+          }
+        }
+      }
+      return true;
+    },
+  );
 
   function prepare(options: FakeJoinOptions = {}): JoinIdentity {
     const account = makeAccount(options);
@@ -409,6 +437,7 @@ export function createFakeServices(): FakeServices {
     saveCharacter,
     saveCharacters,
     loadCharacter,
+    saveSkillState,
     items: itemsService,
     adminBus,
     logChat: async () => undefined,

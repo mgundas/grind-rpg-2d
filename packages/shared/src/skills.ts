@@ -75,3 +75,22 @@ export const CAST_CANCEL_REASONS = [
   "invalid",
 ] as const;
 export type CastCancelReason = (typeof CAST_CANCEL_REASONS)[number];
+
+export const SKILL_ERROR_CODES = [
+  "doctrine_locked",
+  "doctrine_invalid",
+  "level_too_low",
+  "skill_locked",
+  "skill_maxed",
+  "no_skill_points",
+  "not_in_doctrine",
+  "unknown_skill",
+  "internal",
+] as const;
+export type SkillErrorCode = (typeof SKILL_ERROR_CODES)[number];
+
+export interface SkillErrorPayload {
+  code: SkillErrorCode;
+  message: string;
+  skillId?: string;
+}

@@ -52,6 +52,7 @@ export const MSG = {
   skillCast: "skillCast",
   skillCastCancel: "skillCastCancel",
   skillState: "skillState",
+  requestSkillState: "requestSkillState",
   chooseDoctrine: "chooseDoctrine",
   upgradeSkill: "upgradeSkill",
   buffState: "buffState",
@@ -61,6 +62,7 @@ export const MSG = {
   partyLeave: "partyLeave",
   partySetLoot: "partySetLoot",
   partyError: "partyError",
+  skillError: "skillError",
   bossTimer: "bossTimer",
   stoneDestroyed: "stoneDestroyed",
 } as const;
@@ -165,6 +167,9 @@ export type RequestStatsMessage = z.infer<typeof requestStatsMessageSchema>;
 // ---------------------------------------------------------------------------
 
 const skillIdSchema = z.string().min(1).max(64);
+
+export const requestSkillStateMessageSchema = z.object({}).strict();
+export type RequestSkillStateMessage = z.infer<typeof requestSkillStateMessageSchema>;
 
 export const chooseDoctrineMessageSchema = z
   .object({ doctrineId: z.string().min(1).max(64) })

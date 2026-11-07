@@ -18,6 +18,10 @@ import {
   type BulkCharacterSave,
   type CharacterSave,
 } from "./characters/characterService";
+import {
+  saveSkillState as saveSkillStateDb,
+  type SkillStateChange,
+} from "./characters/characterSkills";
 import { getDb, type Db } from "./db/client";
 import type { CharacterRecord } from "./characters/characterMappers";
 import { consumeWarpTokenPayload } from "./rooms/warpTokens";
@@ -54,6 +58,7 @@ export interface ServerDeps {
   saveCharacter?: (characterId: string, save: CharacterSave) => Promise<boolean>;
   saveCharacters?: (saves: ReadonlyArray<BulkCharacterSave>) => Promise<void>;
   loadCharacter?: (accountId: string, characterId: string) => Promise<CharacterRecord | null>;
+  saveSkillState?: (characterId: string, change: SkillStateChange) => Promise<boolean>;
   items?: ItemService;
   adminBus?: AdminBus;
   adminRuntime?: AdminRuntime;
@@ -104,6 +109,8 @@ export function createGameServer(deps: ServerDeps = {}) {
   const loadCharacter =
     deps.loadCharacter ??
     ((accountId, characterId) => getCharacterForAccount(db, accountId, characterId));
+  const saveSkillState =
+    deps.saveSkillState ?? ((characterId, change) => saveSkillStateDb(db, characterId, change));
   const itemService = deps.items ?? createItemService(db);
   const adminBus = deps.adminBus ?? createAdminBus();
   const adminRuntime =
@@ -134,6 +141,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     saveCharacter,
     saveCharacters,
     loadCharacter,
+    saveSkillState,
     items: itemService,
     adminBus,
     adminRuntime,

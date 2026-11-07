@@ -80,6 +80,8 @@ export interface PlayerRuntime {
 
   /** Basic-attack cooldown gate. */
   attackReadyAtMs: number;
+  /** Per-skill absolute cooldown timestamps keyed by skill id. */
+  skillCooldowns: Map<string, number>;
   /** Attack requested by the client, resolved once on the next tick. */
   pendingAttack: { dir: Dir8 | null } | null;
   /** Last damage dealt or taken; drives in-combat regen. */
@@ -165,6 +167,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     inventoryClosed: false,
     itemUseReadyAtMs: 0,
     attackReadyAtMs: 0,
+    skillCooldowns: new Map(),
     pendingAttack: null,
     lastCombatAtMs: 0,
     regenAccumMs: 0,
