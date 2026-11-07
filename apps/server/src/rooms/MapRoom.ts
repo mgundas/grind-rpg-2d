@@ -31,11 +31,13 @@ import {
   TICK_MS,
   TILE_SIZE,
   WARP_COOLDOWN_MS,
+  PARTY_XP_RADIUS_PX,
   allocStatMessageSchema,
   applyXpGain,
   attackMessageSchema,
   chatMessageSchema,
   chatRecipients,
+  canPickupDrop,
   chooseDoctrineMessageSchema,
   deathXpLoss,
   dir8Towards,
@@ -48,9 +50,9 @@ import {
   interactNpcMessageSchema,
   isClassId,
   isWalkableAt,
-  monsterXpGain,
   moveItemMessageSchema,
   nearestWalkable,
+  partyMemberXpGain,
   partyInviteMessageSchema,
   partyLeaveMessageSchema,
   partyRespondMessageSchema,
@@ -876,6 +878,7 @@ export class MapRoom extends Room {
     this.clearPlayerFromMonsters(client.sessionId);
     if (runtime) {
       this.leavePartyInternal(runtime.characterId);
+      this.releaseOwnershipFor(runtime.characterId);
     }
 
     if (runtime) {
@@ -1745,7 +1748,7 @@ export class MapRoom extends Room {
       if (attacker.targetMonsterId === killed.monsterId) {
         this.clearAutoWalk(attacker, sessionId, "target_lost");
       }
-      this.awardKillXp(sessionId, killed);
+      this.awardXpForKill(killed, sessionId);
       void this.spawnDrops(killed, sessionId, now).catch((error: unknown) => {
         logger.error(
           { roomId: this.roomId, monsterId: killed.monsterId, error },
@@ -1779,6 +1782,7 @@ export class MapRoom extends Room {
     state.x = item.x;
     state.y = item.y;
     state.ownerCharacterId = item.ownerCharacterId;
+    state.ownerPartyId = item.ownerPartyId;
     state.ownerUntilMs = item.ownerUntilMs;
     state.despawnAtMs = item.despawnAtMs;
     this.state.groundItems.set(item.dropId, state);
@@ -1815,7 +1819,7 @@ export class MapRoom extends Room {
     }
     const ownerRuntime =
       this.runtimes.get(killed.ownerSessionId) ?? this.runtimes.get(killerSessionId);
-    const ownerCharacterId = ownerRuntime?.characterId ?? "";
+    const lootSourceCharacterId = ownerRuntime?.characterId ?? "";
     const dropRate = getServerServices().adminRuntime.settings.dropRate;
     const entries =
       dropRate <= 0
@@ -1825,11 +1829,19 @@ export class MapRoom extends Room {
             chance: Math.min(1, drop.chance * dropRate),
           }));
     const rolled = rollDrops(this.rng, entries, spec.goldMin, spec.goldMax);
-    const ownerUntilMs = now + DROP_OWNERSHIP_MS;
     const despawnAtMs = now + GROUND_ITEM_DESPAWN_MS;
+    const goldAssignment =
+      rolled.gold > 0 ? this.parties.allocateLootOwner(lootSourceCharacterId) : null;
+    const itemAssignments = rolled.items.map(() =>
+      this.parties.allocateLootOwner(lootSourceCharacterId),
+    );
 
-    if (rolled.gold > 0) {
+    if (rolled.gold > 0 && goldAssignment) {
       const position = this.dropPosition(killed);
+      const ownerUntilMs =
+        goldAssignment.ownerPartyId || goldAssignment.ownerCharacterId
+          ? now + DROP_OWNERSHIP_MS
+          : 0;
       this.addGroundItem({
         dropId: randomUUID(),
         kind: "gold",
@@ -1838,20 +1850,26 @@ export class MapRoom extends Room {
         rarity: "common",
         x: position.x,
         y: position.y,
-        ownerCharacterId,
+        ownerCharacterId: goldAssignment.ownerCharacterId,
+        ownerPartyId: goldAssignment.ownerPartyId,
         ownerUntilMs,
         despawnAtMs,
       });
     }
 
-    for (const drop of rolled.items) {
+    for (const [index, drop] of rolled.items.entries()) {
       const itemId = drop.itemId;
       if (!hasItem(itemId)) {
         logger.warn({ roomId: this.roomId, itemId }, "drop table references unknown item");
         continue;
       }
+      const assignment = itemAssignments[index]!;
       const dropId = randomUUID();
       const position = this.dropPosition(killed);
+      const ownerUntilMs =
+        assignment.ownerPartyId || assignment.ownerCharacterId
+          ? now + DROP_OWNERSHIP_MS
+          : 0;
       const row = {
         id: dropId,
         definitionId: itemId,
@@ -1864,8 +1882,8 @@ export class MapRoom extends Room {
         roomId: this.roomId,
         x: position.x,
         y: position.y,
-        dropOwnerCharacterId: ownerCharacterId || null,
-        ownerUntil: new Date(ownerUntilMs),
+        dropOwnerCharacterId: assignment.ownerCharacterId || null,
+        ownerUntil: ownerUntilMs > 0 ? new Date(ownerUntilMs) : null,
         despawnAt: new Date(despawnAtMs),
       };
       let inserted = await getServerServices().items.insertGroundItem(row);
@@ -1884,7 +1902,8 @@ export class MapRoom extends Room {
         rarity: getItem(itemId).rarity,
         x: position.x,
         y: position.y,
-        ownerCharacterId,
+        ownerCharacterId: assignment.ownerCharacterId,
+        ownerPartyId: assignment.ownerPartyId,
         ownerUntilMs,
         despawnAtMs,
       });
@@ -1943,6 +1962,7 @@ export class MapRoom extends Room {
     player.dead = true;
     player.hp = 0;
     player.moving = false;
+    this.parties.updateMember(runtime.characterId, { dead: true });
 
     runtime.progression.xp = Math.max(
       0,
@@ -2164,11 +2184,8 @@ export class MapRoom extends Room {
     if (dx * dx + dy * dy > radius) {
       throw new ItemError("out_of_range", "Walk closer to pick that up.");
     }
-    if (
-      drop.ownerCharacterId &&
-      now < drop.ownerUntilMs &&
-      drop.ownerCharacterId !== runtime.characterId
-    ) {
+    const partyId = this.parties.getByCharacter(runtime.characterId)?.id ?? null;
+    if (!canPickupDrop(drop, runtime.characterId, partyId, now)) {
       throw new ItemError("not_owner", "That drop belongs to another player.");
     }
 
@@ -2546,6 +2563,7 @@ export class MapRoom extends Room {
       player.dead = false;
       player.hp = hp;
       player.moving = false;
+      this.parties.updateMember(runtime.characterId, { dead: false });
       const spawn = this.resolveSpawn(player.x, player.y);
       runtime.mover.pos.x = spawn.x;
       runtime.mover.pos.y = spawn.y;
@@ -2580,19 +2598,75 @@ export class MapRoom extends Room {
   }
 
   /** Award kill XP to the player who landed the killing blow (party XP is Phase 6). */
-  private awardKillXp(sessionId: string, killed: KilledMonster): void {
-    const runtime = this.runtimes.get(sessionId);
-    const player = this.state.players.get(sessionId);
-    if (!runtime || !player || runtime.dead) {
+  private awardXpForKill(killed: KilledMonster, killerSessionId: string): void {
+    const killer = this.runtimes.get(killerSessionId);
+    if (!killer || killer.dead) {
       return;
     }
     const spec = getMonster(killed.typeId);
+    const recipients = new Set<string>([killerSessionId]);
+    const party = this.parties.getByCharacter(killer.characterId);
+    if (party) {
+      const radiusSquared = PARTY_XP_RADIUS_PX * PARTY_XP_RADIUS_PX;
+      for (const member of this.parties.members(party)) {
+        const runtime = this.runtimes.get(member.sessionId);
+        if (!runtime || runtime.characterId !== member.characterId || runtime.dead) {
+          continue;
+        }
+        const dx = runtime.mover.pos.x - killed.x;
+        const dy = runtime.mover.pos.y - killed.y;
+        if (dx * dx + dy * dy <= radiusSquared) {
+          recipients.add(member.sessionId);
+        }
+      }
+    }
+    this.awardXpToGroup([...recipients], spec.xp, spec.level);
+  }
+
+  /** Award the same party-bonus XP to each eligible session once. */
+  private awardXpToGroup(
+    sessionIds: readonly string[],
+    baseXp: number,
+    sourceLevel: number,
+  ): void {
+    const unique = [...new Set(sessionIds)].filter((sessionId) => {
+      const runtime = this.runtimes.get(sessionId);
+      return Boolean(runtime && !runtime.dead);
+    });
+    if (unique.length === 0) {
+      return;
+    }
     const xpRate = getServerServices().adminRuntime.settings.xpRate;
-    const gain = Math.max(
-      0,
-      Math.floor(monsterXpGain(spec.xp, spec.level, runtime.progression.level) * xpRate),
-    );
-    const result = applyXpGain(runtime.progression.level, runtime.progression.xp, gain);
+    if (!(xpRate > 0)) {
+      return;
+    }
+    for (const sessionId of unique) {
+      const runtime = this.runtimes.get(sessionId);
+      if (!runtime) {
+        continue;
+      }
+      const gain = partyMemberXpGain(
+        baseXp,
+        sourceLevel,
+        runtime.progression.level,
+        unique.length,
+        xpRate,
+      );
+      if (gain > 0) {
+        this.grantXp(sessionId, gain);
+      }
+    }
+  }
+
+  private grantXp(sessionId: string, gained: number): boolean {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player || runtime.dead) {
+      return false;
+    }
+    const previousLevel = runtime.progression.level;
+    const previousXp = runtime.progression.xp;
+    const result = applyXpGain(previousLevel, previousXp, gained);
     runtime.progression.level = result.level;
     runtime.progression.xp = result.xp;
     runtime.progression.statPoints += result.statPointsGained;
@@ -2633,6 +2707,13 @@ export class MapRoom extends Room {
       }
     }
 
+    if (
+      runtime.progression.level === previousLevel &&
+      runtime.progression.xp === previousXp
+    ) {
+      return false;
+    }
+
     runtime.dirty = true;
     this.sendSelfStats(sessionId);
     this.sendSkillState(sessionId);
@@ -2641,6 +2722,7 @@ export class MapRoom extends Room {
       x: runtime.mover.pos.x,
       y: runtime.mover.pos.y,
     });
+    return true;
   }
 
   /**
@@ -2844,6 +2926,7 @@ export class MapRoom extends Room {
     }
     try {
       const result = this.parties.leave(runtime.characterId);
+      this.releaseOwnershipFor(runtime.characterId);
       this.sendEmptyParty(client);
       if (result.party) {
         this.broadcastParty(result.party);
@@ -2857,6 +2940,7 @@ export class MapRoom extends Room {
   private leavePartyInternal(characterId: string): void {
     try {
       const result = this.parties.leave(characterId);
+      this.releaseOwnershipFor(characterId);
       if (result.party) {
         this.broadcastParty(result.party);
       }
@@ -2875,6 +2959,37 @@ export class MapRoom extends Room {
       this.broadcastParty(party);
     } catch (error) {
       this.sendPartyError(client, error);
+    }
+  }
+
+  /** Downgrade or clear locks held by a character or a disbanded party. */
+  private releaseOwnershipFor(characterId: string): void {
+    for (const drop of this.groundItems.values()) {
+      let changed = false;
+      if (drop.ownerCharacterId === characterId) {
+        const party = drop.ownerPartyId ? this.parties.get(drop.ownerPartyId) : undefined;
+        if (party && party.members.size > 0) {
+          drop.ownerCharacterId = "";
+        } else {
+          drop.ownerPartyId = "";
+          drop.ownerCharacterId = "";
+          drop.ownerUntilMs = 0;
+        }
+        changed = true;
+      } else if (drop.ownerPartyId && !this.parties.get(drop.ownerPartyId)) {
+        drop.ownerPartyId = "";
+        drop.ownerCharacterId = "";
+        drop.ownerUntilMs = 0;
+        changed = true;
+      }
+      if (changed) {
+        const state = this.state.groundItems.get(drop.dropId);
+        if (state) {
+          state.ownerCharacterId = drop.ownerCharacterId;
+          state.ownerPartyId = drop.ownerPartyId;
+          state.ownerUntilMs = drop.ownerUntilMs;
+        }
+      }
     }
   }
 
@@ -3146,6 +3261,7 @@ export class MapRoom extends Room {
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
     this.leavePartyInternal(runtime.characterId);
+    this.releaseOwnershipFor(runtime.characterId);
     // The move is intentional; do not let the target join "kick" this session.
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
     this.unregisterAdminSession(client.sessionId);

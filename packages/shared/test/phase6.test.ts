@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   applyBuffModifiers,
   buffModifierTotals,
+  canPickupDrop,
   castSkillMessageSchema,
   chooseDoctrineMessageSchema,
   findCircleTargets,
   findLineTargets,
   magicAttackOf,
   partyInviteMessageSchema,
+  partyMemberXpGain,
   partyXpMultiplier,
   partyRespondMessageSchema,
   skillDamage,
@@ -106,6 +108,39 @@ describe("Phase 6 formulas", () => {
     expect(partyXpMultiplier(1)).toBe(1);
     expect(partyXpMultiplier(2)).toBeCloseTo(1.1);
     expect(partyXpMultiplier(8)).toBeCloseTo(1.7);
+  });
+
+  it("computes party member XP after level gap, bonus and admin rate", () => {
+    expect(partyMemberXpGain(24, 1, 1, 1)).toBe(24);
+    expect(partyMemberXpGain(24, 1, 1, 2)).toBe(26);
+    expect(partyMemberXpGain(24, 1, 20, 2)).toBe(4);
+    expect(partyMemberXpGain(24, 1, 1, 2, 2)).toBe(52);
+    expect(partyMemberXpGain(24, 1, 1, 0)).toBe(0);
+    expect(partyMemberXpGain(24, 1, 1, 2, 0)).toBe(0);
+  });
+
+  it("applies party-aware pickup ownership", () => {
+    const now = 1_000;
+    const claim = {
+      ownerPartyId: "party-1",
+      ownerCharacterId: "",
+      ownerUntilMs: now + 1_000,
+    };
+    expect(canPickupDrop(claim, "a", "party-1", now)).toBe(true);
+    expect(canPickupDrop(claim, "a", "party-2", now)).toBe(false);
+    expect(canPickupDrop(claim, "a", null, now)).toBe(false);
+    expect(canPickupDrop(claim, "a", null, now + 2_000)).toBe(true);
+
+    const roundRobin = { ...claim, ownerCharacterId: "a" };
+    expect(canPickupDrop(roundRobin, "a", "party-1", now)).toBe(true);
+    expect(canPickupDrop(roundRobin, "b", "party-1", now)).toBe(false);
+
+    const solo = { ownerPartyId: "", ownerCharacterId: "a", ownerUntilMs: now + 1_000 };
+    expect(canPickupDrop(solo, "a", null, now)).toBe(true);
+    expect(canPickupDrop(solo, "b", null, now)).toBe(false);
+    expect(
+      canPickupDrop({ ownerPartyId: "", ownerCharacterId: "", ownerUntilMs: 0 }, "b", null, now),
+    ).toBe(true);
   });
 
   it("aggregates flat and percent buff modifiers with a cap", () => {

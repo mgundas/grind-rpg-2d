@@ -11,6 +11,8 @@ export interface GroundItemRuntime {
   y: number;
   /** Empty string means free for all. */
   ownerCharacterId: string;
+  /** Party that owns the drop during the lock; empty for solo/no party. */
+  ownerPartyId: string;
   ownerUntilMs: number;
   despawnAtMs: number;
 }

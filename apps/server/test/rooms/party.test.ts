@@ -127,6 +127,37 @@ describe("party registry", () => {
     expect(party.lootRule).toBe("round_robin");
   });
 
+  it("assigns solo, free-for-all and round-robin loot owners", () => {
+    const registry = createPartyRegistry(ids());
+    expect(registry.allocateLootOwner("solo")).toEqual({
+      ownerPartyId: "",
+      ownerCharacterId: "solo",
+    });
+
+    const party = registry.create(member(1));
+    registry.accept(registry.invite("char-1", "char-2", "Member2").inviteId, member(2));
+    expect(registry.allocateLootOwner("char-1")).toEqual({
+      ownerPartyId: party.id,
+      ownerCharacterId: "",
+    });
+
+    registry.setLootRule("char-1", "round_robin");
+    expect(registry.allocateLootOwner("char-1")).toEqual({
+      ownerPartyId: party.id,
+      ownerCharacterId: "char-1",
+    });
+    expect(registry.allocateLootOwner("char-1")).toEqual({
+      ownerPartyId: party.id,
+      ownerCharacterId: "char-2",
+    });
+    registry.updateMember("char-1", { dead: true });
+    registry.updateMember("char-2", { dead: true });
+    expect(registry.allocateLootOwner("char-1")).toEqual({
+      ownerPartyId: party.id,
+      ownerCharacterId: "",
+    });
+  });
+
   it("rotates loot and skips dead members", () => {
     const registry = createPartyRegistry(ids());
     const party = registry.create(member(1));

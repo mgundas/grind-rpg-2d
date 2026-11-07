@@ -71,6 +71,11 @@ export interface PartyLeaveResult {
   disbanded: boolean;
 }
 
+export interface LootAssignment {
+  ownerPartyId: string;
+  ownerCharacterId: string;
+}
+
 export interface PartyRegistry {
   create(leader: PartyMemberInput, now?: number): Party;
   /** Returns the invite to deliver; replaces any older invite for the same pair. */
@@ -90,6 +95,7 @@ export interface PartyRegistry {
   setLootRule(characterId: string, rule: PartyLootRule): Party;
   updateMember(characterId: string, update: Partial<PartyMemberInput>): void;
   nextLootOwner(partyId: string): string | null;
+  allocateLootOwner(characterId: string): LootAssignment;
   snapshot(party: Party): PartyStatePayload;
   members(party: Party): PartyMember[];
   pruneInvites(now?: number): number;
@@ -314,6 +320,20 @@ export function createPartyRegistry(
     return null;
   }
 
+  function allocateLootOwner(characterId: string): LootAssignment {
+    const party = byCharacter.get(characterId) ? parties.get(byCharacter.get(characterId)!) : undefined;
+    if (!party) {
+      return { ownerPartyId: "", ownerCharacterId: characterId };
+    }
+    if (party.lootRule === "free_for_all") {
+      return { ownerPartyId: party.id, ownerCharacterId: "" };
+    }
+    return {
+      ownerPartyId: party.id,
+      ownerCharacterId: nextLootOwner(party.id) ?? "",
+    };
+  }
+
   function snapshot(party: Party): PartyStatePayload {
     const members: PartyMemberView[] = [...party.members.values()]
       .sort((a, b) => a.joinOrder - b.joinOrder)
@@ -370,6 +390,7 @@ export function createPartyRegistry(
     setLootRule,
     updateMember,
     nextLootOwner,
+    allocateLootOwner,
     snapshot,
     members(party) {
       return [...party.members.values()].sort((a, b) => a.joinOrder - b.joinOrder);

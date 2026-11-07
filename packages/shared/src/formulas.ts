@@ -163,6 +163,24 @@ export function partyXpMultiplier(memberCount: number): number {
   return 1 + 0.1 * Math.max(0, Math.floor(memberCount) - 1);
 }
 
+/** One party member's kill XP after level gap, party bonus and admin rate. */
+export function partyMemberXpGain(
+  monsterXp: number,
+  monsterLevel: number,
+  memberLevel: number,
+  eligibleMemberCount: number,
+  xpRate = 1,
+): number {
+  if (eligibleMemberCount <= 0 || !(xpRate > 0)) {
+    return 0;
+  }
+  const base = monsterXpGain(monsterXp, monsterLevel, memberLevel);
+  return Math.max(
+    0,
+    Math.floor(base * partyXpMultiplier(eligibleMemberCount) * xpRate),
+  );
+}
+
 /**
  * Total a buff stat modifier set into flat and percent parts. Buffs stack
  * additively; callers cap percentages before applying them.

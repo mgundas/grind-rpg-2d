@@ -207,7 +207,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 11 — Doctrine selection and skill upgrades
 - [x] Task 12 — Pure party registry
 - [x] Task 13 — Room party integration
-- [ ] Task 14 — Party XP and loot rules
+- [x] Task 14 — Party XP and loot rules
 - [ ] Task 15 — Pure stone manager
 - [ ] Task 16 — Combat damage refactor and stone targets
 - [ ] Task 17 — Room spirit stone integration

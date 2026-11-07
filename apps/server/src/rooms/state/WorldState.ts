@@ -69,6 +69,8 @@ export class GroundItemState extends Schema {
   @type("float32") x!: number;
   @type("float32") y!: number;
   @type("string") ownerCharacterId!: string;
+  /** Party that owns the drop during the lock; "" for solo/expired. */
+  @type("string") ownerPartyId!: string;
   /** Absolute epoch ms when the ownership lock ends (0 = free for all). */
   @type("float64") ownerUntilMs!: number;
   /** Absolute epoch ms; the client can hide a drop before the next patch. */

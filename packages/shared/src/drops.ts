@@ -53,3 +53,35 @@ export function rollDrops(
   }
   return { gold, items };
 }
+
+/** Ownership fields needed to decide whether a pickup is allowed. */
+export interface DropClaim {
+  ownerPartyId: string;
+  ownerCharacterId: string;
+  ownerUntilMs: number;
+}
+
+/**
+ * Party-aware loot lock. A missing/empty owner or an expired lock is free for
+ * all; a party lock admits members (and the round-robin character when set).
+ */
+export function canPickupDrop(
+  drop: DropClaim,
+  characterId: string,
+  partyId: string | null,
+  now: number,
+): boolean {
+  if (drop.ownerUntilMs <= 0 || now >= drop.ownerUntilMs) {
+    return true;
+  }
+  if (drop.ownerPartyId) {
+    if (partyId !== drop.ownerPartyId) {
+      return false;
+    }
+    return drop.ownerCharacterId === "" || drop.ownerCharacterId === characterId;
+  }
+  if (drop.ownerCharacterId) {
+    return drop.ownerCharacterId === characterId;
+  }
+  return true;
+}
