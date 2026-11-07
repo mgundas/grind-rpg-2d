@@ -388,6 +388,10 @@ function bindSessionEvents(current: Room): void {
     useUiStore.getState().setCastState(payload);
   });
 
+  current.onMessage(MSG.skillCast, () => {
+    useUiStore.getState().setCastState(null);
+  });
+
   current.onMessage(MSG.skillCastCancel, () => {
     useUiStore.getState().setCastState(null);
   });

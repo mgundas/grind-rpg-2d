@@ -220,7 +220,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 24 — Client network and store fields
 - [x] Task 25 — Skill window and doctrine selection
 - [x] Task 26 — Two-row hotbar and skill casting
-- [ ] Task 27 — Skill FX, cast bar and buff bar
+- [x] Task 27 — Skill FX, cast bar and buff bar
 - [ ] Task 28 — Party window, frames and invite-by-click
 - [ ] Task 29 — Phase 6 E2E, decisions and report
 - [ ] Task 30 — Phase gate

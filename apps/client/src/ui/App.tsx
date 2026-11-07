@@ -5,6 +5,8 @@ import { getHealth } from "../network/http";
 import { logout } from "../network/session";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { BossTimer } from "./BossTimer";
+import { BuffBar } from "./BuffBar";
+import { CastBar } from "./CastBar";
 import { AuthScreen } from "./AuthScreen";
 import { CharacterSelect } from "./CharacterSelect";
 import { CharacterWindow } from "./CharacterWindow";
@@ -150,6 +152,8 @@ export function App() {
           <Hotbar />
           <AnnouncementBanner />
           <BossTimer />
+          <BuffBar />
+          <CastBar />
           <TargetFrame />
           <CharacterWindow />
           <SkillWindow />

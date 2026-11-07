@@ -26,6 +26,7 @@ import {
   type NpcSpawn,
   type PickupResultPayload,
   type StoneDestroyedPayload,
+  type SkillCastPayload,
   type TiledMapJson,
   type Vec2,
   type WarpPayload,
@@ -500,6 +501,9 @@ export class WorldScene extends Phaser.Scene {
     });
     room.onMessage(MSG.stoneDestroyed, (payload: StoneDestroyedPayload) => {
       this.showStoneDestroyed(payload);
+    });
+    room.onMessage(MSG.skillCast, (payload: SkillCastPayload) => {
+      this.showSkillCast(payload);
     });
     room.onMessage("levelUp", (payload: LevelUpPayload) => {
       this.showLevelUp(payload);
@@ -1391,6 +1395,73 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(stone.y + 2)
       .setVisible(ratio < 1);
     return { sprite, shadow, label, barBackground, barFill };
+  }
+
+  private showSkillCast(payload: SkillCastPayload): void {
+    if (payload.hits.length > 0) {
+      this.showCombatEvent({
+        eventSeq: payload.eventSeq,
+        attacker: payload.caster,
+        hits: payload.hits,
+        skillId: payload.skillId,
+      });
+    }
+    for (const heal of payload.heals) {
+      this.showDamageNumber(heal.x, heal.y - 34, `+${heal.amount}`, "#7ee08a", 13);
+    }
+
+    const color = payload.type === "heal" ? 0x7ee08a : payload.type === "buff" ? 0x8fd3b6 : 0xc9a227;
+    if (payload.type === "projectile" || payload.type === "dash") {
+      const orb = this.add.circle(payload.x, payload.y - 24, 6, color, 0.95).setDepth(payload.y + 8);
+      this.tweens.add({
+        targets: orb,
+        x: payload.targetX,
+        y: payload.targetY - 24,
+        alpha: 0,
+        scale: 1.6,
+        duration: payload.type === "dash" ? 140 : 260,
+        ease: "Quad.easeOut",
+        onComplete: () => orb.destroy(),
+      });
+    } else if (payload.type === "area") {
+      const ring = this.add
+        .circle(payload.targetX, payload.targetY - 12, 18, color, 0.35)
+        .setStrokeStyle(3, color, 0.9)
+        .setDepth(payload.targetY + 8);
+      this.tweens.add({
+        targets: ring,
+        scale: 6,
+        alpha: 0,
+        duration: 360,
+        ease: "Quad.easeOut",
+        onComplete: () => ring.destroy(),
+      });
+      this.cameras.main.shake(160, 0.005);
+    } else if (payload.type === "melee_aoe") {
+      const arc = this.add
+        .circle(payload.x, payload.y - 18, 26, color, 0.28)
+        .setStrokeStyle(2, color, 0.9)
+        .setDepth(payload.y + 8);
+      this.tweens.add({
+        targets: arc,
+        scale: 2.4,
+        alpha: 0,
+        duration: 240,
+        onComplete: () => arc.destroy(),
+      });
+    } else {
+      const aura = this.add
+        .circle(payload.x, payload.y - 18, 20, color, 0.22)
+        .setStrokeStyle(2, color, 0.8)
+        .setDepth(payload.y + 8);
+      this.tweens.add({
+        targets: aura,
+        scale: 1.9,
+        alpha: 0,
+        duration: 420,
+        onComplete: () => aura.destroy(),
+      });
+    }
   }
 
   private showStoneDestroyed(payload: StoneDestroyedPayload): void {
