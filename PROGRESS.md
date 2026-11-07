@@ -198,7 +198,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 2 — Skills data loader + Warrior skills
 - [x] Task 3 — Assassin skills
 - [x] Task 4 — Hexblade skills
-- [ ] Task 5 — Mystic skills and completeness
+- [x] Task 5 — Mystic skills and completeness
 - [ ] Task 6 — Spirit stone data and drop table
 - [ ] Task 7 — Preserve stone zones in map assets
 - [ ] Task 8 — Admin read-only Skill/Stone tabs

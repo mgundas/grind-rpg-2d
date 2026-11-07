@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getSkill, hasSkill, SKILLS, skillsForDoctrine } from "@jadethrone/data/skills";
-import { getClass } from "@jadethrone/data/classes";
+import { CLASSES, getClass } from "@jadethrone/data/classes";
 
 describe("skills.json", () => {
   it("defines twelve Warrior skills, six per doctrine", () => {
@@ -20,6 +20,21 @@ describe("skills.json", () => {
     expect(SKILLS.filter((skill) => skill.classId === "hexblade")).toHaveLength(12);
     expect(skillsForDoctrine("hexblade", "cursed_steel")).toHaveLength(6);
     expect(skillsForDoctrine("hexblade", "dark_arts")).toHaveLength(6);
+  });
+
+  it("defines twelve Mystic skills, six per doctrine", () => {
+    expect(SKILLS.filter((skill) => skill.classId === "mystic")).toHaveLength(12);
+    expect(skillsForDoctrine("mystic", "dragon")).toHaveLength(6);
+    expect(skillsForDoctrine("mystic", "grace")).toHaveLength(6);
+  });
+
+  it("covers every class doctrine with exactly six skills", () => {
+    expect(SKILLS).toHaveLength(48);
+    for (const info of CLASSES) {
+      for (const doctrine of info.doctrines) {
+        expect(skillsForDoctrine(info.id, doctrine.id)).toHaveLength(6);
+      }
+    }
   });
 
   it("uses unique ids and existing doctrines", () => {
@@ -53,6 +68,12 @@ describe("skills.json", () => {
     }
     for (const doctrineId of ["cursed_steel", "dark_arts"]) {
       const levels = skillsForDoctrine("hexblade", doctrineId).map((skill) => skill.unlockLevel);
+      expect(levels).toEqual([...levels].sort((a, b) => a - b));
+      expect(levels[0]).toBe(5);
+      expect(levels[levels.length - 1]).toBe(30);
+    }
+    for (const doctrineId of ["dragon", "grace"]) {
+      const levels = skillsForDoctrine("mystic", doctrineId).map((skill) => skill.unlockLevel);
       expect(levels).toEqual([...levels].sort((a, b) => a - b));
       expect(levels[0]).toBe(5);
       expect(levels[levels.length - 1]).toBe(30);
