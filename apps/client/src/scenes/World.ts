@@ -261,8 +261,8 @@ export class WorldScene extends Phaser.Scene {
     this.buildCharacter();
     this.setupInput();
 
-    this.input.keyboard?.off("keydown-F3");
-    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
+    this.input.keyboard?.off("keydown-F9");
+    this.input.keyboard?.on("keydown-F9", (event: KeyboardEvent) => {
       event.preventDefault();
       useUiStore.getState().toggleDebug();
     });
@@ -1610,6 +1610,7 @@ export class WorldScene extends Phaser.Scene {
       if (this.pointerHeld && connected()) {
         this.pointerWorld = { x: pointer.worldX, y: pointer.worldY };
       }
+      useUiStore.getState().setCursorWorld({ x: pointer.worldX, y: pointer.worldY });
       if (!connected()) {
         return;
       }
