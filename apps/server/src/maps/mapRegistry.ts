@@ -10,6 +10,7 @@ import {
   type MapId,
   type MobZone,
   type NpcSpawn,
+  type TiledObjectJson,
   type Vec2,
   type WarpZone,
 } from "@jadethrone/shared";
@@ -25,6 +26,7 @@ export interface MapAssets {
   warps: WarpZone[];
   mobZones: MobZone[];
   npcs: NpcSpawn[];
+  stoneZones: TiledObjectJson[];
   spawn: Vec2;
   widthPx: number;
   heightPx: number;
@@ -54,6 +56,7 @@ export function loadMapAssets(mapId: MapId): MapAssets {
     warps: objects.warps,
     mobZones: objects.mobZones,
     npcs: objects.npcs,
+    stoneZones: objects.stoneZones,
     spawn: objects.spawn,
     widthPx: map.width * map.tilewidth,
     heightPx: map.height * map.tileheight,
