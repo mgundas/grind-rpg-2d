@@ -12,6 +12,7 @@ import {
   resolveDamage,
   rollCrit,
   rollHit,
+  skillDamage,
   type CombatHit,
   type ArcTarget,
   type Dir8,
@@ -149,13 +150,14 @@ export function resolveStoneHit(
   stoneId: string,
   attack: number,
   critChanceValue: number,
+  power = 1,
 ): StoneHit | null {
   const runtime = ctx.stoneRuntimes?.get(stoneId);
   if (!runtime || runtime.hp <= 0) {
     return null;
   }
   const info = getStone(runtime.infoId);
-  const base = resolveDamage(ctx.rng, attack, info.defense);
+  const base = skillDamage(ctx.rng, attack, info.defense, power);
   const crit = rollCrit(ctx.rng, critChanceValue);
   return {
     target: { kind: "stone", stoneId },

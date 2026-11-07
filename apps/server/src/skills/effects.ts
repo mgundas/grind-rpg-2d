@@ -131,6 +131,18 @@ export function removeStealth(buffs: Map<string, PlayerBuff>): boolean {
   return removed;
 }
 
+/** Remove all debuff buffs (Purify). Buffs are kept. */
+export function removeDebuffs(buffs: Map<string, PlayerBuff>): number {
+  let removed = 0;
+  for (const [id, buff] of buffs) {
+    if (buff.kind === "debuff") {
+      buffs.delete(id);
+      removed++;
+    }
+  }
+  return removed;
+}
+
 /** Bosses take half stun duration instead of being fully immune. */
 export function applyStun(status: MonsterStatus, durationMs: number, isBoss: boolean): void {
   const duration = Math.max(0, durationMs) * (isBoss ? 0.5 : 1);
