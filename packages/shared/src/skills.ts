@@ -9,6 +9,29 @@ export const SKILL_TYPES = [
 ] as const;
 export type SkillType = (typeof SKILL_TYPES)[number];
 
+/** How a skill chooses its targets. */
+export const SKILL_TARGETS = ["self", "enemy", "ground", "ally", "party"] as const;
+export type SkillTarget = (typeof SKILL_TARGETS)[number];
+
+/** Damage scaling source used by the server resolver. */
+export const DAMAGE_SCALINGS = ["physical", "magic"] as const;
+export type DamageScaling = (typeof DAMAGE_SCALINGS)[number];
+
+/** Client FX presets; each maps to a distinct particle/tween recipe. */
+export const SKILL_FX_PRESETS = [
+  "slash_arc",
+  "spin",
+  "nova",
+  "projectile",
+  "beam",
+  "ground_ring",
+  "dash",
+  "aura",
+  "heal",
+  "shard",
+] as const;
+export type SkillFxPreset = (typeof SKILL_FX_PRESETS)[number];
+
 /** Runtime effect kinds a skill can apply. */
 export const SKILL_EFFECT_KINDS = [
   "stun",

@@ -10,6 +10,7 @@
     "./monsters": "./src/monsters.ts",
     "./npcs": "./src/npcs.ts",
     "./shops": "./src/shops.ts",
+    "./skills": "./src/skills.ts",
     "./starterKits": "./src/starterKits.ts",
     "./spawnGroups": "./src/spawnGroups.ts",
     "./maps/*": "./maps/*"

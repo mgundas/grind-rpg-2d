@@ -195,7 +195,7 @@ Plan: `docs/plans/phase-5.md`.
 Plan: `docs/plans/phase-6.md`.
 
 - [x] Task 1 — Phase 6 shared protocol and formulas
-- [ ] Task 2 — Skills data loader + Warrior skills
+- [x] Task 2 — Skills data loader + Warrior skills
 - [ ] Task 3 — Assassin skills
 - [ ] Task 4 — Hexblade skills
 - [ ] Task 5 — Mystic skills and completeness
