@@ -81,6 +81,7 @@ export interface SkillHotIntent {
   tickMs: number;
   durationMs: number;
   expiresAtMs: number;
+  nextTickAtMs: number;
 }
 
 export type SkillStatusIntent =
@@ -400,6 +401,7 @@ export function resolveSkillCast(
           tickMs,
           durationMs,
           expiresAtMs: ctx.now + durationMs,
+          nextTickAtMs: ctx.now + tickMs,
         });
       }
       if (hotEffect?.durationMs) {
@@ -415,6 +417,7 @@ export function resolveSkillCast(
           tickMs: hotEffect.tickMs ?? 1000,
           durationMs: hotEffect.durationMs,
           expiresAtMs: ctx.now + hotEffect.durationMs,
+          nextTickAtMs: ctx.now + (hotEffect.tickMs ?? 1000),
         });
       }
     }

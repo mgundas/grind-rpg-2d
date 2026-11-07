@@ -14,6 +14,9 @@ export interface PendingSkillCast {
   skillId: string;
   request: CastSkillMessage;
   completesAtMs: number;
+  targetPos?: Vec2;
+  allySessionId?: string;
+  partySessionIds?: string[];
 }
 
 export interface ValidateSkillCastInput {
@@ -113,11 +116,17 @@ export function createPendingCast(
   validation: SkillCastValidation,
   request: CastSkillMessage,
   now: number,
+  extras: {
+    targetPos?: Vec2;
+    allySessionId?: string;
+    partySessionIds?: string[];
+  } = {},
 ): PendingSkillCast {
   return {
     skillId: validation.skill.id,
     request,
     completesAtMs: now + validation.skill.castTimeMs,
+    ...extras,
   };
 }
 

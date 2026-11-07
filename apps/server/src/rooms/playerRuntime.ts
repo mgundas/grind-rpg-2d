@@ -11,6 +11,9 @@ import {
   type WarehouseState,
 } from "@jadethrone/shared";
 import type { PlayerProgression } from "../characters/progression";
+import type { PlayerBuff } from "../skills/effects";
+import type { SkillHotIntent } from "../skills/skillCombat";
+import type { PendingSkillCast } from "../skills/skillRuntime";
 
 /**
  * Server-private per-player state. Never synchronized; the schema state is
@@ -82,6 +85,12 @@ export interface PlayerRuntime {
   attackReadyAtMs: number;
   /** Per-skill absolute cooldown timestamps keyed by skill id. */
   skillCooldowns: Map<string, number>;
+  /** A validated cast waiting for its cast time to complete. */
+  pendingCast: PendingSkillCast | null;
+  /** Active player buffs keyed by source skill. */
+  buffs: Map<string, PlayerBuff>;
+  /** Heal-over-time effects applied by support skills. */
+  healOverTime: SkillHotIntent[];
   /** Attack requested by the client, resolved once on the next tick. */
   pendingAttack: { dir: Dir8 | null } | null;
   /** Last damage dealt or taken; drives in-combat regen. */
@@ -168,6 +177,9 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     itemUseReadyAtMs: 0,
     attackReadyAtMs: 0,
     skillCooldowns: new Map(),
+    pendingCast: null,
+    buffs: new Map(),
+    healOverTime: [],
     pendingAttack: null,
     lastCombatAtMs: 0,
     regenAccumMs: 0,

@@ -1,4 +1,5 @@
 import { createMover, type MoverState, type Vec2 } from "@jadethrone/shared";
+import { createMonsterStatus, type MonsterStatus } from "../skills/effects";
 
 /** Monster AI states (GAME_DESIGN.md §6.1). */
 export type MonsterAiState = "idle" | "chase" | "attack" | "return";
@@ -30,6 +31,8 @@ export interface MonsterRuntime {
   spawnIndex: number;
   /** Damage dealt by each session since spawn; the top contributor owns drops. */
   damageBy: Map<string, number>;
+  /** Stun/slow/poison; monsters do not persist these. */
+  status: MonsterStatus;
 }
 
 export function createMonsterRuntime(input: {
@@ -63,5 +66,6 @@ export function createMonsterRuntime(input: {
     generation: input.generation,
     spawnIndex: input.spawnIndex,
     damageBy: new Map(),
+    status: createMonsterStatus(),
   };
 }

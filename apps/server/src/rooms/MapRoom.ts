@@ -35,6 +35,7 @@ import {
   allocStatMessageSchema,
   applyXpGain,
   attackMessageSchema,
+  castSkillMessageSchema,
   chatMessageSchema,
   chatRecipients,
   canPickupDrop,
@@ -81,6 +82,8 @@ import {
   type AdminGiveItemRequest,
   type AdminUpdateCharacterRequest,
   type BossTimerPayload,
+  type BuffStatePayload,
+  type BuffView,
   type ChatMsgPayload,
   type CombatEventPayload,
   type CombatHit,
@@ -97,6 +100,10 @@ import {
   type PartyStatePayload,
   type PickupResultPayload,
   type RandomSource,
+  type SkillBuffResult,
+  type SkillCastCancelPayload,
+  type SkillCastPayload,
+  type SkillCastStartPayload,
   type StatKey,
   type StoneDestroyedPayload,
   type TargetClearedReason,
@@ -108,6 +115,7 @@ import { getClass } from "@jadethrone/data/classes";
 import { getDropTable } from "@jadethrone/data/dropTables";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getMonster, hasMonster } from "@jadethrone/data/monsters";
+import { getSkill } from "@jadethrone/data/skills";
 import { getNpc } from "@jadethrone/data/npcs";
 import { getShop } from "@jadethrone/data/shops";
 import { getStone, getStoneForZone } from "@jadethrone/data/stones";
@@ -167,6 +175,27 @@ import {
   upgradeSkill as validateSkillUpgrade,
 } from "../skills/skillState";
 import {
+  applyPlayerBuff,
+  applyPoison,
+  applySlow,
+  applyStunAt,
+  buffViews,
+  hasStealth,
+  playerBuffModifiers,
+  pruneExpiredBuffs,
+  removeDebuffs,
+  removeStealth,
+  tickPoison,
+  type PlayerBuff,
+} from "../skills/effects";
+import { resolveSkillCast, type SkillOutcome } from "../skills/skillCombat";
+import {
+  createPendingCast,
+  startSkillCooldown,
+  validateSkillCast,
+} from "../skills/skillRuntime";
+import {
+  applyDamageToMonster,
   resolveMonsterAttack,
   resolvePlayerSwing,
   topDamageOwner,
@@ -188,6 +217,19 @@ import {
   type SpawnManager,
 } from "./spawnManager";
 import type { JoinIdentity } from "../auth/joinAuth";
+
+/** Converts a runtime buff to the wire shape used by skill/buff messages. */
+function toBuffView(buff: PlayerBuff): BuffView {
+  return {
+    id: buff.id,
+    sourceSkillId: buff.sourceSkillId,
+    name: buff.name,
+    iconKey: buff.iconKey,
+    kind: buff.kind,
+    expiresAtMs: buff.expiresAtMs,
+    stacks: buff.stacks,
+  };
+}
 
 /** Max queued input messages per player; older inputs are dropped. */
 const MAX_PENDING_INPUTS = 8;
@@ -374,6 +416,15 @@ export class MapRoom extends Room {
         .catch(() => undefined);
     });
 
+    this.onMessage(MSG.castSkill, (client, raw) => {
+      const parsed = castSkillMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid castSkill message");
+        return;
+      }
+      this.castSkill(client, parsed.data);
+    });
+
     this.onMessage(MSG.attack, (client, raw) => {
       const parsed = attackMessageSchema.safeParse(raw);
       if (!parsed.success) {
@@ -383,6 +434,9 @@ export class MapRoom extends Room {
       const runtime = this.runtimes.get(client.sessionId);
       if (!runtime) {
         return;
+      }
+      if (runtime.pendingCast) {
+        this.cancelPendingCast(runtime, client.sessionId, "attacked");
       }
       // One pending swing per tick: spamming collapses into a single attack.
       runtime.pendingAttack = {
@@ -1681,8 +1735,10 @@ export class MapRoom extends Room {
       }
       this.stepPlayer(runtime, player, client.sessionId, now);
     }
+    this.processSkillCasts(now);
     this.stepMonsters(now, players);
     this.runCombatPhase(now);
+    this.tickSkillEffects(now);
     this.applyRegen(now);
     this.processRespawns(now);
     const spawned = tickSpawns(
@@ -2187,6 +2243,9 @@ export class MapRoom extends Room {
     runtime.diedAtMs = now;
     runtime.pending.length = 0;
     runtime.pendingAttack = null;
+    runtime.pendingCast = null;
+    runtime.buffs.clear();
+    runtime.healOverTime = [];
     runtime.lastIntent = { kind: "none" };
     runtime.mover.path = [];
     runtime.graceTicksRemaining = 0;
@@ -3287,6 +3346,435 @@ export class MapRoom extends Room {
     }
   }
 
+  private castSkill(client: Client, request: import("@jadethrone/shared").CastSkillMessage): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player || !isClassId(player.classId)) {
+      return;
+    }
+    try {
+      const skill = getSkill(request.skillId);
+      const targetPos = this.skillAim(runtime, skill, request);
+      const allySessionId = this.resolveAllySession(request.targetCharacterId);
+      const partySessionIds = this.partySessionIdsFor(runtime);
+      const validation = validateSkillCast({
+        progression: runtime.progression,
+        classId: player.classId,
+        request,
+        now: Date.now(),
+        cooldowns: runtime.skillCooldowns,
+        hasPendingCast: runtime.pendingCast !== null,
+        dead: runtime.dead,
+        warping: runtime.warping,
+        casterPos: runtime.mover.pos,
+        targetPos,
+      });
+      const now = Date.now();
+      runtime.progression.mp = Math.max(0, runtime.progression.mp - validation.mpCost);
+      player.mp = runtime.progression.mp;
+      startSkillCooldown(runtime.skillCooldowns, skill, now);
+      runtime.pendingCast = createPendingCast(validation, request, now, {
+        targetPos,
+        allySessionId,
+        partySessionIds,
+      });
+      runtime.dirty = true;
+      this.sendSelfStats(client.sessionId);
+      this.sendSkillState(client.sessionId);
+      const start: SkillCastStartPayload = {
+        skillId: skill.id,
+        name: skill.name,
+        completesAtMs: runtime.pendingCast.completesAtMs,
+        castTimeMs: skill.castTimeMs,
+      };
+      this.safeSend(client, MSG.skillCastStart, start);
+    } catch (error) {
+      if (error instanceof SkillRuleError) {
+        this.safeSend(client, MSG.skillError, toSkillErrorPayload(error));
+        return;
+      }
+      logger.error({ roomId: this.roomId, session: client.sessionId, error }, "skill cast failed");
+      this.safeSend(client, MSG.skillError, {
+        code: "internal",
+        message: "Could not cast that skill.",
+      });
+    }
+  }
+
+  private skillAim(
+    runtime: PlayerRuntime,
+    skill: ReturnType<typeof getSkill>,
+    request: { x?: number; y?: number; targetMonsterId?: string; targetStoneId?: string; dir?: number },
+  ): { x: number; y: number } | undefined {
+    if (request.x !== undefined && request.y !== undefined) {
+      return { x: request.x, y: request.y };
+    }
+    if (request.targetMonsterId) {
+      const monster = this.monsterRuntimes.get(request.targetMonsterId);
+      if (monster) {
+        return { x: monster.mover.pos.x, y: monster.mover.pos.y };
+      }
+    }
+    if (request.targetStoneId) {
+      const stone = this.stones.get(request.targetStoneId);
+      if (stone) {
+        return { x: stone.x, y: stone.y };
+      }
+    }
+    if (request.dir !== undefined && skill.target === "ground") {
+      const vectors = [
+        { x: 0, y: 1 },
+        { x: -0.7071, y: 0.7071 },
+        { x: -1, y: 0 },
+        { x: -0.7071, y: -0.7071 },
+        { x: 0, y: -1 },
+        { x: 0.7071, y: -0.7071 },
+        { x: 1, y: 0 },
+        { x: 0.7071, y: 0.7071 },
+      ];
+      const vector = vectors[request.dir] ?? vectors[0]!;
+      return {
+        x: runtime.mover.pos.x + vector.x * skill.rangePx,
+        y: runtime.mover.pos.y + vector.y * skill.rangePx,
+      };
+    }
+    return undefined;
+  }
+
+  private resolveAllySession(characterId: string | undefined): string | undefined {
+    if (!characterId) {
+      return undefined;
+    }
+    for (const [sessionId, player] of this.state.players) {
+      if (player.characterId === characterId) {
+        return sessionId;
+      }
+    }
+    return undefined;
+  }
+
+  private partySessionIdsFor(runtime: PlayerRuntime): string[] {
+    const party = this.parties.getByCharacter(runtime.characterId);
+    if (!party) {
+      return [];
+    }
+    const result: string[] = [];
+    for (const member of this.parties.members(party)) {
+      for (const [sessionId, active] of this.runtimes) {
+        if (active.characterId === member.characterId) {
+          result.push(sessionId);
+          break;
+        }
+      }
+    }
+    return result;
+  }
+
+  private cancelPendingCast(
+    runtime: PlayerRuntime,
+    sessionId: string,
+    reason: SkillCastCancelPayload["reason"],
+  ): void {
+    if (!runtime.pendingCast) {
+      return;
+    }
+    const skillId = runtime.pendingCast.skillId;
+    runtime.pendingCast = null;
+    const client = this.clientFor(sessionId);
+    if (client) {
+      this.safeSend(client, MSG.skillCastCancel, { skillId, reason });
+    }
+  }
+
+  private processSkillCasts(now: number): void {
+    for (const [sessionId, runtime] of this.runtimes) {
+      const pending = runtime.pendingCast;
+      if (!pending || now < pending.completesAtMs) {
+        continue;
+      }
+      runtime.pendingCast = null;
+      if (runtime.dead || runtime.warping) {
+        continue;
+      }
+      const skill = getSkill(pending.skillId);
+      const player = this.state.players.get(sessionId);
+      if (!player || !isClassId(player.classId)) {
+        continue;
+      }
+      const outcome = resolveSkillCast(
+        {
+          now,
+          rng: this.rng,
+          state: this.state,
+          runtimes: this.runtimes,
+          monsterRuntimes: this.monsterRuntimes,
+          stoneRuntimes: this.stones.stones,
+          grid: this.assets.grid,
+          casterModifiers: playerBuffModifiers(runtime.buffs, now),
+        },
+        {
+          sessionId,
+          skill,
+          rank: runtime.progression.skills[skill.id] ?? 1,
+          dir: pending.request.dir as Parameters<typeof resolveSkillCast>[1]["dir"],
+          targetPos: pending.targetPos,
+          targetMonsterId: pending.request.targetMonsterId,
+          targetStoneId: pending.request.targetStoneId,
+          allySessionId: pending.allySessionId,
+          partySessionIds: pending.partySessionIds,
+        },
+      );
+      if (outcome) {
+        this.applySkillOutcome(sessionId, skill, outcome, now);
+      }
+    }
+  }
+
+  private applySkillOutcome(
+    sessionId: string,
+    skill: ReturnType<typeof getSkill>,
+    outcome: SkillOutcome,
+    now: number,
+  ): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    const affected = new Set<string>();
+    if (outcome.stoneHits.length > 0) {
+      this.applyStoneHits(sessionId, outcome.stoneHits, now);
+    }
+    for (const status of outcome.statuses) {
+      const monster = this.monsterRuntimes.get(status.monsterId);
+      if (!monster) {
+        continue;
+      }
+      if (status.kind === "stun") {
+        applyStunAt(monster.status, status.durationMs, getMonster(monster.typeId).isBoss, now);
+      } else if (status.kind === "slow") {
+        applySlow(monster.status, status.factor, status.durationMs, now);
+      } else if (status.kind === "poison") {
+        applyPoison(
+          monster.status,
+          {
+            damagePerTick: status.damagePerTick,
+            durationMs: status.durationMs,
+            tickMs: status.tickMs,
+            sourceSessionId: status.sourceSessionId,
+          },
+          now,
+        );
+      } else {
+        monster.mover.pos = { x: status.destination.x, y: status.destination.y };
+        monster.mover.path = [];
+        const state = this.state.monsters.get(status.monsterId);
+        if (state) {
+          state.x = status.destination.x;
+          state.y = status.destination.y;
+        }
+      }
+    }
+    for (const killed of outcome.killed) {
+      this.finalizeSkillKill(killed, sessionId, now);
+    }
+    for (const heal of outcome.heals) {
+      const target = this.runtimes.get(heal.targetSessionId);
+      const targetPlayer = this.state.players.get(heal.targetSessionId);
+      if (!target || !targetPlayer || target.dead) {
+        continue;
+      }
+      target.progression.hp = Math.min(target.progression.maxHp, target.progression.hp + heal.amount);
+      targetPlayer.hp = target.progression.hp;
+      target.dirty = true;
+      affected.add(heal.targetSessionId);
+    }
+    for (const hot of outcome.hots) {
+      const target = this.runtimes.get(hot.targetSessionId);
+      if (target) {
+        target.healOverTime.push(hot);
+      }
+    }
+    const buffResults: SkillBuffResult[] = [];
+    for (const intent of outcome.buffs) {
+      const target = this.runtimes.get(intent.targetSessionId);
+      if (!target) {
+        continue;
+      }
+      const buff = applyPlayerBuff(
+        target.buffs,
+        {
+          sourceSkillId: intent.sourceSkillId,
+          name: intent.name,
+          iconKey: intent.iconKey,
+          modifiers: intent.modifiers,
+          durationMs: intent.durationMs,
+          kind: intent.kind,
+          stealth: intent.stealth,
+        },
+        now,
+      );
+      buffResults.push({
+        targetSessionId: intent.targetSessionId,
+        buff: toBuffView(buff),
+      });
+      affected.add(intent.targetSessionId);
+    }
+    for (const targetSessionId of outcome.cleanses) {
+      const target = this.runtimes.get(targetSessionId);
+      if (target) {
+        removeDebuffs(target.buffs);
+        affected.add(targetSessionId);
+      }
+    }
+    if (outcome.selfDamage > 0) {
+      runtime.progression.hp = Math.max(1, runtime.progression.hp - outcome.selfDamage);
+      player.hp = runtime.progression.hp;
+      runtime.dirty = true;
+      affected.add(sessionId);
+    }
+    if (outcome.dash) {
+      runtime.mover.pos = { x: outcome.dash.destination.x, y: outcome.dash.destination.y };
+      runtime.mover.path = [];
+      runtime.lastIntent = { kind: "none" };
+      player.x = outcome.dash.destination.x;
+      player.y = outcome.dash.destination.y;
+      player.facing = facing4Index(outcome.dash.facing);
+      runtime.dirty = true;
+    }
+    if (outcome.breaksStealth && removeStealth(runtime.buffs)) {
+      affected.add(sessionId);
+    }
+    runtime.lastCombatAtMs = Math.max(runtime.lastCombatAtMs, outcome.hits.length > 0 ? now : 0);
+
+    const payload: SkillCastPayload = {
+      eventSeq: ++this.eventSeq,
+      caster: { kind: "player", sessionId },
+      skillId: skill.id,
+      name: skill.name,
+      type: skill.type,
+      fx: skill.fx,
+      x: outcome.x,
+      y: outcome.y,
+      targetX: outcome.targetX,
+      targetY: outcome.targetY,
+      hits: outcome.hits,
+      heals: outcome.heals.map((heal) => ({
+        targetSessionId: heal.targetSessionId,
+        targetCharacterId: heal.targetCharacterId,
+        amount: heal.amount,
+        x: heal.x,
+        y: heal.y,
+      })),
+      buffs: buffResults,
+    };
+    const radiusSquared = COMBAT_EVENT_RADIUS_PX * COMBAT_EVENT_RADIUS_PX;
+    for (const client of this.clients) {
+      const other = this.runtimes.get(client.sessionId);
+      if (!other) {
+        continue;
+      }
+      const dx = other.mover.pos.x - outcome.x;
+      const dy = other.mover.pos.y - outcome.y;
+      if (dx * dx + dy * dy <= radiusSquared) {
+        this.safeSend(client, MSG.skillCast, payload);
+      }
+    }
+    for (const affectedId of affected) {
+      this.sendSelfStats(affectedId);
+      this.sendBuffState(affectedId);
+    }
+    this.sendSelfStats(sessionId);
+    this.sendBuffState(sessionId);
+  }
+
+  private finalizeSkillKill(killed: KilledMonster, killerSessionId: string, now: number): void {
+    this.state.monsters.delete(killed.monsterId);
+    this.monsterRuntimes.delete(killed.monsterId);
+    notifyMonsterDeath(this.spawns, killed.monsterId, now);
+    this.broadcastBossTimers();
+    const payload: MonsterDiedPayload = { ...killed, killerSessionId };
+    for (const client of this.clients) {
+      this.safeSend(client, MSG.monsterDied, payload);
+    }
+    const killer = this.runtimes.get(killerSessionId);
+    if (killer?.targetMonsterId === killed.monsterId) {
+      this.clearAutoWalk(killer, killerSessionId, "target_lost");
+    }
+    this.awardXpForKill(killed, killerSessionId);
+    void this.spawnDrops(killed, killerSessionId, now).catch((error: unknown) => {
+      logger.error({ roomId: this.roomId, monsterId: killed.monsterId, error }, "drop spawn failed");
+    });
+  }
+
+  private sendBuffState(sessionId: string): void {
+    const runtime = this.runtimes.get(sessionId);
+    const client = this.clientFor(sessionId);
+    if (!runtime || !client) {
+      return;
+    }
+    const payload: BuffStatePayload = { buffs: buffViews(runtime.buffs, Date.now()) };
+    this.safeSend(client, MSG.buffState, payload);
+  }
+
+  private tickSkillEffects(now: number): void {
+    for (const [sessionId, runtime] of this.runtimes) {
+      if (pruneExpiredBuffs(runtime.buffs, now)) {
+        this.sendBuffState(sessionId);
+        this.sendSelfStats(sessionId);
+      }
+      if (runtime.healOverTime.length === 0) {
+        continue;
+      }
+      let changed = false;
+      for (const hot of runtime.healOverTime) {
+        if (now < hot.nextTickAtMs) {
+          continue;
+        }
+        hot.nextTickAtMs += hot.tickMs;
+        runtime.progression.hp = Math.min(
+          runtime.progression.maxHp,
+          runtime.progression.hp + hot.amountPerTick,
+        );
+        const player = this.state.players.get(sessionId);
+        if (player) {
+          player.hp = runtime.progression.hp;
+        }
+        changed = true;
+      }
+      runtime.healOverTime = runtime.healOverTime.filter((hot) => hot.expiresAtMs > now);
+      if (changed) {
+        runtime.dirty = true;
+        this.sendSelfStats(sessionId);
+      }
+    }
+
+    const context = {
+      now,
+      rng: this.rng,
+      state: this.state,
+      runtimes: this.runtimes,
+      monsterRuntimes: this.monsterRuntimes,
+      stoneRuntimes: this.stones.stones,
+    };
+    for (const [monsterId, monster] of this.monsterRuntimes) {
+      const tick = tickPoison(monster.status, now);
+      if (!tick) {
+        continue;
+      }
+      const applied = applyDamageToMonster(
+        context,
+        tick.sourceSessionId,
+        monsterId,
+        tick.damage,
+        now,
+      );
+      if (applied?.killed) {
+        this.finalizeSkillKill(applied.killed, tick.sourceSessionId, now);
+      }
+    }
+  }
+
   private allocateStat(sessionId: string, stat: StatKey): void {
     const runtime = this.runtimes.get(sessionId);
     const player = this.state.players.get(sessionId);
@@ -3337,7 +3825,7 @@ export class MapRoom extends Room {
   private playerSnapshots(): AiPlayerSnapshot[] {
     const snapshots: AiPlayerSnapshot[] = [];
     for (const [sessionId, runtime] of this.runtimes) {
-      if (runtime.invisible) {
+      if (runtime.invisible || hasStealth(runtime.buffs, Date.now())) {
         continue;
       }
       snapshots.push({
@@ -3470,6 +3958,9 @@ export class MapRoom extends Room {
     }
     runtime.warping = true;
     runtime.inventoryClosed = true;
+    runtime.pendingCast = null;
+    runtime.buffs.clear();
+    runtime.healOverTime = [];
     // A return scroll calls beginWarp from inside the inventory chain. Awaiting
     // that same chain here would deadlock, so the caller that owns it skips it.
     if (options.awaitInventory !== false) {
@@ -3647,6 +4138,9 @@ export class MapRoom extends Room {
     const moved = dx !== 0 || dy !== 0;
 
     if (moved) {
+      if (runtime.pendingCast) {
+        this.cancelPendingCast(runtime, sessionId, "moved");
+      }
       runtime.dirty = true;
       player.x = to.x;
       player.y = to.y;

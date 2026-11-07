@@ -17,6 +17,7 @@ import {
   type Vec2,
 } from "@jadethrone/shared";
 import type { MonsterAggroType } from "@jadethrone/data/monsters";
+import { isStunned, movementFactor } from "../skills/effects";
 import type { MonsterAiState, MonsterRuntime } from "./monsterRuntime";
 import type { MonsterState } from "./state/WorldState";
 
@@ -208,6 +209,11 @@ export function stepMonsterAi(
   let attackTargetId: string | undefined;
   let arrivedHome = false;
 
+  if (isStunned(runtime.status, now)) {
+    syncMonsterState(state, runtime, from, null);
+    return {};
+  }
+
   // Leash first: a target that fled far enough must not freeze the monster in
   // chase because the sleep gate would otherwise stop it from walking home.
   if (
@@ -351,7 +357,13 @@ export function stepMonsterAi(
     }
   }
 
-  runtime.mover = stepMover(runtime.mover, intent, ctx.grid, TICK_MS, spec.moveSpeed);
+  runtime.mover = stepMover(
+    runtime.mover,
+    intent,
+    ctx.grid,
+    TICK_MS,
+    spec.moveSpeed * movementFactor(runtime.status, now),
+  );
   syncMonsterState(state, runtime, from, faceToward);
 
   return { attackTargetId, arrivedHome: arrivedHome || undefined };
