@@ -57,6 +57,20 @@ export class MonsterState extends Schema {
   @type("boolean") isBoss!: boolean;
 }
 
+/** A stationary spirit stone; HP is uint32 because stones are far above monsters. */
+export class SpiritStoneState extends Schema {
+  @type("string") stoneId!: string;
+  @type("string") infoId!: string;
+  @type("string") name!: string;
+  @type("uint8") level!: number;
+  @type("float32") x!: number;
+  @type("float32") y!: number;
+  @type("uint32") hp!: number;
+  @type("uint32") maxHp!: number;
+  @type("string") spriteKey!: string;
+  @type("string") color!: string;
+}
+
 /** A dropped item or a pile of gold (GAME_DESIGN.md §6.3). */
 export class GroundItemState extends Schema {
   @type("string") dropId!: string;
@@ -87,6 +101,10 @@ export class WorldState extends Schema {
   @view()
   @type({ map: MonsterState })
   monsters = new MapSchema<MonsterState>();
+
+  /** Stones are deliberately not StateView-filtered: they are visible far away. */
+  @type({ map: SpiritStoneState })
+  stones = new MapSchema<SpiritStoneState>();
 
   @view()
   @type({ map: GroundItemState })

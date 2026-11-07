@@ -210,7 +210,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 14 — Party XP and loot rules
 - [x] Task 15 — Pure stone manager
 - [x] Task 16 — Combat damage refactor and stone targets
-- [ ] Task 17 — Room spirit stone integration
+- [x] Task 17 — Room spirit stone integration
 - [ ] Task 18 — Field boss timer server
 - [ ] Task 19 — Client stone rendering, targeting and boss timer
 - [ ] Task 20 — Pure skill validation and cast state

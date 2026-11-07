@@ -58,6 +58,7 @@ import {
   partyRespondMessageSchema,
   partySetLootMessageSchema,
   pickupMessageSchema,
+  randomInt,
   rollDrops,
   shopBuyMessageSchema,
   shopSellMessageSchema,
@@ -95,6 +96,7 @@ import {
   type PickupResultPayload,
   type RandomSource,
   type StatKey,
+  type StoneDestroyedPayload,
   type TargetClearedReason,
   type Vec2,
   type WarpPayload,
@@ -106,6 +108,7 @@ import { getItem, hasItem } from "@jadethrone/data/items";
 import { getMonster, hasMonster } from "@jadethrone/data/monsters";
 import { getNpc } from "@jadethrone/data/npcs";
 import { getShop } from "@jadethrone/data/shops";
+import { getStone, getStoneForZone } from "@jadethrone/data/stones";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { isGmRole, parseGmCommand } from "../admin/gmCommands";
@@ -134,7 +137,7 @@ import {
 import { buildInventorySnapshot, buildWarehouseSnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import type { GroundItemRuntime } from "./groundItems";
-import { GroundItemState, PlayerState, WorldState } from "./state/WorldState";
+import { GroundItemState, PlayerState, SpiritStoneState, WorldState } from "./state/WorldState";
 import { issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
@@ -153,6 +156,7 @@ import {
   recomputeSkillPoints,
 } from "../characters/progression";
 import { defaultSpawn, type CharacterSave } from "../characters/spawn";
+import { createStoneManager, zoneIdOf, type StoneManager, type StoneRuntime } from "./stoneManager";
 import {
   buildSkillState,
   chooseDoctrine as validateDoctrineChoice,
@@ -163,11 +167,13 @@ import {
 import {
   resolveMonsterAttack,
   resolvePlayerSwing,
+  topDamageOwner,
   type KilledMonster,
+  type StoneHit,
   type SwingOutcome,
 } from "./combat";
 import { applyRegenTick } from "./regen";
-import { stepMonsterAi, type AiPlayerSnapshot } from "./monsterAi";
+import { stepMonsterAi, aggroMonster, type AiPlayerSnapshot } from "./monsterAi";
 import type { MonsterRuntime } from "./monsterRuntime";
 import {
   aggroGroup,
@@ -215,6 +221,8 @@ export class MapRoom extends Room {
   private partyBroadcastAtMs = 0;
   private shuttingDown = false;
   private spawns!: SpawnManager;
+  private stones!: StoneManager;
+  private stoneRng!: RandomSource;
   private rng!: RandomSource;
   /** Monotonic id for combat events, so clients can ignore stale arrivals. */
   private eventSeq = 0;
@@ -252,6 +260,19 @@ export class MapRoom extends Room {
       rngForGroup: (seed) => seededRandomSource(seedFromString(`${this.roomId}:${seed}`)),
     });
     spawnAllGroups(this.spawns, Date.now());
+
+    this.stoneRng = seededRandomSource(seedFromString(`${this.roomId}:stones`));
+    const stoneZones = this.assets.stoneZones.flatMap((zone) => {
+      const info = getStoneForZone(zoneIdOf(zone));
+      return info && info.mapId === this.mapId ? [{ info, zone }] : [];
+    });
+    this.stones = createStoneManager({
+      zones: stoneZones,
+      grid: this.assets.grid,
+      rng: this.stoneRng,
+      idFactory: randomUUID,
+    });
+    this.syncStoneSpawns(this.stones.spawnInitial(Date.now()));
 
     // Expired rows from a previous process are unreachable. Only `despawn_at`
     // rows are removed, so a concurrent room's live drops are never touched.
@@ -1661,6 +1682,10 @@ export class MapRoom extends Room {
     if (spawned > 0) {
       this.updateInterest();
     }
+    const stonesSpawned = this.stones.tick(now);
+    if (stonesSpawned.length > 0) {
+      this.syncStoneSpawns(stonesSpawned);
+    }
     this.tickGroundItems(now);
     if (now >= this.partyBroadcastAtMs) {
       this.refreshPartyVitals();
@@ -1677,6 +1702,7 @@ export class MapRoom extends Room {
       state: this.state,
       runtimes: this.runtimes,
       monsterRuntimes: this.monsterRuntimes,
+      stoneRuntimes: this.stones.stones,
     };
 
     for (const [sessionId, runtime] of this.runtimes) {
@@ -1731,6 +1757,10 @@ export class MapRoom extends Room {
       this.safeSend(client, MSG.combat, payload);
     }
 
+    if (outcome.stoneHits.length > 0) {
+      this.applyStoneHits(sessionId, outcome.stoneHits, now);
+    }
+
     // Aggro before cleanup: killing a monster must still wake the rest of its
     // pack (notifyMonsterDeath removes the group lookup).
     for (const monsterId of outcome.damagedMonsterIds) {
@@ -1755,6 +1785,150 @@ export class MapRoom extends Room {
           "drop spawn failed",
         );
       });
+    }
+  }
+
+  private syncStoneSpawns(stones: readonly StoneRuntime[]): void {
+    for (const runtime of stones) {
+      if (this.state.stones.has(runtime.stoneId)) {
+        continue;
+      }
+      const info = getStone(runtime.infoId);
+      const stone = new SpiritStoneState();
+      stone.stoneId = runtime.stoneId;
+      stone.infoId = runtime.infoId;
+      stone.name = info.name;
+      stone.level = info.level;
+      stone.x = runtime.x;
+      stone.y = runtime.y;
+      stone.hp = runtime.hp;
+      stone.maxHp = runtime.maxHp;
+      stone.spriteKey = info.spriteKey;
+      stone.color = info.color;
+      this.state.stones.set(runtime.stoneId, stone);
+    }
+  }
+
+  private applyStoneHits(sessionId: string, hits: readonly StoneHit[], now: number): void {
+    for (const hit of hits) {
+      const runtime = this.stones.get(hit.target.stoneId);
+      if (!runtime) {
+        continue;
+      }
+      const info = getStone(runtime.infoId);
+      const result = this.stones.damage(hit.target.stoneId, sessionId, hit.damage, now);
+      if (!result) {
+        continue;
+      }
+      const state = this.state.stones.get(hit.target.stoneId);
+      if (state) {
+        state.hp = result.hp;
+      }
+      if (result.waves > 0) {
+        this.spawnStoneWaves(runtime, info, result.waves, sessionId, now);
+      }
+      if (!result.destroyed) {
+        continue;
+      }
+      this.state.stones.delete(hit.target.stoneId);
+      this.handleStoneDestroyed(runtime, info, sessionId, now);
+    }
+  }
+
+  private spawnStoneWaves(
+    runtime: StoneRuntime,
+    info: ReturnType<typeof getStone>,
+    waves: number,
+    attackerSessionId: string,
+    now: number,
+  ): void {
+    for (let wave = 0; wave < waves; wave++) {
+      const count = randomInt(this.stoneRng, info.waveMin, info.waveMax + 1);
+      const index = randomInt(this.stoneRng, 0, info.waveMonsters.length);
+      const typeId = info.waveMonsters[index]!;
+      const spawned = spawnAdminMonsters(this.spawns, {
+        typeId,
+        count,
+        position: { x: runtime.x, y: runtime.y },
+        now,
+        rng: this.stoneRng,
+      });
+      for (const entry of spawned) {
+        const monster = this.monsterRuntimes.get(entry.monsterId);
+        if (monster) {
+          aggroMonster(monster, attackerSessionId);
+        }
+      }
+    }
+    this.updateInterest();
+  }
+
+  private handleStoneDestroyed(
+    runtime: StoneRuntime,
+    info: ReturnType<typeof getStone>,
+    killerSessionId: string,
+    now: number,
+  ): void {
+    const contributors = [...runtime.damageBy.keys()].filter((sessionId) =>
+      this.runtimes.has(sessionId),
+    );
+    const ownerSessionId = topDamageOwner(runtime.damageBy, this.runtimes, killerSessionId);
+    const recipients = new Set<string>(contributors);
+    const radiusSquared = PARTY_XP_RADIUS_PX * PARTY_XP_RADIUS_PX;
+    for (const contributor of contributors) {
+      const contributorRuntime = this.runtimes.get(contributor);
+      const party = contributorRuntime
+        ? this.parties.getByCharacter(contributorRuntime.characterId)
+        : undefined;
+      if (!contributorRuntime || !party) {
+        continue;
+      }
+      for (const member of this.parties.members(party)) {
+        const memberRuntime = this.runtimes.get(member.sessionId);
+        if (!memberRuntime || memberRuntime.dead) {
+          continue;
+        }
+        const dx = memberRuntime.mover.pos.x - runtime.x;
+        const dy = memberRuntime.mover.pos.y - runtime.y;
+        if (dx * dx + dy * dy <= radiusSquared) {
+          recipients.add(member.sessionId);
+        }
+      }
+    }
+    this.awardXpToGroup([...recipients], info.xp, info.level);
+
+    void this.spawnLoot({
+      dropTableId: info.dropTableId,
+      goldMin: info.goldMin,
+      goldMax: info.goldMax,
+      x: runtime.x,
+      y: runtime.y,
+      ownerSessionId,
+      killerSessionId,
+      now,
+    }).catch((error: unknown) => {
+      logger.error({ roomId: this.roomId, stoneId: runtime.stoneId, error }, "stone drops failed");
+    });
+
+    const payload: StoneDestroyedPayload = {
+      stoneId: runtime.stoneId,
+      typeId: info.id,
+      name: info.name,
+      x: runtime.x,
+      y: runtime.y,
+      killerSessionId,
+    };
+    const radius = COMBAT_EVENT_RADIUS_PX * COMBAT_EVENT_RADIUS_PX;
+    for (const client of this.clients) {
+      const clientRuntime = this.runtimes.get(client.sessionId);
+      if (!clientRuntime) {
+        continue;
+      }
+      const dx = clientRuntime.mover.pos.x - runtime.x;
+      const dy = clientRuntime.mover.pos.y - runtime.y;
+      if (dx * dx + dy * dy <= radius) {
+        this.safeSend(client, MSG.stoneDestroyed, payload);
+      }
     }
   }
 
@@ -1817,19 +1991,41 @@ export class MapRoom extends Room {
     if (!spec.dropTableId) {
       return;
     }
+    await this.spawnLoot({
+      dropTableId: spec.dropTableId,
+      goldMin: spec.goldMin,
+      goldMax: spec.goldMax,
+      x: killed.x,
+      y: killed.y,
+      ownerSessionId: killed.ownerSessionId,
+      killerSessionId,
+      now,
+    });
+  }
+
+  private async spawnLoot(input: {
+    dropTableId: string;
+    goldMin: number;
+    goldMax: number;
+    x: number;
+    y: number;
+    ownerSessionId: string;
+    killerSessionId: string;
+    now: number;
+  }): Promise<void> {
     const ownerRuntime =
-      this.runtimes.get(killed.ownerSessionId) ?? this.runtimes.get(killerSessionId);
+      this.runtimes.get(input.ownerSessionId) ?? this.runtimes.get(input.killerSessionId);
     const lootSourceCharacterId = ownerRuntime?.characterId ?? "";
     const dropRate = getServerServices().adminRuntime.settings.dropRate;
     const entries =
       dropRate <= 0
         ? []
-        : getDropTable(spec.dropTableId).drops.map((drop) => ({
+        : getDropTable(input.dropTableId).drops.map((drop) => ({
             ...drop,
             chance: Math.min(1, drop.chance * dropRate),
           }));
-    const rolled = rollDrops(this.rng, entries, spec.goldMin, spec.goldMax);
-    const despawnAtMs = now + GROUND_ITEM_DESPAWN_MS;
+    const rolled = rollDrops(this.rng, entries, input.goldMin, input.goldMax);
+    const despawnAtMs = input.now + GROUND_ITEM_DESPAWN_MS;
     const goldAssignment =
       rolled.gold > 0 ? this.parties.allocateLootOwner(lootSourceCharacterId) : null;
     const itemAssignments = rolled.items.map(() =>
@@ -1837,10 +2033,10 @@ export class MapRoom extends Room {
     );
 
     if (rolled.gold > 0 && goldAssignment) {
-      const position = this.dropPosition(killed);
+      const position = this.dropPosition({ x: input.x, y: input.y });
       const ownerUntilMs =
         goldAssignment.ownerPartyId || goldAssignment.ownerCharacterId
-          ? now + DROP_OWNERSHIP_MS
+          ? input.now + DROP_OWNERSHIP_MS
           : 0;
       this.addGroundItem({
         dropId: randomUUID(),
@@ -1865,10 +2061,10 @@ export class MapRoom extends Room {
       }
       const assignment = itemAssignments[index]!;
       const dropId = randomUUID();
-      const position = this.dropPosition(killed);
+      const position = this.dropPosition({ x: input.x, y: input.y });
       const ownerUntilMs =
         assignment.ownerPartyId || assignment.ownerCharacterId
-          ? now + DROP_OWNERSHIP_MS
+          ? input.now + DROP_OWNERSHIP_MS
           : 0;
       const row = {
         id: dropId,
