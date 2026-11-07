@@ -4,6 +4,7 @@ import { api } from "../network/api";
 import { getHealth } from "../network/http";
 import { logout } from "../network/session";
 import { AnnouncementBanner } from "./AnnouncementBanner";
+import { BossTimer } from "./BossTimer";
 import { AuthScreen } from "./AuthScreen";
 import { CharacterSelect } from "./CharacterSelect";
 import { CharacterWindow } from "./CharacterWindow";
@@ -147,6 +148,7 @@ export function App() {
           <Hud />
           <Hotbar />
           <AnnouncementBanner />
+          <BossTimer />
           <TargetFrame />
           <CharacterWindow />
           <InventoryWindow />

@@ -25,6 +25,7 @@ import {
   type MonsterDiedPayload,
   type NpcSpawn,
   type PickupResultPayload,
+  type StoneDestroyedPayload,
   type TiledMapJson,
   type Vec2,
   type WarpPayload,
@@ -33,6 +34,7 @@ import { getMonster } from "@jadethrone/data/monsters";
 import { getClass } from "@jadethrone/data/classes";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getNpc } from "@jadethrone/data/npcs";
+import { createPlaceholder } from "../assets/placeholders";
 import {
   consumeWarp,
   getPingMs,
@@ -115,6 +117,7 @@ interface GroundItemsCollection {
 interface RoomStateLike {
   players?: PlayersCollection;
   monsters?: MonstersCollection;
+  stones?: StonesCollection;
   groundItems?: GroundItemsCollection;
 }
 
@@ -130,6 +133,31 @@ interface MonsterVisual {
   label: Phaser.GameObjects.Text;
   barBackground: Phaser.GameObjects.Rectangle;
   barFill: Phaser.GameObjects.Rectangle;
+}
+
+interface StoneData {
+  stoneId: string;
+  infoId: string;
+  name: string;
+  level: number;
+  x: number;
+  y: number;
+  hp: number;
+  maxHp: number;
+  spriteKey: string;
+  color: string;
+}
+
+interface StoneVisual {
+  sprite: Phaser.GameObjects.Sprite;
+  shadow: Phaser.GameObjects.Ellipse;
+  label: Phaser.GameObjects.Text;
+  barBackground: Phaser.GameObjects.Rectangle;
+  barFill: Phaser.GameObjects.Rectangle;
+}
+
+interface StonesCollection {
+  forEach(callback: (stone: StoneData, stoneId: string) => void): void;
 }
 
 interface GroundVisual {
@@ -166,6 +194,8 @@ export class WorldScene extends Phaser.Scene {
   private remoteVisuals = new Map<string, RemoteVisual>();
   private monsterRegistry = new MonsterRegistry();
   private monsterVisuals = new Map<string, MonsterVisual>();
+  private stoneData = new Map<string, StoneData>();
+  private stoneVisuals = new Map<string, StoneVisual>();
   private groundVisuals = new Map<string, GroundVisual>();
   private groundData = new Map<string, GroundItemData>();
   private npcPoints: NpcSpawn[] = [];
@@ -196,6 +226,15 @@ export class WorldScene extends Phaser.Scene {
     this.remoteVisuals.clear();
     this.monsterRegistry = new MonsterRegistry();
     this.monsterVisuals.clear();
+    for (const visual of this.stoneVisuals.values()) {
+      visual.sprite.destroy();
+      visual.shadow.destroy();
+      visual.label.destroy();
+      visual.barBackground.destroy();
+      visual.barFill.destroy();
+    }
+    this.stoneVisuals.clear();
+    this.stoneData.clear();
     for (const visual of this.groundVisuals.values()) {
       visual.sprite.destroy();
       visual.beam.destroy();
@@ -439,6 +478,7 @@ export class WorldScene extends Phaser.Scene {
       }
       this.syncRemotes(snapshot, sessionId);
       this.syncMonsters(snapshot);
+      this.syncStones(snapshot);
       this.syncGroundItems(snapshot);
       this.maybeAutoLoot();
     });
@@ -457,6 +497,9 @@ export class WorldScene extends Phaser.Scene {
     });
     room.onMessage("monsterDied", (payload: MonsterDiedPayload) => {
       this.showMonsterCorpse(payload);
+    });
+    room.onMessage(MSG.stoneDestroyed, (payload: StoneDestroyedPayload) => {
+      this.showStoneDestroyed(payload);
     });
     room.onMessage("levelUp", (payload: LevelUpPayload) => {
       this.showLevelUp(payload);
@@ -559,12 +602,17 @@ export class WorldScene extends Phaser.Scene {
             until: this.time.now + 90,
           });
         }
-      } else if (
-        hit.target.kind === "player" &&
-        hit.target.sessionId === useUiStore.getState().sessionId
-      ) {
-        this.character.setTint(0xff6b5f);
-        this.time.delayedCall(80, () => this.character.clearTint());
+      } else if (hit.target.kind === "player") {
+        if (hit.target.sessionId === useUiStore.getState().sessionId) {
+          this.character.setTint(0xff6b5f);
+          this.time.delayedCall(80, () => this.character.clearTint());
+        }
+      } else if (hit.target.kind === "stone") {
+        const visual = this.stoneVisuals.get(hit.target.stoneId);
+        if (visual) {
+          visual.sprite.setTintFill();
+          this.time.delayedCall(60, () => visual.sprite.clearTint());
+        }
       }
 
       if (hit.crit) {
@@ -694,10 +742,14 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
-  /** Tab cycles visible monsters by distance from the player. */
+  /** Tab cycles visible monsters and stones by distance from the player. */
   private cycleTarget(): void {
     const now = this.time.now;
-    const candidates: Array<{ id: string; distance: number }> = [];
+    const candidates: Array<{
+      id: string;
+      kind: "monster" | "stone";
+      distance: number;
+    }> = [];
     for (const entity of this.monsterRegistry.entities.values()) {
       const pos = this.monsterRegistry.renderPosition(entity, now);
       if (!pos) {
@@ -705,16 +757,28 @@ export class WorldScene extends Phaser.Scene {
       }
       const dx = pos.x - this.character.x;
       const dy = pos.y - this.character.y;
-      candidates.push({ id: entity.id, distance: dx * dx + dy * dy });
+      candidates.push({ id: entity.id, kind: "monster", distance: dx * dx + dy * dy });
+    }
+    for (const stone of this.stoneData.values()) {
+      const dx = stone.x - this.character.x;
+      const dy = stone.y - this.character.y;
+      candidates.push({ id: stone.stoneId, kind: "stone", distance: dx * dx + dy * dy });
     }
     if (candidates.length === 0) {
       useUiStore.getState().setTargetMonster(null);
       return;
     }
     candidates.sort((a, b) => a.distance - b.distance);
-    const current = useUiStore.getState().targetMonsterId;
-    const index = candidates.findIndex((candidate) => candidate.id === current);
-    useUiStore.getState().setTargetMonster(candidates[(index + 1) % candidates.length]!.id);
+    const store = useUiStore.getState();
+    const index = candidates.findIndex(
+      (candidate) => candidate.id === (store.targetKind === "stone" ? store.targetStoneId : store.targetMonsterId),
+    );
+    const next = candidates[(index + 1) % candidates.length]!;
+    if (next.kind === "stone") {
+      store.setTargetStone(next.id);
+    } else {
+      store.setTargetMonster(next.id);
+    }
   }
 
   /** Which monster (if any) the pointer is over, using render positions. */
@@ -1218,11 +1282,151 @@ export class WorldScene extends Phaser.Scene {
           hp: target.hp,
           maxHp: target.maxHp,
           isBoss: target.isBoss,
+          kind: "monster",
         });
       } else {
         store.setTargetMonster(null);
       }
     }
+  }
+
+  private syncStones(snapshot: RoomStateLike): void {
+    const seen = new Set<string>();
+    snapshot.stones?.forEach((stone) => {
+      seen.add(stone.stoneId);
+      this.stoneData.set(stone.stoneId, { ...stone });
+      let visual = this.stoneVisuals.get(stone.stoneId);
+      if (!visual) {
+        visual = this.createStoneVisual(stone);
+        this.stoneVisuals.set(stone.stoneId, visual);
+      } else {
+        visual.sprite.setPosition(stone.x, stone.y).setDepth(stone.y);
+        visual.shadow.setPosition(stone.x, stone.y + 8).setDepth(stone.y - 1);
+        visual.label.setPosition(stone.x, stone.y - 76).setDepth(stone.y + 3);
+        visual.barBackground.setPosition(stone.x, stone.y - 88).setDepth(stone.y + 2);
+        visual.barFill.setPosition(stone.x - 40, stone.y - 88).setDepth(stone.y + 2);
+      }
+      const ratio = stone.maxHp > 0 ? Math.max(0, Math.min(1, stone.hp / stone.maxHp)) : 0;
+      visual.barBackground.setVisible(ratio < 1);
+      visual.barFill.setVisible(ratio < 1).setDisplaySize(80 * ratio, 5);
+    });
+
+    for (const [stoneId, visual] of this.stoneVisuals) {
+      if (seen.has(stoneId)) {
+        continue;
+      }
+      visual.sprite.destroy();
+      visual.shadow.destroy();
+      visual.label.destroy();
+      visual.barBackground.destroy();
+      visual.barFill.destroy();
+      this.stoneVisuals.delete(stoneId);
+      this.stoneData.delete(stoneId);
+    }
+
+    const store = useUiStore.getState();
+    if (store.targetKind === "stone" && store.targetStoneId) {
+      const target = this.stoneData.get(store.targetStoneId);
+      if (target) {
+        store.setTargetInfo({
+          id: target.stoneId,
+          name: target.name,
+          level: target.level,
+          hp: target.hp,
+          maxHp: target.maxHp,
+          isBoss: false,
+          kind: "stone",
+        });
+      } else {
+        store.setTargetStone(null);
+      }
+    }
+  }
+
+  private createStoneVisual(stone: StoneData): StoneVisual {
+    const textureKey =
+      this.textures.exists(stone.spriteKey) ||
+      createPlaceholder(this, stone.spriteKey, {
+        kind: "mob",
+        color: stone.color,
+        label: "ST",
+      })
+        ? stone.spriteKey
+        : KEY_CHARACTER;
+    const shadow = this.add
+      .ellipse(stone.x, stone.y + 8, 54, 18, 0x000000, 0.35)
+      .setDepth(stone.y - 1);
+    const sprite = this.add
+      .sprite(stone.x, stone.y, textureKey)
+      .setOrigin(0.5, 0.85)
+      .setScale(1.7)
+      .setDepth(stone.y);
+    this.tweens.add({
+      targets: sprite,
+      alpha: { from: 0.86, to: 1 },
+      duration: 900,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+    const label = this.add
+      .text(stone.x, stone.y - 76, stone.name, {
+        fontFamily: "monospace",
+        fontSize: "11px",
+        color: "#8fe3d4",
+        stroke: "#0b0f0d",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(stone.y + 3);
+    const ratio = stone.maxHp > 0 ? Math.max(0, Math.min(1, stone.hp / stone.maxHp)) : 0;
+    const barBackground = this.add
+      .rectangle(stone.x, stone.y - 88, 80, 5, 0x0b0f0d, 0.8)
+      .setOrigin(0.5, 0.5)
+      .setDepth(stone.y + 2)
+      .setVisible(ratio < 1);
+    const barFill = this.add
+      .rectangle(stone.x - 40, stone.y - 88, 80 * ratio, 4, 0x49b9a4, 1)
+      .setOrigin(0, 0.5)
+      .setDepth(stone.y + 2)
+      .setVisible(ratio < 1);
+    return { sprite, shadow, label, barBackground, barFill };
+  }
+
+  private showStoneDestroyed(payload: StoneDestroyedPayload): void {
+    this.cameras.main.shake(220, 0.008);
+    const shards = 14;
+    for (let index = 0; index < shards; index++) {
+      const angle = (index / shards) * Math.PI * 2;
+      const distance = 28 + (index % 4) * 10;
+      const shard = this.add
+        .rectangle(payload.x, payload.y - 20, 5, 5, 0x7bd3c4, 1)
+        .setDepth(payload.y + 10);
+      this.tweens.add({
+        targets: shard,
+        x: payload.x + Math.cos(angle) * distance,
+        y: payload.y - 20 + Math.sin(angle) * distance,
+        alpha: 0,
+        duration: 360 + (index % 3) * 80,
+        ease: "Quad.easeOut",
+        onComplete: () => shard.destroy(),
+      });
+    }
+  }
+
+  private stoneAtPointer(worldX: number, worldY: number): string | null {
+    let bestId: string | null = null;
+    let bestDistance = 46 * 46;
+    for (const stone of this.stoneData.values()) {
+      const dx = stone.x - worldX;
+      const dy = stone.y - 24 - worldY;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = stone.stoneId;
+      }
+    }
+    return bestId;
   }
 
   private createMonsterVisual(entity: MonsterEntity, playerLevel: number): void {
@@ -1411,6 +1615,8 @@ export class WorldScene extends Phaser.Scene {
       }
       if (this.npcAtPointer(pointer.worldX, pointer.worldY)) {
         this.input.setDefaultCursor("pointer");
+      } else if (this.stoneAtPointer(pointer.worldX, pointer.worldY)) {
+        this.input.setDefaultCursor("crosshair");
       } else if (this.monsterAtPointer(pointer.worldX, pointer.worldY)) {
         this.input.setDefaultCursor("crosshair");
       } else if (this.groundItemAtPointer(pointer.worldX, pointer.worldY)) {
@@ -1449,6 +1655,32 @@ export class WorldScene extends Phaser.Scene {
             const facing = pos ? dir8Towards(this.predictor.position, pos) : null;
             if (facing !== null) {
               this.facing = facing;
+            }
+          }
+          this.pointerHeld = false;
+          return;
+        }
+        const stoneId = this.stoneAtPointer(pointer.worldX, pointer.worldY);
+        if (stoneId) {
+          this.pathTarget = null;
+          const stone = this.stoneData.get(stoneId);
+          const store = useUiStore.getState();
+          store.setTargetStone(stoneId);
+          if (stone) {
+            store.setTargetInfo({
+              id: stone.stoneId,
+              name: stone.name,
+              level: stone.level,
+              hp: stone.hp,
+              maxHp: stone.maxHp,
+              isBoss: false,
+              kind: "stone",
+            });
+            if (this.predictor) {
+              const facing = dir8Towards(this.predictor.position, { x: stone.x, y: stone.y });
+              if (facing !== null) {
+                this.facing = facing;
+              }
             }
           }
           this.pointerHeld = false;

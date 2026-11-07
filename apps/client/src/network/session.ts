@@ -5,6 +5,7 @@ import {
   type AutoWalkPayload,
   type DeathPayload,
   type AnnouncementPayload,
+  type BossTimerPayload,
   type InputMessage,
   type InventoryErrorPayload,
   type InventorySnapshotPayload,
@@ -339,9 +340,14 @@ function bindSessionEvents(current: Room): void {
     useUiStore.getState().setAnnouncement(payload);
   });
 
+  current.onMessage(MSG.bossTimer, (payload: BossTimerPayload) => {
+    useUiStore.getState().setBossTimer(payload);
+  });
+
   // The join-time snapshot can arrive before the SDK listener is bound.
   current.send(MSG.requestStats, {});
   current.send(MSG.requestInventory, {});
+  current.send(MSG.requestBossTimer, {});
 
   current.onLeave((code) => {
     if (room === current) {

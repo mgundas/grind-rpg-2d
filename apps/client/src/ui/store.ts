@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   AccountPublic,
   AnnouncementPayload,
+  BossTimerPayload,
   CharacterSummary,
   ChatMsgPayload,
   InventorySnapshotPayload,
@@ -80,6 +81,10 @@ interface UiState {
   /** Selected monster (click/Tab) and server-driven walk mode. */
   targetMonsterId: string | null;
   setTargetMonster: (monsterId: string | null) => void;
+  /** Selected spirit stone (click/Tab). Stones are not auto-attack targets yet. */
+  targetStoneId: string | null;
+  setTargetStone: (stoneId: string | null) => void;
+  targetKind: "monster" | "stone" | null;
   targetInfo: {
     id: string;
     name: string;
@@ -87,10 +92,15 @@ interface UiState {
     hp: number;
     maxHp: number;
     isBoss: boolean;
+    kind?: "monster" | "stone";
   } | null;
   setTargetInfo: (target: UiState["targetInfo"]) => void;
   autoWalk: boolean;
   setAutoWalk: (active: boolean) => void;
+
+  /** Latest boss clocks received from the server. */
+  bossTimers: BossTimerPayload[];
+  setBossTimer: (timer: BossTimerPayload) => void;
 
   characterOpen: boolean;
   toggleCharacter: () => void;
@@ -205,12 +215,33 @@ export const useUiStore = create<UiState>((set) => ({
   setTargetMonster: (targetMonsterId) =>
     set((state) => ({
       targetMonsterId,
-      targetInfo: targetMonsterId ? state.targetInfo : null,
+      targetStoneId: targetMonsterId ? null : state.targetStoneId,
+      targetKind: targetMonsterId ? "monster" : state.targetKind === "monster" ? null : state.targetKind,
+      targetInfo:
+        targetMonsterId || state.targetKind === "stone" ? state.targetInfo : null,
     })),
+  targetStoneId: null,
+  setTargetStone: (targetStoneId) =>
+    set((state) => ({
+      targetStoneId,
+      targetMonsterId: targetStoneId ? null : state.targetMonsterId,
+      targetKind: targetStoneId ? "stone" : state.targetKind === "stone" ? null : state.targetKind,
+      targetInfo:
+        targetStoneId || state.targetKind === "monster" ? state.targetInfo : null,
+    })),
+  targetKind: null,
   targetInfo: null,
   setTargetInfo: (targetInfo) => set({ targetInfo }),
   autoWalk: false,
   setAutoWalk: (autoWalk) => set({ autoWalk }),
+  bossTimers: [],
+  setBossTimer: (timer) =>
+    set((state) => ({
+      bossTimers: [
+        ...state.bossTimers.filter((entry) => entry.bossTypeId !== timer.bossTypeId),
+        timer,
+      ],
+    })),
 
   characterOpen: false,
   toggleCharacter: () => set((state) => ({ characterOpen: !state.characterOpen })),

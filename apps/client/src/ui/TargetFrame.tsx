@@ -40,6 +40,7 @@ export function TargetFrame() {
         <span style={{ color: nameColor, fontWeight: 700 }}>
           {target.name}
           {target.isBoss ? " · BOSS" : ""}
+          {target.kind === "stone" ? " · SPIRIT STONE" : ""}
         </span>
         <span style={{ color: theme.muted }}>Lv {target.level}</span>
       </div>
