@@ -203,7 +203,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 7 — Preserve stone zones in map assets
 - [x] Task 8 — Admin read-only Skill/Stone tabs
 - [x] Task 9 — `character_skills` table and service
-- [ ] Task 10 — Doctrine, skill points and skills in progression/save
+- [x] Task 10 — Doctrine, skill points and skills in progression/save
 - [ ] Task 11 — Doctrine selection and skill upgrades
 - [ ] Task 12 — Pure party registry
 - [ ] Task 13 — Room party integration

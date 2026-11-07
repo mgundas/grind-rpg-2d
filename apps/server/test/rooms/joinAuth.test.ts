@@ -45,6 +45,7 @@ function character(overrides: Partial<CharacterRecord> = {}): CharacterRecord {
     statDex: 3,
     statPoints: 0,
     skillPoints: 0,
+    skills: {},
     map: ROOM_NAME_VILLAGE,
     x: 100,
     y: 200,

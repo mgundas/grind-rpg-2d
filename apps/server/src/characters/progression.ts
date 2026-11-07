@@ -3,6 +3,7 @@ import {
   clamp,
   maxHp,
   maxMp,
+  skillPointsForLevel,
   type ClassId,
   type FullItemStats,
   type Stats,
@@ -24,6 +25,12 @@ export interface PlayerProgression {
   xp: number;
   stats: Stats;
   statPoints: number;
+  /** Chosen doctrine, or null before level 5 / before choosing. */
+  doctrine: string | null;
+  /** Derived unspent skill points (level points minus learned ranks). */
+  skillPoints: number;
+  /** Learned skill ranks keyed by skill id. */
+  skills: Record<string, number>;
 }
 
 export function progressionFromCharacter(
@@ -47,6 +54,15 @@ export function progressionFromCharacter(
   const maximumMp =
     maxMp({ baseMp: info.baseMp, int: stats.int, level: levelled.level }) +
     (equipment?.maxMp ?? 0);
+  const doctrine =
+    character.doctrine &&
+    info.doctrines.some((candidate) => candidate.id === character.doctrine)
+      ? character.doctrine
+      : null;
+  const spentSkillPoints = Object.values(character.skills).reduce(
+    (total, rank) => total + Math.max(0, Math.floor(rank)),
+    0,
+  );
 
   return {
     // A dead-on-login row is revived at full HP rather than trapping the player
@@ -59,6 +75,9 @@ export function progressionFromCharacter(
     xp: levelled.xp,
     stats,
     statPoints: character.statPoints + levelled.statPointsGained,
+    doctrine,
+    skillPoints: Math.max(0, skillPointsForLevel(levelled.level) - spentSkillPoints),
+    skills: { ...character.skills },
   };
 }
 

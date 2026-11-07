@@ -79,6 +79,8 @@ function characterSave(overrides: Partial<CharacterSave> = {}): CharacterSave {
     statStr: 7,
     statDex: 4,
     statPoints: 3,
+    doctrine: "blade",
+    skillPoints: 2,
     ...overrides,
   };
 }
@@ -486,6 +488,8 @@ describeDb("persistence services (real Postgres)", () => {
       expect(after!.statStr).toBe(7);
       expect(after!.statDex).toBe(4);
       expect(after!.statPoints).toBe(3);
+      expect(after!.doctrine).toBe("blade");
+      expect(after!.skillPoints).toBe(2);
       expect(after!.updatedAt.getTime()).toBeGreaterThan(before!.updatedAt.getTime());
 
       await deleteCharacter(db, result.account.id, summary.id);
@@ -545,6 +549,8 @@ describeDb("persistence services (real Postgres)", () => {
         expect(row!.hp).toBe(100 + index);
         expect(row!.level).toBe(2);
         expect(row!.statPoints).toBe(3);
+        expect(row!.doctrine).toBe("blade");
+        expect(row!.skillPoints).toBe(2);
       }
 
       await expect(saveCharacterStates(db, [])).resolves.toBeUndefined();

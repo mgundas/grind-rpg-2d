@@ -43,6 +43,9 @@ export interface FakeJoinOptions {
   hairColor?: number;
   level?: number;
   role?: "player" | "gm" | "admin";
+  doctrine?: string | null;
+  skillPoints?: number;
+  skills?: Record<string, number>;
   x?: number;
   y?: number;
   spawnX?: number;
@@ -106,7 +109,7 @@ function makeCharacter(
     accountId,
     name: options.name ?? "Player",
     classId: options.classId ?? "warrior",
-    doctrine: null,
+    doctrine: options.doctrine ?? null,
     gender: options.gender ?? "male",
     hairStyle: options.hairStyle ?? 0,
     hairColor: options.hairColor ?? 0,
@@ -120,7 +123,8 @@ function makeCharacter(
     statStr: 6,
     statDex: 3,
     statPoints: 0,
-    skillPoints: 0,
+    skillPoints: options.skillPoints ?? 0,
+    skills: { ...(options.skills ?? {}) },
     map,
     x,
     y,
@@ -153,6 +157,8 @@ export function createFakeServices(): FakeServices {
           statStr: save.statStr,
           statDex: save.statDex,
           statPoints: save.statPoints,
+          doctrine: save.doctrine,
+          skillPoints: save.skillPoints,
         },
       });
     }

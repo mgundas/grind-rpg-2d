@@ -1408,6 +1408,8 @@ export class MapRoom extends Room {
       statStr: progression.stats.str,
       statDex: progression.stats.dex,
       statPoints: progression.statPoints,
+      doctrine: progression.doctrine,
+      skillPoints: progression.skillPoints,
     };
   }
 
@@ -1424,7 +1426,9 @@ export class MapRoom extends Room {
       progression.stats.int === snapshot.statInt &&
       progression.stats.str === snapshot.statStr &&
       progression.stats.dex === snapshot.statDex &&
-      progression.statPoints === snapshot.statPoints
+      progression.statPoints === snapshot.statPoints &&
+      progression.doctrine === snapshot.doctrine &&
+      progression.skillPoints === snapshot.skillPoints
     );
   }
 

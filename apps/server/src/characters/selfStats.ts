@@ -36,5 +36,7 @@ export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): Sel
     }),
     defense: defenseOf(progression.stats.vit) + equipment.defense,
     critChance: critChance(progression.stats.dex, equipment.critChance),
+    doctrine: progression.doctrine,
+    skillPoints: progression.skillPoints,
   };
 }

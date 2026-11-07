@@ -22,6 +22,7 @@ const base: CharacterRecord = {
   statDex: 3,
   statPoints: 0,
   skillPoints: 0,
+  skills: {},
   map: "map_ember_fields",
   x: 100,
   y: 100,
@@ -30,6 +31,36 @@ const base: CharacterRecord = {
 };
 
 describe("progressionFromCharacter", () => {
+  it("derives unspent skill points from level and learned ranks", () => {
+    const progression = progressionFromCharacter({
+      ...base,
+      level: 10,
+      doctrine: "blade",
+      skills: { warrior_blade_whirlwind: 2, warrior_blade_charge: 3 },
+    });
+    expect(progression.skillPoints).toBe(1);
+    expect(progression.skills).toEqual({
+      warrior_blade_whirlwind: 2,
+      warrior_blade_charge: 3,
+    });
+    expect(progression.doctrine).toBe("blade");
+  });
+
+  it("ignores a doctrine that does not belong to the class", () => {
+    expect(progressionFromCharacter({ ...base, doctrine: "dark_arts" }).doctrine).toBeNull();
+    expect(progressionFromCharacter({ ...base, doctrine: "blade" }).doctrine).toBe("blade");
+  });
+
+  it("never reports negative skill points when ranks exceed the level budget", () => {
+    const progression = progressionFromCharacter({
+      ...base,
+      level: 5,
+      skills: { warrior_blade_whirlwind: 20 },
+    });
+    expect(progression.skillPoints).toBe(0);
+  });
+
+
   it("derives max HP/MP and keeps a valid saved HP/MP", () => {
     const progression = progressionFromCharacter(base);
     expect(progression.maxHp).toBe(316);

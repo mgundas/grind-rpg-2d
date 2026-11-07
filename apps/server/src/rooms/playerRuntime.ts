@@ -123,6 +123,9 @@ const FALLBACK_PROGRESSION: PlayerProgression = {
   xp: 0,
   stats: { vit: 0, int: 0, str: 0, dex: 0 },
   statPoints: 0,
+  doctrine: null,
+  skillPoints: 0,
+  skills: {},
 };
 
 export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): PlayerRuntime {

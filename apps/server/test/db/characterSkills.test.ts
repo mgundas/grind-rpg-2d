@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CreateCharacterRequest } from "@jadethrone/shared";
 import { SKILLS } from "@jadethrone/data/skills";
 import { registerAccount, type AuthDeps } from "../../src/auth/accountService";
-import { createCharacter, deleteCharacter } from "../../src/characters/characterService";
+import { createCharacter, deleteCharacter, getCharacterForAccount } from "../../src/characters/characterService";
 import {
   loadSkillRanks,
   saveSkillRank,
@@ -223,5 +223,12 @@ describeDb("character skill persistence", () => {
         and(eq(characterSkills.characterId, characterId), eq(characterSkills.skillId, SKILL_A)),
       );
     expect(rows).toHaveLength(0);
+  });
+
+  it("loads learned ranks with the character record", async () => {
+    const { accountId, characterId } = await newCharacter();
+    await saveSkillRank(testDb.db, characterId, SKILL_A, 4);
+    const record = await getCharacterForAccount(testDb.db, accountId, characterId);
+    expect(record?.skills).toEqual({ [SKILL_A]: 4 });
   });
 });

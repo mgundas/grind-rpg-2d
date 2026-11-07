@@ -21,6 +21,8 @@ export interface CharacterSave extends PositionSave {
   statStr: number;
   statDex: number;
   statPoints: number;
+  doctrine: string | null;
+  skillPoints: number;
 }
 
 export function defaultSpawn(): PositionSave {

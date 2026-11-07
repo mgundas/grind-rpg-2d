@@ -37,6 +37,9 @@ function makePlayer(
       xp: 0,
       stats: { vit: 4, int: 3, str: 6, dex: 3 },
       statPoints: 0,
+      doctrine: null,
+      skillPoints: 0,
+      skills: {},
     },
   });
   runtime.dead = options.dead ?? false;

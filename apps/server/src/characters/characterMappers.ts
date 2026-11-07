@@ -34,6 +34,8 @@ export interface CharacterRecord {
   statDex: number;
   statPoints: number;
   skillPoints: number;
+  /** Learned skill ranks keyed by skill id (rank 0 is never stored). */
+  skills: Record<string, number>;
   map: MapId;
   x: number;
   y: number;
@@ -45,7 +47,10 @@ function invalidRow(message: string): never {
   throw new ServiceError("internal", `Corrupt character row: ${message}`);
 }
 
-export function toCharacterRecord(row: CharacterRow): CharacterRecord {
+export function toCharacterRecord(
+  row: CharacterRow,
+  skills: Record<string, number> = {},
+): CharacterRecord {
   if (!isClassId(row.classId)) invalidRow(`class "${row.classId}"`);
   if (!isGender(row.gender)) invalidRow(`gender "${row.gender}"`);
   if (!isMapId(row.mapId)) invalidRow(`map "${row.mapId}"`);
@@ -70,6 +75,7 @@ export function toCharacterRecord(row: CharacterRow): CharacterRecord {
     statDex: row.statDex,
     statPoints: row.statPoints,
     skillPoints: row.skillPoints,
+    skills,
     map: row.mapId,
     x: row.x,
     y: row.y,
