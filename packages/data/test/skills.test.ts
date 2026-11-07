@@ -10,6 +10,12 @@ describe("skills.json", () => {
     expect(skillsForDoctrine("warrior", "iron_body")).toHaveLength(6);
   });
 
+  it("defines twelve Assassin skills, six per doctrine", () => {
+    expect(SKILLS.filter((skill) => skill.classId === "assassin")).toHaveLength(12);
+    expect(skillsForDoctrine("assassin", "shadow")).toHaveLength(6);
+    expect(skillsForDoctrine("assassin", "hawk")).toHaveLength(6);
+  });
+
   it("uses unique ids and existing doctrines", () => {
     expect(new Set(SKILLS.map((skill) => skill.id)).size).toBe(SKILLS.length);
     for (const skill of SKILLS) {
@@ -29,6 +35,12 @@ describe("skills.json", () => {
     }
     for (const doctrineId of ["blade", "iron_body"]) {
       const levels = skillsForDoctrine("warrior", doctrineId).map((skill) => skill.unlockLevel);
+      expect(levels).toEqual([...levels].sort((a, b) => a - b));
+      expect(levels[0]).toBe(5);
+      expect(levels[levels.length - 1]).toBe(30);
+    }
+    for (const doctrineId of ["shadow", "hawk"]) {
+      const levels = skillsForDoctrine("assassin", doctrineId).map((skill) => skill.unlockLevel);
       expect(levels).toEqual([...levels].sort((a, b) => a - b));
       expect(levels[0]).toBe(5);
       expect(levels[levels.length - 1]).toBe(30);
