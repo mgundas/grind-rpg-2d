@@ -17,6 +17,8 @@ import { DebugOverlay } from "./DebugOverlay";
 import { Hotbar } from "./Hotbar";
 import { Hud } from "./Hud";
 import { InventoryWindow, useInventoryHotkey } from "./InventoryWindow";
+import { PartyFrames } from "./PartyFrames";
+import { PartyWindow } from "./PartyWindow";
 import { NpcDialog } from "./NpcDialog";
 import { ShopWindow } from "./ShopWindow";
 import { TargetFrame } from "./TargetFrame";
@@ -157,6 +159,8 @@ export function App() {
           <TargetFrame />
           <CharacterWindow />
           <SkillWindow />
+          <PartyWindow />
+          <PartyFrames />
           <InventoryWindow />
           <NpcDialog />
           <ShopWindow />

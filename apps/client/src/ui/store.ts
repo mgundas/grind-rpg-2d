@@ -135,6 +135,9 @@ interface UiState {
   setParty: (party: PartyStatePayload | null) => void;
   partyInvite: PartyInvitePayload | null;
   setPartyInvite: (invite: PartyInvitePayload | null) => void;
+  partyWindowOpen: boolean;
+  togglePartyWindow: () => void;
+  setPartyWindowOpen: (open: boolean) => void;
 
   characterOpen: boolean;
   toggleCharacter: () => void;
@@ -296,6 +299,9 @@ export const useUiStore = create<UiState>((set) => ({
     set({ party: party && party.partyId ? party : null }),
   partyInvite: null,
   setPartyInvite: (partyInvite) => set({ partyInvite }),
+  partyWindowOpen: false,
+  togglePartyWindow: () => set((state) => ({ partyWindowOpen: !state.partyWindowOpen })),
+  setPartyWindowOpen: (partyWindowOpen) => set({ partyWindowOpen }),
 
   characterOpen: false,
   toggleCharacter: () => set((state) => ({ characterOpen: !state.characterOpen })),

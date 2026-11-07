@@ -44,6 +44,7 @@ import {
   sendAttack,
   sendInput,
   sendInteractNpc,
+  sendPartyInvite,
   sendPickup,
   sendSetTarget,
 } from "../network/session";
@@ -66,6 +67,7 @@ const HOLD_TO_STEER_MS = 200;
 const CLICK_MAX_MS = 200;
 
 interface RemotePlayerState {
+  characterId: string;
   name: string;
   kingdom: string;
   classId: string;
@@ -806,6 +808,27 @@ export class WorldScene extends Phaser.Scene {
     return bestId;
   }
 
+  /** Which remote player (if any) the pointer is over. */
+  private remoteAtPointer(worldX: number, worldY: number): string | null {
+    const now = this.time.now;
+    let bestId: string | null = null;
+    let bestDistance = 28 * 28;
+    for (const entity of this.remoteRegistry.entities.values()) {
+      const pos = this.remoteRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      const dx = pos.x - worldX;
+      const dy = pos.y - 24 - worldY;
+      const distance = dx * dx + dy * dy;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestId = entity.characterId;
+      }
+    }
+    return bestId;
+  }
+
   private clearRemoteVisuals(): void {
     for (const visual of this.remoteVisuals.values()) {
       visual.sprite.destroy();
@@ -924,6 +947,7 @@ export class WorldScene extends Phaser.Scene {
     const visible: Record<string, RemotePlayerData> = {};
     snapshot.players?.forEach((player, sessionId) => {
       visible[sessionId] = {
+        characterId: player.characterId,
         name: player.name,
         kingdom: player.kingdom,
         classId: player.classId,
@@ -1671,6 +1695,13 @@ export class WorldScene extends Phaser.Scene {
 
     this.input.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       if (!connected()) {
+        return;
+      }
+      if (pointer.rightButtonDown()) {
+        const target = this.remoteAtPointer(pointer.worldX, pointer.worldY);
+        if (target) {
+          sendPartyInvite({ characterId: target });
+        }
         return;
       }
       this.pointerHeld = true;

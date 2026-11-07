@@ -81,6 +81,7 @@ export class SampleBuffer {
 }
 
 export interface RemotePlayerData {
+  characterId: string;
   name: string;
   kingdom: string;
   classId: string;
@@ -98,6 +99,7 @@ export interface RemotePlayerData {
 
 export interface RemoteEntity {
   sessionId: string;
+  characterId: string;
   name: string;
   kingdom: string;
   classId: string;
@@ -132,6 +134,7 @@ export class RemoteRegistry {
       if (!entity) {
         entity = {
           sessionId,
+          characterId: player.characterId,
           name: player.name,
           kingdom: player.kingdom,
           classId: player.classId,
@@ -148,6 +151,7 @@ export class RemoteRegistry {
         this.entities.set(sessionId, entity);
       }
       entity.name = player.name;
+      entity.characterId = player.characterId;
       entity.kingdom = player.kingdom;
       entity.classId = player.classId;
       entity.gender = player.gender;
