@@ -84,6 +84,7 @@ export interface PartyRegistry {
   decline(inviteId: string): boolean;
   leave(characterId: string): PartyLeaveResult;
   get(partyId: string): Party | undefined;
+  all(): Party[];
   getByCharacter(characterId: string): Party | undefined;
   getInvite(inviteId: string): PartyInvite | undefined;
   setLootRule(characterId: string, rule: PartyLootRule): Party;
@@ -355,6 +356,9 @@ export function createPartyRegistry(
     leave,
     get(partyId) {
       return parties.get(partyId);
+    },
+    all() {
+      return [...parties.values()];
     },
     getByCharacter(characterId) {
       const partyId = byCharacter.get(characterId);

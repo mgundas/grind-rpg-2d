@@ -44,6 +44,7 @@ export const PARTY_ERROR_CODES = [
   "target_offline",
   "target_self",
   "invalid_rule",
+  "internal",
 ] as const;
 export type PartyErrorCode = (typeof PARTY_ERROR_CODES)[number];
 

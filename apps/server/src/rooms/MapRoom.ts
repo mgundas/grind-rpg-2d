@@ -51,6 +51,10 @@ import {
   monsterXpGain,
   moveItemMessageSchema,
   nearestWalkable,
+  partyInviteMessageSchema,
+  partyLeaveMessageSchema,
+  partyRespondMessageSchema,
+  partySetLootMessageSchema,
   pickupMessageSchema,
   rollDrops,
   shopBuyMessageSchema,
@@ -85,6 +89,7 @@ import {
   type MapId,
   type MonsterDiedPayload,
   type NpcDialogPayload,
+  type PartyStatePayload,
   type PickupResultPayload,
   type RandomSource,
   type StatKey,
@@ -133,6 +138,13 @@ import { getServerServices } from "../services";
 import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
 import { ServiceError } from "../errors";
 import { buildSelfStats } from "../characters/selfStats";
+import {
+  createPartyRegistry,
+  PartyRuleError,
+  toPartyInvitePayload,
+  type Party,
+  type PartyMemberInput,
+} from "./party";
 import {
   progressionFromCharacter,
   recomputeMaxima,
@@ -197,6 +209,8 @@ export class MapRoom extends Room {
   private groundItems = new Map<string, GroundItemRuntime>();
   private adminActions = new Map<string, AdminLiveActions>();
   private adminRoom: AdminRoomHandle | null = null;
+  private readonly parties = createPartyRegistry();
+  private partyBroadcastAtMs = 0;
   private shuttingDown = false;
   private spawns!: SpawnManager;
   private rng!: RandomSource;
@@ -283,7 +297,16 @@ export class MapRoom extends Room {
       if (!runtime || !player) {
         return;
       }
-      if (parsed.data.text.startsWith("/") && isGmRole(runtime.role)) {
+      const text = parsed.data.text.trim();
+      if (text === "/leave") {
+        this.leavePartyCommand(client);
+        return;
+      }
+      if (/^\/invite\s+/i.test(text)) {
+        this.handlePartyInvite(client, undefined, text.replace(/^\/invite\s+/i, ""));
+        return;
+      }
+      if (text.startsWith("/") && isGmRole(runtime.role)) {
         this.handleGmCommand(client, runtime, parsed.data.text);
         return;
       }
@@ -394,6 +417,40 @@ export class MapRoom extends Room {
         return;
       }
       this.sendSkillState(client.sessionId);
+    });
+
+    this.onMessage(MSG.partyInvite, (client, raw) => {
+      const parsed = partyInviteMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid party invite");
+        return;
+      }
+      this.handlePartyInvite(client, parsed.data.characterId, parsed.data.name);
+    });
+
+    this.onMessage(MSG.partyRespond, (client, raw) => {
+      const parsed = partyRespondMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid party response");
+        return;
+      }
+      this.handlePartyRespond(client, parsed.data.inviteId, parsed.data.accept);
+    });
+
+    this.onMessage(MSG.partyLeave, (client, raw) => {
+      if (!partyLeaveMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.leavePartyCommand(client);
+    });
+
+    this.onMessage(MSG.partySetLoot, (client, raw) => {
+      const parsed = partySetLootMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid party loot rule");
+        return;
+      }
+      this.setPartyLoot(client, parsed.data.rule);
     });
 
     this.onMessage(MSG.requestStats, (client, raw) => {
@@ -817,6 +874,9 @@ export class MapRoom extends Room {
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
+    if (runtime) {
+      this.leavePartyInternal(runtime.characterId);
+    }
 
     if (runtime) {
       runtime.inventoryClosed = true;
@@ -840,6 +900,7 @@ export class MapRoom extends Room {
     }
     this.adminActions.clear();
     this.adminRoom = null;
+    this.parties.clear();
   }
 
   /**
@@ -1598,6 +1659,10 @@ export class MapRoom extends Room {
       this.updateInterest();
     }
     this.tickGroundItems(now);
+    if (now >= this.partyBroadcastAtMs) {
+      this.refreshPartyVitals();
+      this.partyBroadcastAtMs = now + 500;
+    }
     this.checkWarps();
   }
 
@@ -2676,6 +2741,200 @@ export class MapRoom extends Room {
     );
   }
 
+  private partyMemberInput(
+    runtime: PlayerRuntime,
+    player: PlayerState,
+    sessionId: string,
+  ): PartyMemberInput {
+    return {
+      characterId: runtime.characterId,
+      sessionId,
+      name: player.name,
+      level: runtime.progression.level,
+      classId: player.classId,
+      hp: runtime.progression.hp,
+      maxHp: runtime.progression.maxHp,
+      mp: runtime.progression.mp,
+      maxMp: runtime.progression.maxMp,
+      dead: runtime.dead,
+    };
+  }
+
+  private resolvePartyTarget(
+    characterId: string | undefined,
+    name: string | undefined,
+  ): { client: Client; runtime: PlayerRuntime; player: PlayerState; sessionId: string } | null {
+    const wantedName = name?.trim().toLowerCase();
+    for (const [sessionId, player] of this.state.players) {
+      const runtime = this.runtimes.get(sessionId);
+      if (!runtime) {
+        continue;
+      }
+      if (
+        (characterId && player.characterId === characterId) ||
+        (wantedName && player.name.toLowerCase() === wantedName)
+      ) {
+        const client = this.clientFor(sessionId);
+        if (client) {
+          return { client, runtime, player, sessionId };
+        }
+      }
+    }
+    return null;
+  }
+
+  private handlePartyInvite(
+    client: Client,
+    characterId: string | undefined,
+    name: string | undefined,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    try {
+      let party = this.parties.getByCharacter(runtime.characterId);
+      if (!party) {
+        party = this.parties.create(this.partyMemberInput(runtime, player, client.sessionId));
+        this.sendPartyState(party);
+      }
+      const target = this.resolvePartyTarget(characterId, name);
+      if (!target) {
+        throw new PartyRuleError("target_offline", "That player is not in this room.");
+      }
+      const invite = this.parties.invite(
+        runtime.characterId,
+        target.player.characterId,
+        target.player.name,
+      );
+      this.safeSend(target.client, MSG.partyInvite, toPartyInvitePayload(invite));
+    } catch (error) {
+      this.sendPartyError(client, error);
+    }
+  }
+
+  private handlePartyRespond(client: Client, inviteId: string, accept: boolean): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    try {
+      if (!accept) {
+        if (!this.parties.decline(inviteId)) {
+          throw new PartyRuleError("invite_not_found", "That invitation is no longer available.");
+        }
+        return;
+      }
+      const party = this.parties.accept(
+        inviteId,
+        this.partyMemberInput(runtime, player, client.sessionId),
+      );
+      this.broadcastParty(party);
+    } catch (error) {
+      this.sendPartyError(client, error);
+    }
+  }
+
+  private leavePartyCommand(client: Client): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    try {
+      const result = this.parties.leave(runtime.characterId);
+      this.sendEmptyParty(client);
+      if (result.party) {
+        this.broadcastParty(result.party);
+      }
+    } catch (error) {
+      this.sendPartyError(client, error);
+    }
+  }
+
+  /** Warp/disconnect cleanup: no client message to the leaving member. */
+  private leavePartyInternal(characterId: string): void {
+    try {
+      const result = this.parties.leave(characterId);
+      if (result.party) {
+        this.broadcastParty(result.party);
+      }
+    } catch {
+      // Not in a party.
+    }
+  }
+
+  private setPartyLoot(client: Client, rule: "free_for_all" | "round_robin"): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    try {
+      const party = this.parties.setLootRule(runtime.characterId, rule);
+      this.broadcastParty(party);
+    } catch (error) {
+      this.sendPartyError(client, error);
+    }
+  }
+
+  private sendPartyError(client: Client, error: unknown): void {
+    if (error instanceof PartyRuleError) {
+      this.safeSend(client, MSG.partyError, { code: error.code, message: error.message });
+      return;
+    }
+    logger.error({ roomId: this.roomId, session: client.sessionId, error }, "party command failed");
+    this.safeSend(client, MSG.partyError, {
+      code: "internal",
+      message: "Party action failed. Try again.",
+    });
+  }
+
+  private sendPartyState(party: Party): void {
+    this.broadcastParty(party);
+  }
+
+  private broadcastParty(party: Party): void {
+    const snapshot: PartyStatePayload = this.parties.snapshot(party);
+    for (const member of party.members.values()) {
+      const client = this.clientFor(member.sessionId);
+      if (client) {
+        this.safeSend(client, MSG.partyState, snapshot);
+      }
+    }
+  }
+
+  private sendEmptyParty(client: Client): void {
+    const empty: PartyStatePayload = {
+      partyId: "",
+      leaderCharacterId: "",
+      lootRule: "free_for_all",
+      members: [],
+    };
+    this.safeSend(client, MSG.partyState, empty);
+  }
+
+  private refreshPartyVitals(): void {
+    for (const party of this.parties.all()) {
+      for (const member of party.members.values()) {
+        const runtime = this.runtimes.get(member.sessionId);
+        const player = this.state.players.get(member.sessionId);
+        if (!runtime || !player) {
+          continue;
+        }
+        this.parties.updateMember(member.characterId, {
+          level: runtime.progression.level,
+          hp: runtime.progression.hp,
+          maxHp: runtime.progression.maxHp,
+          mp: runtime.progression.mp,
+          maxMp: runtime.progression.maxMp,
+          dead: runtime.dead,
+        });
+      }
+      this.broadcastParty(party);
+    }
+  }
+
   private allocateStat(sessionId: string, stat: StatKey): void {
     const runtime = this.runtimes.get(sessionId);
     const player = this.state.players.get(sessionId);
@@ -2886,6 +3145,7 @@ export class MapRoom extends Room {
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
+    this.leavePartyInternal(runtime.characterId);
     // The move is intentional; do not let the target join "kick" this session.
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
     this.unregisterAdminSession(client.sessionId);
