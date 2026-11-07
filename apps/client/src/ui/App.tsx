@@ -8,6 +8,7 @@ import { BossTimer } from "./BossTimer";
 import { AuthScreen } from "./AuthScreen";
 import { CharacterSelect } from "./CharacterSelect";
 import { CharacterWindow } from "./CharacterWindow";
+import { SkillWindow } from "./SkillWindow";
 import { Chat } from "./Chat";
 import { DeathScreen } from "./DeathScreen";
 import { DebugOverlay } from "./DebugOverlay";
@@ -151,6 +152,7 @@ export function App() {
           <BossTimer />
           <TargetFrame />
           <CharacterWindow />
+          <SkillWindow />
           <InventoryWindow />
           <NpcDialog />
           <ShopWindow />

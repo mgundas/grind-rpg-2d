@@ -218,7 +218,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 22 — Pure skill combat resolution
 - [x] Task 23 — Room skill casting and buff integration
 - [x] Task 24 — Client network and store fields
-- [ ] Task 25 — Skill window and doctrine selection
+- [x] Task 25 — Skill window and doctrine selection
 - [ ] Task 26 — Two-row hotbar and skill casting
 - [ ] Task 27 — Skill FX, cast bar and buff bar
 - [ ] Task 28 — Party window, frames and invite-by-click

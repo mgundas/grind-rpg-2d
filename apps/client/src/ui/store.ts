@@ -111,6 +111,18 @@ interface UiState {
   /** Owner-only skill/doctrine snapshot. */
   skillState: SkillStatePayload | null;
   setSkillState: (state: SkillStatePayload | null) => void;
+  skillWindowOpen: boolean;
+  toggleSkillWindow: () => void;
+  setSkillWindowOpen: (open: boolean) => void;
+  /** Skill definition currently being dragged to the hotbar. */
+  draggedSkillId: string | null;
+  setDraggedSkillId: (skillId: string | null) => void;
+  /** World cursor in scene coordinates, used by ground-targeted skills. */
+  cursorWorld: { x: number; y: number } | null;
+  setCursorWorld: (point: { x: number; y: number } | null) => void;
+  /** Party member selected in the frames for ally heals/buffs. */
+  healTargetCharacterId: string | null;
+  setHealTargetCharacterId: (characterId: string | null) => void;
   /** Active cast bar, or null when idle. */
   castState: SkillCastStartPayload | null;
   setCastState: (state: SkillCastStartPayload | null) => void;
@@ -266,6 +278,15 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   skillState: null,
   setSkillState: (skillState) => set({ skillState }),
+  skillWindowOpen: false,
+  toggleSkillWindow: () => set((state) => ({ skillWindowOpen: !state.skillWindowOpen })),
+  setSkillWindowOpen: (skillWindowOpen) => set({ skillWindowOpen }),
+  draggedSkillId: null,
+  setDraggedSkillId: (draggedSkillId) => set({ draggedSkillId }),
+  cursorWorld: null,
+  setCursorWorld: (cursorWorld) => set({ cursorWorld }),
+  healTargetCharacterId: null,
+  setHealTargetCharacterId: (healTargetCharacterId) => set({ healTargetCharacterId }),
   castState: null,
   setCastState: (castState) => set({ castState }),
   buffs: [],
