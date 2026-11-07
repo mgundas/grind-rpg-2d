@@ -6,6 +6,7 @@ import { PlayersPage } from "./pages/PlayersPage";
 import { GameDataPage } from "./pages/GameDataPage";
 import { AnnouncementsPage } from "./pages/AnnouncementsPage";
 import { ServerPage } from "./pages/ServerPage";
+import { LogsPage } from "./pages/LogsPage";
 import { currentPageLabel, useAdminStore, type AdminPage } from "./store";
 
 const NAV: AdminPage[] = ["dashboard", "live", "players", "data", "announcements", "logs", "server"];
@@ -77,17 +78,6 @@ function LoginPage() {
   );
 }
 
-function PlaceholderPage({ page }: { page: AdminPage }) {
-  return (
-    <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-6">
-      <h2 className="text-lg font-semibold text-[var(--gold)]">{currentPageLabel(page)}</h2>
-      <p className="mt-2 text-sm text-[#8d9a94]">
-        This page is wired in the next Phase 5 task.
-      </p>
-    </div>
-  );
-}
-
 function Shell() {
   const account = useAdminStore((state) => state.account);
   const page = useAdminStore((state) => state.page);
@@ -147,7 +137,7 @@ function Shell() {
           ) : page === "server" ? (
             <ServerPage />
           ) : (
-            <PlaceholderPage page={page} />
+            <LogsPage />
           )}
         </main>
       </div>

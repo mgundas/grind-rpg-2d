@@ -184,7 +184,7 @@ Plan: `docs/plans/phase-5.md`.
 - [x] Task 18 — Admin player search and detail
 - [x] Task 19 — Admin player actions
 - [x] Task 20 — Admin announcements, server controls, game data
-- [ ] Task 21 — Admin logs page
+- [x] Task 21 — Admin logs page
 - [ ] Task 22 — Verification tooling and docs
 - [ ] Task 23 — Phase gate
 
