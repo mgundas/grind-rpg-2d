@@ -1,7 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { getClass } from "@jadethrone/data/classes";
 import { skillsForDoctrine } from "../data/catalog";
-import { sendChooseDoctrine, sendUpgradeSkill } from "../network/session";
+import {
+  sendChooseDoctrine,
+  sendReadSkillBook,
+  sendUpgradeSkill,
+} from "../network/session";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 import { Window } from "./Window";
@@ -12,6 +16,11 @@ export function SkillWindow() {
   const state = useUiStore((state) => state.skillState);
   const characters = useUiStore((state) => state.characters);
   const selectedId = useUiStore((state) => state.selectedCharacterId);
+  const skillBookTarget = useUiStore((state) => state.skillBookTarget);
+  const cancelSkillBook = useUiStore((state) => state.cancelSkillBook);
+  const skillBookResult = useUiStore((state) => state.skillBookResult);
+  const setSkillBookResult = useUiStore((state) => state.setSkillBookResult);
+  const [nowMs, setNowMs] = useState(0);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -20,6 +29,10 @@ export function SkillWindow() {
         return;
       }
       const store = useUiStore.getState();
+      if (event.key === "Escape" && store.skillBookTarget.active) {
+        store.cancelSkillBook();
+        return;
+      }
       if (event.key === "Escape" && store.skillWindowOpen) {
         store.setSkillWindowOpen(false);
         return;
@@ -31,6 +44,21 @@ export function SkillWindow() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    const update = () => setNowMs(Date.now());
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!skillBookResult) {
+      return;
+    }
+    const timer = setTimeout(() => setSkillBookResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [skillBookResult, setSkillBookResult]);
 
   if (!open || !self) {
     return null;
@@ -55,6 +83,47 @@ export function SkillWindow() {
           Points: {state?.skillPoints ?? self.skillPoints ?? 0} / {state?.totalSkillPoints ?? "?"}
         </span>
       </div>
+
+      {skillBookTarget.active ? (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "6px 8px",
+            borderRadius: 5,
+            border: "1px solid rgba(201,162,39,0.55)",
+            background: "rgba(201,162,39,0.1)",
+            fontSize: 10,
+            color: theme.gold,
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <span>Select a rank-20 skill to read the mastery tome.</span>
+          <button type="button" style={{ padding: "1px 6px", fontSize: 9 }} onClick={cancelSkillBook}>
+            Cancel (Esc)
+          </button>
+        </div>
+      ) : null}
+      {skillBookResult ? (
+        <div
+          style={{
+            marginBottom: 8,
+            padding: "6px 8px",
+            borderRadius: 5,
+            border: `1px solid ${skillBookResult.ok && skillBookResult.success ? theme.jade : theme.danger}`,
+            background: "rgba(255,255,255,0.03)",
+            fontSize: 10,
+            color: skillBookResult.ok ? theme.text : theme.danger,
+          }}
+        >
+          {skillBookResult.ok
+            ? skillBookResult.success
+              ? `Mastery advanced to M${skillBookResult.masterLevel ?? 0}.`
+              : `The reading failed; mastery stays at M${skillBookResult.masterLevel ?? 0}.`
+            : (skillBookResult.message ?? skillBookResult.code?.replaceAll("_", " "))}
+        </div>
+      ) : null}
 
       {!classInfo ? (
         <p style={{ fontSize: 11, color: theme.muted }}>Waiting for character data…</p>
@@ -97,14 +166,27 @@ export function SkillWindow() {
       ) : (
         <div style={{ display: "grid", gap: 5 }}>
           {skillsForDoctrine(classInfo.id, doctrine).map((skill) => {
-            const rank = state?.skills.find((entry) => entry.skillId === skill.id)?.rank ?? 0;
+            const rankView = state?.skills.find((entry) => entry.skillId === skill.id);
+            const rank = rankView?.rank ?? 0;
+            const masterLevel = rankView?.masterLevel ?? 0;
+            const nextReadAtMs = rankView?.nextReadAtMs ?? 0;
             const locked = self.level < skill.unlockLevel;
             const canLearn =
               !locked && rank < skill.maxRank && (state?.skillPoints ?? 0) > 0;
+            const canRead =
+              skillBookTarget.active &&
+              rank >= 20 &&
+              masterLevel < 10 &&
+              nowMs >= nextReadAtMs;
             return (
               <div
                 key={skill.id}
-                draggable={rank > 0}
+                draggable={rank > 0 && !skillBookTarget.active}
+                onClick={() => {
+                  if (skillBookTarget.active && canRead) {
+                    sendReadSkillBook(skillBookTarget.bookInstanceId, skill.id);
+                  }
+                }}
                 onDragStart={(event) => {
                   event.dataTransfer.setData("text/x-jt-skill", skill.id);
                   useUiStore.getState().setDraggedSkillId(skill.id);
@@ -128,6 +210,7 @@ export function SkillWindow() {
                     </span>
                     <span style={{ fontSize: 9, color: theme.gold }}>
                       {rank > 0 ? `Rank ${rank}/${skill.maxRank}` : locked ? `Lv ${skill.unlockLevel}` : "Not learned"}
+                      {masterLevel > 0 ? ` · M${masterLevel}` : ""}
                     </span>
                   </div>
                   <div style={{ fontSize: 10, color: theme.muted, marginTop: 2 }}>
@@ -135,8 +218,37 @@ export function SkillWindow() {
                   </div>
                   <div style={{ fontSize: 9, color: "#7d8a84", marginTop: 2 }}>
                     {skill.mpCost.base} MP · {skill.cooldownMs / 1000}s CD · {skill.type}
+                    {rank >= 20 && masterLevel < 10 && nextReadAtMs > nowMs
+                      ? ` · reading ready in ${Math.ceil((nextReadAtMs - nowMs) / 60_000)}m`
+                      : ""}
                   </div>
                 </div>
+                {skillBookTarget.active ? (
+                  <button
+                    type="button"
+                    disabled={!canRead}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (canRead) {
+                        sendReadSkillBook(skillBookTarget.bookInstanceId, skill.id);
+                      }
+                    }}
+                    style={{
+                      alignSelf: "center",
+                      minWidth: 42,
+                      height: 26,
+                      borderRadius: 5,
+                      border: `1px solid ${theme.gold}`,
+                      background: canRead ? "rgba(201,162,39,0.25)" : "transparent",
+                      color: canRead ? theme.gold : theme.muted,
+                      fontWeight: 700,
+                      cursor: canRead ? "pointer" : "default",
+                      fontSize: 9,
+                    }}
+                  >
+                    Read
+                  </button>
+                ) : (
                 <button
                   type="button"
                   disabled={!canLearn}
@@ -155,6 +267,7 @@ export function SkillWindow() {
                 >
                   +
                 </button>
+                )}
               </div>
             );
           })}

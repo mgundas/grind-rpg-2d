@@ -17,6 +17,7 @@ interface ItemGridProps {
   scrollMode?: boolean;
   onApplyScroll?: (instanceId: string) => void;
   onSelectScroll?: (instanceId: string, itemId: string) => void;
+  onSelectSkillBook?: (instanceId: string) => void;
 }
 
 export interface DragState {
@@ -49,6 +50,7 @@ export function ItemGrid({
   scrollMode = false,
   onApplyScroll,
   onSelectScroll,
+  onSelectSkillBook,
 }: ItemGridProps) {
   const pageItems = items.filter(
     (item) => item.slot >= startSlot && item.slot < startSlot + slotCount,
@@ -135,7 +137,9 @@ export function ItemGrid({
             onPointerLeave={() => onHover(null, 0, 0)}
             onContextMenu={(event) => {
               event.preventDefault();
-              if (isBonusScrollId(item.itemId)) {
+              if (definition.effect?.kind === "skill_book") {
+                onSelectSkillBook?.(item.id);
+              } else if (isBonusScrollId(item.itemId)) {
                 onSelectScroll?.(item.id, item.itemId);
               } else if (equipSlotForItemType(definition.type)) {
                 onEquip(item.id);

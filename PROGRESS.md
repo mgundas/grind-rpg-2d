@@ -274,7 +274,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 11 — Skill mastery data, persistence and effective ranks
 - [x] Task 12 — Skill-book item, drop and pure read planner
 - [x] Task 13 — Atomic skill-book transaction and room handler
-- [ ] Task 14 — Client skill-book UX
+- [x] Task 14 — Client skill-book UX
 - [ ] Task 15 — PvP rules, modes and map enforcement
 - [ ] Task 16 — PvP combat integration
 - [ ] Task 17 — Client PvP targeting, mode and name colors

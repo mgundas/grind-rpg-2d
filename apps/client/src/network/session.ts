@@ -26,6 +26,7 @@ import {
   type RespawnOption,
   type SelfStatsPayload,
   type SessionKickedPayload,
+  type SkillBookResultPayload,
   type SkillCastStartPayload,
   type SkillErrorPayload,
   type SkillStatePayload,
@@ -210,6 +211,8 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setGuildInvite(null);
   leaving.setGuildError(null);
   leaving.setGuildOpen(false);
+  leaving.cancelSkillBook();
+  leaving.setSkillBookResult(null);
   if (!current) {
     return;
   }
@@ -278,6 +281,10 @@ export function sendGuildSetRank(characterId: string, rank: "officer" | "member"
 
 export function sendGuildDisband(): void {
   room?.send(MSG.guildDisband, {});
+}
+
+export function sendReadSkillBook(bookInstanceId: string, skillId: string): void {
+  room?.send(MSG.readSkillBook, { bookInstanceId, skillId });
 }
 
 export function sendAttack(dir?: number): void {
@@ -560,6 +567,14 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.skillState, (payload: SkillStatePayload) => {
     useUiStore.getState().setSkillState(payload);
+  });
+
+  current.onMessage(MSG.skillBookResult, (payload: SkillBookResultPayload) => {
+    const store = useUiStore.getState();
+    store.setSkillBookResult(payload);
+    if (payload.ok) {
+      store.cancelSkillBook();
+    }
   });
 
   current.onMessage(MSG.skillCastStart, (payload: SkillCastStartPayload) => {

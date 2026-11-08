@@ -21,6 +21,7 @@ import type {
   SelfStatsPayload,
   SessionKickReason,
   SkillCastStartPayload,
+  SkillBookResultPayload,
   SkillStatePayload,
   UpgradePreview,
   UpgradeResultPayload,
@@ -43,6 +44,11 @@ import {
   type ChatTabsAction,
   type ChatTabsState,
 } from "./chatTabs";
+import {
+  IDLE_SKILL_BOOK_TARGET,
+  skillBookTargetReducer,
+  type SkillBookTarget,
+} from "./skillBook";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -207,6 +213,12 @@ interface UiState {
   /** Increment to ask the chat input to focus itself. */
   chatFocusRequest: number;
   requestChatFocus: () => void;
+
+  skillBookTarget: SkillBookTarget;
+  beginSkillBook: (bookInstanceId: string) => void;
+  cancelSkillBook: () => void;
+  skillBookResult: SkillBookResultPayload | null;
+  setSkillBookResult: (result: SkillBookResultPayload | null) => void;
 
   blacksmithOpen: boolean;
   setBlacksmithOpen: (open: boolean) => void;
@@ -422,6 +434,21 @@ export const useUiStore = create<UiState>((set) => ({
 
   chatFocusRequest: 0,
   requestChatFocus: () => set((state) => ({ chatFocusRequest: state.chatFocusRequest + 1 })),
+
+  skillBookTarget: IDLE_SKILL_BOOK_TARGET,
+  beginSkillBook: (bookInstanceId) =>
+    set((state) => ({
+      skillBookTarget: skillBookTargetReducer(state.skillBookTarget, {
+        type: "begin",
+        bookInstanceId,
+      }),
+    })),
+  cancelSkillBook: () =>
+    set((state) => ({
+      skillBookTarget: skillBookTargetReducer(state.skillBookTarget, { type: "cancel" }),
+    })),
+  skillBookResult: null,
+  setSkillBookResult: (skillBookResult) => set({ skillBookResult }),
 
   blacksmithOpen: false,
   setBlacksmithOpen: (blacksmithOpen) =>

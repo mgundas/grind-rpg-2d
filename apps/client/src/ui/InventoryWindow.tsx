@@ -36,6 +36,8 @@ export function InventoryWindow() {
   const cancelScrollTarget = useUiStore((state) => state.cancelScrollTarget);
   const bonusScrollResult = useUiStore((state) => state.bonusScrollResult);
   const setBonusScrollResult = useUiStore((state) => state.setBonusScrollResult);
+  const beginSkillBook = useUiStore((state) => state.beginSkillBook);
+  const setSkillWindowOpen = useUiStore((state) => state.setSkillWindowOpen);
   const [hover, setHover] = useState<Hover | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
 
@@ -188,6 +190,10 @@ export function InventoryWindow() {
             scrollMode={scrollTarget.active}
             onApplyScroll={applyScrollTo}
             onSelectScroll={(instanceId, itemId) => beginScrollTarget(instanceId, itemId)}
+            onSelectSkillBook={(instanceId) => {
+              beginSkillBook(instanceId);
+              setSkillWindowOpen(true);
+            }}
           />
           <ItemGrid
             items={items}
@@ -202,6 +208,10 @@ export function InventoryWindow() {
             scrollMode={scrollTarget.active}
             onApplyScroll={applyScrollTo}
             onSelectScroll={(instanceId, itemId) => beginScrollTarget(instanceId, itemId)}
+            onSelectSkillBook={(instanceId) => {
+              beginSkillBook(instanceId);
+              setSkillWindowOpen(true);
+            }}
           />
           <EquipmentPanel
             equipment={inventory?.equipment ?? Array.from({ length: 8 }, () => null)}
