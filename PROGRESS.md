@@ -271,7 +271,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 8 — Server chat channels and routing
 - [x] Task 9 — Client chat tabs, history and whisper flow
 - [x] Task 10 — Client guild and friends windows
-- [ ] Task 11 — Skill mastery data, persistence and effective ranks
+- [x] Task 11 — Skill mastery data, persistence and effective ranks
 - [ ] Task 12 — Skill-book item, drop and pure read planner
 - [ ] Task 13 — Atomic skill-book transaction and room handler
 - [ ] Task 14 — Client skill-book UX

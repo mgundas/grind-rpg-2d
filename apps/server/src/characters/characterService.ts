@@ -29,6 +29,7 @@ import {
 import { ServiceError } from "../errors";
 import { buildStarterKit } from "../items/starterKit";
 import { loadSkillRanks } from "./characterSkills";
+import { loadSkillMastery } from "./skillMastery";
 import { toCharacterRecord, toCharacterSummary, type CharacterRecord } from "./characterMappers";
 import { defaultSpawn, type CharacterSave } from "./spawn";
 
@@ -269,7 +270,8 @@ export async function getCharacterForAccount(
       return null;
     }
     const skills = await loadSkillRanks(db, characterId);
-    return toCharacterRecord(row, skills);
+    const skillMastery = await loadSkillMastery(db, characterId);
+    return toCharacterRecord(row, skills, skillMastery);
   } catch (error) {
     throw toServiceError(error);
   }

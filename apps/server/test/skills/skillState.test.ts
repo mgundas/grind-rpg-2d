@@ -57,6 +57,8 @@ describe("buildSkillState", () => {
     expect(state.skills.find((skill) => skill.skillId === "warrior_blade_whirlwind")).toEqual({
       skillId: "warrior_blade_whirlwind",
       rank: 3,
+      masterLevel: 0,
+      nextReadAtMs: 0,
       readyAtMs: 0,
     });
     expect(state.skills.find((skill) => skill.skillId === "warrior_blade_charge")?.readyAtMs).toBe(

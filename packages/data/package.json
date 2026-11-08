@@ -11,6 +11,7 @@
     "./dropTables": "./src/dropTables.ts",
     "./items": "./src/items.ts",
     "./mapPolicies": "./src/mapPolicies.ts",
+    "./mastery": "./src/mastery.ts",
     "./monsters": "./src/monsters.ts",
     "./npcs": "./src/npcs.ts",
     "./shops": "./src/shops.ts",

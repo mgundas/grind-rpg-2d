@@ -756,6 +756,10 @@ export interface SkillRankView {
   skillId: string;
   /** 0 means visible but not learned. */
   rank: number;
+  /** Master level M0–M10, stored separately from the normal rank. */
+  masterLevel: number;
+  /** Epoch ms before another skill book can be read; 0 = ready. */
+  nextReadAtMs: number;
   /** Epoch ms before which a new cast is rejected; 0 = ready. */
   readyAtMs: number;
 }

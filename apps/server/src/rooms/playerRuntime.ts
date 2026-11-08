@@ -11,6 +11,7 @@ import {
   type WarehouseState,
 } from "@jadethrone/shared";
 import type { PlayerProgression } from "../characters/progression";
+import type { SkillMasteryMap } from "../characters/skillMastery";
 import type { PlayerBuff } from "../skills/effects";
 import type { SkillHotIntent } from "../skills/skillCombat";
 import type { PendingSkillCast } from "../skills/skillRuntime";
@@ -37,6 +38,8 @@ export interface PlayerRuntime {
    * XP and stat points are sent only to the owner.
    */
   progression: PlayerProgression;
+  /** Master levels and read cooldowns keyed by skill id. */
+  skillMastery: SkillMasteryMap;
   /** Inputs received since the last tick, applied in seq order. */
   pending: InputMessage[];
   /** Highest applied input sequence. */
@@ -123,6 +126,7 @@ export interface PlayerIdentity {
   role?: AccountRole;
   channel?: number;
   progression?: PlayerProgression;
+  skillMastery?: SkillMasteryMap;
   inventory?: InventoryState;
   gold?: number;
 }
@@ -155,6 +159,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
       ...FALLBACK_PROGRESSION,
       stats: { ...FALLBACK_PROGRESSION.stats },
     },
+    skillMastery: identity.skillMastery ?? {},
     pending: [],
     lastSeq: 0,
     lastIntent: { kind: "none" },

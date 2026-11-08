@@ -7,6 +7,8 @@ import {
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import { MASTERY_RULES } from "@jadethrone/data/mastery";
+import type { SkillMasteryMap } from "../characters/skillMastery";
 import type { SkillInfo } from "@jadethrone/data/skills";
 import type { PlayerProgression } from "../characters/progression";
 
@@ -39,13 +41,21 @@ export function buildSkillState(
   classId: ClassId,
   cooldowns: ReadonlyMap<string, number> = new Map(),
   catalog: CatalogLookup = BASE_CATALOG,
+  mastery: SkillMasteryMap = {},
 ): SkillStatePayload {
   const skills = progression.doctrine
-    ? catalog.skillsForDoctrine(classId, progression.doctrine).map((skill) => ({
-        skillId: skill.id,
-        rank: progression.skills[skill.id] ?? 0,
-        readyAtMs: cooldowns.get(skill.id) ?? 0,
-      }))
+    ? catalog.skillsForDoctrine(classId, progression.doctrine).map((skill) => {
+        const entry = mastery[skill.id];
+        return {
+          skillId: skill.id,
+          rank: progression.skills[skill.id] ?? 0,
+          masterLevel: entry?.level ?? 0,
+          nextReadAtMs: entry?.lastReadAtMs
+            ? entry.lastReadAtMs + MASTERY_RULES.readCooldownMs
+            : 0,
+          readyAtMs: cooldowns.get(skill.id) ?? 0,
+        };
+      })
     : [];
   return {
     doctrine: progression.doctrine,

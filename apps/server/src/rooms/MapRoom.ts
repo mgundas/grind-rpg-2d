@@ -192,6 +192,7 @@ import { getServerServices } from "../services";
 import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
 import { ServiceError } from "../errors";
 import { buildSelfStats } from "../characters/selfStats";
+import { effectiveRankFor } from "../characters/skillMastery";
 import {
   createPartyRegistry,
   PartyRuleError,
@@ -1241,6 +1242,7 @@ export class MapRoom extends Room {
       role: auth.account.role,
       channel: auth.character.channel,
       progression,
+      skillMastery: auth.character.skillMastery ?? {},
       inventory: loaded.inventory,
       gold: loaded.gold,
     });
@@ -1329,6 +1331,7 @@ export class MapRoom extends Room {
         equipmentBonusStats(activeRuntime.inventory, this.catalog()),
       );
       activeRuntime.progression = refreshed;
+      activeRuntime.skillMastery = fresh.skillMastery ?? {};
       activePlayer.level = refreshed.level;
       activePlayer.hp = refreshed.hp;
       activePlayer.maxHp = refreshed.maxHp;
@@ -3683,6 +3686,7 @@ export class MapRoom extends Room {
         player.classId,
         runtime.skillCooldowns,
         this.catalog(),
+        runtime.skillMastery,
       ),
     );
   }
@@ -4992,7 +4996,11 @@ export class MapRoom extends Room {
         {
           sessionId,
           skill,
-          rank: runtime.progression.skills[skill.id] ?? 1,
+          rank: effectiveRankFor(
+            runtime.skillMastery,
+            skill.id,
+            runtime.progression.skills[skill.id] ?? 1,
+          ),
           dir: pending.request.dir as Parameters<typeof resolveSkillCast>[1]["dir"],
           targetPos: pending.targetPos,
           targetMonsterId: pending.request.targetMonsterId,

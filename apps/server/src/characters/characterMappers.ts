@@ -9,6 +9,7 @@ import {
 } from "@jadethrone/shared";
 import { ServiceError } from "../errors";
 import type { CharacterRow } from "../db/schema";
+import type { SkillMasteryMap } from "./skillMastery";
 
 /**
  * Server-side character shape used by the room/auth layer. It is the DB row
@@ -36,6 +37,7 @@ export interface CharacterRecord {
   skillPoints: number;
   /** Learned skill ranks keyed by skill id (rank 0 is never stored). */
   skills: Record<string, number>;
+  skillMastery?: SkillMasteryMap;
   map: MapId;
   x: number;
   y: number;
@@ -50,6 +52,7 @@ function invalidRow(message: string): never {
 export function toCharacterRecord(
   row: CharacterRow,
   skills: Record<string, number> = {},
+  skillMastery: SkillMasteryMap = {},
 ): CharacterRecord {
   if (!isClassId(row.classId)) invalidRow(`class "${row.classId}"`);
   if (!isGender(row.gender)) invalidRow(`gender "${row.gender}"`);
@@ -76,6 +79,7 @@ export function toCharacterRecord(
     statPoints: row.statPoints,
     skillPoints: row.skillPoints,
     skills,
+    skillMastery,
     map: row.mapId,
     x: row.x,
     y: row.y,
