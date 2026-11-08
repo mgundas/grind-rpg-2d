@@ -232,7 +232,7 @@ Plan: `docs/plans/phase-6.md`.
 Plan: `docs/plans/phase-7.md`.
 
 - [x] Task 1 — Upgrade and bonus data
-- [ ] Task 2 — Shared bonus/upgrade contracts
+- [x] Task 2 — Shared bonus/upgrade contracts
 - [ ] Task 3 — Persist upgrade/bonus row changes
 - [ ] Task 4 — Bonus stats in gameplay
 - [ ] Task 5 — Bonus-aware tooltips and names

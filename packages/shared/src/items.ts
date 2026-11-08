@@ -1,4 +1,5 @@
 import type { ClassId } from "./characterRules";
+import { BONUS_ITEM_STATS, type BonusType } from "./bonuses";
 import type { Rarity } from "./constants";
 
 /**
@@ -79,6 +80,7 @@ export interface ItemDefinitionLike {
 export interface EquippedItemLike {
   definition: ItemDefinitionLike;
   upgradeLevel: number;
+  bonuses?: readonly ItemBonus[];
 }
 
 export function emptyItemStats(): FullItemStats {
@@ -109,10 +111,11 @@ export function isEquipmentType(type: ItemType): boolean {
   return equipSlotForItemType(type) !== null;
 }
 
-/** Base stats plus the upgrade-chain entry for the instance's level. */
+/** Base stats plus the upgrade-chain entry and instance bonuses. */
 export function effectiveItemStats(
   definition: ItemDefinitionLike,
   upgradeLevel = 0,
+  bonuses: readonly ItemBonus[] = [],
 ): FullItemStats {
   const result = emptyItemStats();
   const base = definition.baseStats ?? {};
@@ -120,6 +123,12 @@ export function effectiveItemStats(
     const chain = definition.upgradeChain?.[key];
     const upgraded = chain?.[Math.max(0, Math.min(9, Math.floor(upgradeLevel)))];
     result[key] = (base[key] ?? 0) + (upgraded ?? 0);
+  }
+  for (const bonus of bonuses) {
+    const key = BONUS_ITEM_STATS[bonus.type as BonusType];
+    if (key) {
+      result[key] += bonus.value;
+    }
   }
   return result;
 }
@@ -133,7 +142,11 @@ export function sumEquipmentStats(
     if (!equipped) {
       continue;
     }
-    const stats = effectiveItemStats(equipped.definition, equipped.upgradeLevel);
+    const stats = effectiveItemStats(
+      equipped.definition,
+      equipped.upgradeLevel,
+      equipped.bonuses,
+    );
     for (const key of ITEM_STAT_KEYS) {
       total[key] += stats[key];
     }

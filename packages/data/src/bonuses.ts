@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { ITEM_TYPES, type ItemType } from "@jadethrone/shared";
+import { BONUS_TYPES, ITEM_TYPES, type BonusType, type ItemType } from "@jadethrone/shared";
 import raw from "../bonuses.json";
 
 const bonusSchema = z
   .object({
-    type: z.string().regex(/^[a-z][a-z0-9_]*$/),
+    type: z.enum(BONUS_TYPES),
     label: z.string().min(1).max(64),
     min: z.number(),
     max: z.number(),
@@ -39,7 +39,7 @@ const bonusesFileSchema = z
 const parsed = bonusesFileSchema.parse(raw);
 
 export interface BonusDefinition {
-  type: string;
+  type: BonusType;
   label: string;
   min: number;
   max: number;
@@ -51,7 +51,7 @@ export const BONUS_POOL: readonly BonusDefinition[] = parsed.bonuses;
 const byType = new Map(BONUS_POOL.map((bonus) => [bonus.type, bonus]));
 
 export function getBonusDefinition(type: string): BonusDefinition | undefined {
-  return byType.get(type);
+  return byType.get(type as BonusType);
 }
 
 export function bonusesForItemType(itemType: ItemType): BonusDefinition[] {

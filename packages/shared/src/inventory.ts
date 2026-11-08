@@ -583,7 +583,13 @@ export function equipmentForStats(
   getDefinition: (itemId: string) => ItemDefinitionLike,
 ): Array<EquippedItemLike | null> {
   return state.equipment.map((item) =>
-    item ? { definition: getDefinition(item.itemId), upgradeLevel: item.upgradeLevel } : null,
+    item
+      ? {
+          definition: getDefinition(item.itemId),
+          upgradeLevel: item.upgradeLevel,
+          bonuses: item.bonuses,
+        }
+      : null,
   );
 }
 

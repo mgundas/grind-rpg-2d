@@ -1,4 +1,5 @@
 export * from "./admin";
+export * from "./bonuses";
 export * from "./auth";
 export * from "./characterRules";
 export * from "./chat";
@@ -19,3 +20,4 @@ export * from "./rng";
 export * from "./skills";
 export * from "./stones";
 export * from "./tiled";
+export * from "./upgrades";
