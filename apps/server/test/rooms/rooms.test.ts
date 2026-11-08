@@ -1160,6 +1160,21 @@ describe("player damage, death and respawn", () => {
     expect(runtime.progression.xp).toBe(98); // 2% of level-1 requirement
     expect(deaths[0]).toMatchObject({ respawnHereAtMs: expect.any(Number) });
 
+    // The XP loss is persisted at death time, not only on leave: a crash before
+    // respawn must not roll it back (autosave skips dead players).
+    await waitUntil(
+      () =>
+        fake.saved.some(
+          (save) => save.characterId === player.characterId && save.xp === 98,
+        ),
+      2000,
+    );
+    const deathSave = fake.saved
+      .filter((save) => save.characterId === player.characterId && save.xp === 98)
+      .at(-1)!;
+    expect(deathSave.mapId).toBe(ROOM_NAME_VILLAGE);
+    expect(deathSave.hp).toBe(0);
+
     sendRespawn(client, "here");
     await sleep(100);
     expect(player.dead).toBe(true);

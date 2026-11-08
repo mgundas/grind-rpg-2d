@@ -2892,6 +2892,13 @@ export class MapRoom extends Room {
       this.safeSend(client, MSG.death, payload);
     }
     this.sendSelfStats(sessionId);
+
+    // Autosave skips dead players, so persist the death penalty immediately: a
+    // crash before respawn would otherwise roll the XP loss back. The row gets
+    // the village spawn with HP 0, which revives to full on the next join — the
+    // same rule as a disconnect while dead (D44). `dirty` stays set because the
+    // runtime position still differs, so a later save overwrites it normally.
+    void this.enqueueSave(runtime, defaultSpawn());
   }
 
   private sendSelfStats(sessionId: string): void {
