@@ -1,4 +1,4 @@
-import { CHAT_MAX_LEN, MAX_GOLD, type MapId, type Stats } from "./constants";
+import { CHAT_MAX_LEN, MAX_GOLD, TRADE_MAX_OFFER_ITEMS, type MapId, type Stats } from "./constants";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
 import { PARTY_LOOT_RULES } from "./party";
@@ -368,7 +368,7 @@ export const tradeOfferMessageSchema = z
   .object({
     tradeId: tradeIdSchema,
     revision: tradeRevisionSchema,
-    instanceIds: z.array(z.string().uuid()).max(90),
+    instanceIds: z.array(z.string().uuid()).max(TRADE_MAX_OFFER_ITEMS),
     gold: z.number().int().min(0).max(MAX_GOLD),
   })
   .strict()

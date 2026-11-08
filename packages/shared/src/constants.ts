@@ -79,6 +79,8 @@ export const COMBAT_EVENT_RADIUS_PX = 900;
 
 /** Phase-4 economy interaction ranges and timings (GAME_DESIGN.md §6.3, §7). */
 export const MAX_GOLD = 2_000_000_000;
+/** Maximum single-stack kinds one trade side may offer (90 inventory cells). */
+export const TRADE_MAX_OFFER_ITEMS = 90;
 /** Hard ceiling for one admin/GM spawn command. */
 export const MAX_ADMIN_SPAWN = 50;
 export const PICKUP_RADIUS_PX = 56;
