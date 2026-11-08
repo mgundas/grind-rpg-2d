@@ -263,7 +263,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 
 - [x] Task 1 — Map policy and environment data
 - [x] Task 2 — Chat data and shared chat contracts
-- [ ] Task 3 — Phase 8 DB migration and schema
+- [x] Task 3 — Phase 8 DB migration and schema
 - [ ] Task 4 — Global social directory and cross-map delivery
 - [ ] Task 5 — Friends service and persistence
 - [ ] Task 6 — Guild core service and rules

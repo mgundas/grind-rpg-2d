@@ -85,6 +85,10 @@ export const characters = pgTable(
   (table) => [
     uniqueIndex("characters_name_lower_uq").on(sql`lower(${table.name})`),
     index("characters_account_idx").on(table.accountId),
+    check(
+      "characters_pvp_mode_check",
+      sql`${table.pvpMode} in ('peaceful', 'kingdom', 'free')`,
+    ),
   ],
 );
 
@@ -105,6 +109,89 @@ export const characterSkills = pgTable(
 );
 
 export type CharacterSkillRow = typeof characterSkills.$inferSelect;
+
+/** Guild roster and rank (GAME_DESIGN.md §9). One guild per character. */
+export const guilds = pgTable(
+  "guilds",
+  {
+    id: uuid("id").primaryKey(),
+    name: text("name").notNull(),
+    leaderCharacterId: uuid("leader_character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [uniqueIndex("guilds_name_lower_uq").on(sql`lower(${table.name})`)],
+);
+
+export const guildMembers = pgTable(
+  "guild_members",
+  {
+    guildId: uuid("guild_id")
+      .notNull()
+      .references(() => guilds.id, { onDelete: "cascade" }),
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    /** leader | officer | member */
+    rank: text("rank").notNull().default("member"),
+    joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.guildId, table.characterId], name: "guild_members_pk" }),
+    uniqueIndex("guild_members_character_uq").on(table.characterId),
+    check(
+      "guild_members_rank_check",
+      sql`${table.rank} in ('leader', 'officer', 'member')`,
+    ),
+  ],
+);
+
+/** One-way friend relationships. */
+export const friends = pgTable(
+  "friends",
+  {
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    friendCharacterId: uuid("friend_character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.characterId, table.friendCharacterId],
+      name: "friends_pk",
+    }),
+    index("friends_friend_idx").on(table.friendCharacterId),
+    check("friends_not_self_check", sql`${table.characterId} <> ${table.friendCharacterId}`),
+  ],
+);
+
+/** Master levels M1–M10 are stored separately from the rank 1–20 skill row. */
+export const characterSkillMastery = pgTable(
+  "character_skill_mastery",
+  {
+    characterId: uuid("character_id")
+      .notNull()
+      .references(() => characters.id, { onDelete: "cascade" }),
+    skillId: text("skill_id").notNull(),
+    masterLevel: smallint("master_level").notNull().default(0),
+    lastReadAt: timestamp("last_read_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.characterId, table.skillId],
+      name: "character_skill_mastery_pk",
+    }),
+    check(
+      "character_skill_mastery_level_check",
+      sql`${table.masterLevel} >= 0 AND ${table.masterLevel} <= 10`,
+    ),
+  ],
+);
 
 export const sessions = pgTable(
   "sessions",
@@ -288,6 +375,7 @@ export const chatLog = pgTable(
     name: text("name").notNull(),
     kingdom: text("kingdom").notNull(),
     mapId: text("map_id").notNull(),
+    channel: text("channel").notNull().default("local"),
     /** Column name `text` is explicit; the property avoids shadowing. */
     chatText: text("text").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -348,3 +436,7 @@ export type AnnouncementRow = typeof announcements.$inferSelect;
 export type ChatLogRow = typeof chatLog.$inferSelect;
 export type TradeLogRow = typeof tradeLog.$inferSelect;
 export type GameDataOverrideRow = typeof gameDataOverrides.$inferSelect;
+export type GuildRow = typeof guilds.$inferSelect;
+export type GuildMemberRow = typeof guildMembers.$inferSelect;
+export type FriendRow = typeof friends.$inferSelect;
+export type CharacterSkillMasteryRow = typeof characterSkillMastery.$inferSelect;
