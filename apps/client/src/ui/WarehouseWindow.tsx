@@ -1,4 +1,4 @@
-import { RARITY_COLORS, WAREHOUSE_PAGES } from "@jadethrone/shared";
+import { RARITY_COLORS, WAREHOUSE_PAGES, itemNameColor } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { sendWarehouseDeposit, sendWarehouseWithdraw } from "../network/session";
 import { useUiStore } from "./store";
@@ -8,11 +8,13 @@ import { Window } from "./Window";
 function ItemRow({
   itemId,
   quantity,
+  bonuses,
   action,
   onAction,
 }: {
   itemId: string;
   quantity: number;
+  bonuses?: readonly { type: string; value: number }[];
   action: string;
   onAction: () => void;
 }) {
@@ -32,7 +34,7 @@ function ItemRow({
         fontSize: 10,
       }}
     >
-      <span style={{ color: RARITY_COLORS[definition.rarity] }}>
+      <span style={{ color: itemNameColor(bonuses?.length ?? 0) }}>
         {definition.name}
         {quantity > 1 ? ` ×${quantity}` : ""}
       </span>
@@ -68,6 +70,7 @@ export function WarehouseWindow() {
                   key={item.id}
                   itemId={item.itemId}
                   quantity={item.quantity}
+                  bonuses={item.bonuses}
                   action="Withdraw"
                   onAction={() => sendWarehouseWithdraw(item.id)}
                 />
@@ -87,6 +90,7 @@ export function WarehouseWindow() {
                 key={item.id}
                 itemId={item.itemId}
                 quantity={item.quantity}
+                bonuses={item.bonuses}
                 action="Deposit"
                 onAction={() => sendWarehouseDeposit(item.id)}
               />

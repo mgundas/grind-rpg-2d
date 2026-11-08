@@ -4,7 +4,7 @@ import type {
   AdminSearchResponse,
   ItemInstanceDto,
 } from "@jadethrone/shared";
-import { MAP_LABELS, RARITY_COLORS } from "@jadethrone/shared";
+import { MAP_LABELS, itemNameColor } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getClass } from "@jadethrone/data/classes";
 import { adminApi } from "../network/api";
@@ -44,7 +44,7 @@ function ItemRows({
             onPointerLeave={onLeave}
             className="flex items-center justify-between rounded border border-[#1d2622] px-2 py-1 text-xs"
           >
-            <span style={{ color: definition ? RARITY_COLORS[definition.rarity] : "#cfd8d3" }}>
+            <span style={{ color: definition ? itemNameColor(item.bonuses.length) : "#cfd8d3" }}>
               {itemName(item.itemId)}
               {item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ""}
             </span>

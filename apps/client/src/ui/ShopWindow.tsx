@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RARITY_COLORS } from "@jadethrone/shared";
+import { RARITY_COLORS, itemNameColor } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getShop } from "@jadethrone/data/shops";
 import { sendShopBuy, sendShopSell } from "../network/session";
@@ -65,7 +65,7 @@ export function ShopWindow() {
                     textAlign: "left",
                   }}
                 >
-                  <span style={{ color: RARITY_COLORS[definition.rarity], fontWeight: 700 }}>
+                  <span style={{ color: itemNameColor(0), fontWeight: 700 }}>
                     {definition.name}
                   </span>
                   <span style={{ color: theme.gold }}>{definition.buyPrice}g</span>

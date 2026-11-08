@@ -1,4 +1,4 @@
-import { EQUIP_SLOTS, RARITY_COLORS, type ItemInstanceDto } from "@jadethrone/shared";
+import { EQUIP_SLOTS, RARITY_COLORS, itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { theme } from "./theme";
 
@@ -61,7 +61,7 @@ export function EquipmentPanel({ equipment, onUnequip, onHover }: EquipmentPanel
               style={{
                 fontSize: 10,
                 fontWeight: 700,
-                color: definition ? RARITY_COLORS[definition.rarity] : theme.muted,
+                color: definition ? itemNameColor(item?.bonuses.length ?? 0) : theme.muted,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",

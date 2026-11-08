@@ -1,4 +1,4 @@
-import { RARITY_COLORS, equipSlotForItemType, type ItemInstanceDto } from "@jadethrone/shared";
+import { RARITY_COLORS, equipSlotForItemType, itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { theme } from "./theme";
 
@@ -152,7 +152,7 @@ export function ItemGrid({
             }}
             title={definition.name}
           >
-            <span style={{ fontSize: 12, fontWeight: 800, color: RARITY_COLORS[definition.rarity] }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: itemNameColor(item.bonuses.length) }}>
               {initials(definition.name)}
             </span>
             <span style={{ fontSize: 8, color: theme.muted, lineHeight: 1.1, textAlign: "center" }}>

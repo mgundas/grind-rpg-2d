@@ -1,4 +1,8 @@
-import { RARITY_COLORS, type ItemInstanceDto } from "@jadethrone/shared";
+import {
+  effectiveItemStats,
+  itemNameColor,
+  type ItemInstanceDto,
+} from "@jadethrone/shared";
 import { getItem } from "@jadethrone/data/items";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
@@ -28,7 +32,7 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
   } catch {
     return null;
   }
-  const stats = definition.baseStats ?? {};
+  const stats = effectiveItemStats(definition, item.upgradeLevel, item.bonuses);
   const lines = [
     statLine("Attack", stats.attack),
     statLine("Defense", stats.defense),
@@ -36,6 +40,10 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
     statLine("Max MP", stats.maxMp),
     statLine("Crit", stats.critChance === undefined ? undefined : stats.critChance * 100, "%"),
   ].filter((line): line is string => line !== null);
+  const classicBonusTypes = new Set(["max_hp", "max_mp", "attack", "defense", "crit_chance"]);
+  const bonusLines = item.bonuses
+    .filter((bonus) => !classicBonusTypes.has(bonus.type))
+    .map((bonus) => `${bonus.type.replaceAll("_", " ")} +${bonus.value}`);
   const missingLevel = level < definition.levelReq;
   const missingClass =
     definition.classes !== "all" && classId !== undefined && !definition.classes.includes(classId);
@@ -60,7 +68,7 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
         color: theme.text,
       }}
     >
-      <div style={{ color: RARITY_COLORS[definition.rarity], fontWeight: 700, marginBottom: 4 }}>
+      <div style={{ color: itemNameColor(item.bonuses.length), fontWeight: 700, marginBottom: 4 }}>
         {definition.name}
         {item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ""}
       </div>
@@ -75,6 +83,11 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
       ) : null}
       {lines.map((line) => (
         <div key={line} style={{ color: "#8fd3b6" }}>
+          {line}
+        </div>
+      ))}
+      {bonusLines.map((line, index) => (
+        <div key={`${line}:${index}`} style={{ color: itemNameColor(item.bonuses.length) }}>
           {line}
         </div>
       ))}

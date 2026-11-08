@@ -1,4 +1,4 @@
-import { RARITY_COLORS, type ItemInstanceDto } from "@jadethrone/shared";
+import { itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 
 export function AdminItemTooltip({
@@ -23,7 +23,7 @@ export function AdminItemTooltip({
         top: Math.min(Math.max(8, y + 12), window.innerHeight - 180),
       }}
     >
-      <div className="font-semibold" style={{ color: RARITY_COLORS[definition.rarity] }}>
+      <div className="font-semibold" style={{ color: itemNameColor(item.bonuses.length) }}>
         {definition.name}
         {item.upgradeLevel > 0 ? ` +${item.upgradeLevel}` : ""}
       </div>
