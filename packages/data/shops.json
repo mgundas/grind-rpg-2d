@@ -12,7 +12,8 @@
         { "itemId": "potion_mp_s" },
         { "itemId": "potion_mp_m" },
         { "itemId": "potion_mp_l" },
-        { "itemId": "scroll_return" }
+        { "itemId": "scroll_return" },
+        { "itemId": "scroll_reinforce" }
       ]
     },
     {

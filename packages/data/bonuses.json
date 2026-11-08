@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "bonuses": [
+    {
+      "type": "max_hp",
+      "label": "Max HP",
+      "min": 50,
+      "max": 500,
+      "itemTypes": ["armor", "helmet", "shield", "shoes", "bracelet", "necklace", "earrings"]
+    },
+    {
+      "type": "max_mp",
+      "label": "Max MP",
+      "min": 20,
+      "max": 200,
+      "itemTypes": ["armor", "helmet", "shield", "shoes", "bracelet", "necklace", "earrings"]
+    },
+    {
+      "type": "attack",
+      "label": "Attack",
+      "min": 2,
+      "max": 30,
+      "itemTypes": ["weapon"]
+    },
+    {
+      "type": "defense",
+      "label": "Defense",
+      "min": 2,
+      "max": 30,
+      "itemTypes": ["armor", "helmet", "shield", "shoes"]
+    },
+    {
+      "type": "crit_chance",
+      "label": "Crit Chance",
+      "min": 0.005,
+      "max": 0.03,
+      "itemTypes": ["weapon", "bracelet", "necklace", "earrings"]
+    },
+    {
+      "type": "attack_speed",
+      "label": "Attack Speed",
+      "min": 0.01,
+      "max": 0.08,
+      "itemTypes": ["weapon", "bracelet", "earrings"]
+    },
+    {
+      "type": "move_speed",
+      "label": "Move Speed",
+      "min": 0.01,
+      "max": 0.1,
+      "itemTypes": ["shoes", "bracelet"]
+    },
+    {
+      "type": "hp_regen",
+      "label": "HP Regen",
+      "min": 0.005,
+      "max": 0.03,
+      "itemTypes": ["armor", "helmet", "necklace"]
+    },
+    {
+      "type": "strong_monsters",
+      "label": "Strong vs Monsters",
+      "min": 0.02,
+      "max": 0.15,
+      "itemTypes": ["weapon", "bracelet"]
+    },
+    {
+      "type": "strong_animals",
+      "label": "Strong vs Animals",
+      "min": 0.02,
+      "max": 0.15,
+      "itemTypes": ["weapon", "bracelet"]
+    },
+    {
+      "type": "strong_spirits",
+      "label": "Strong vs Spirits",
+      "min": 0.02,
+      "max": 0.15,
+      "itemTypes": ["weapon", "bracelet"]
+    },
+    {
+      "type": "resist_sword",
+      "label": "Resist Sword",
+      "min": 0.01,
+      "max": 0.08,
+      "itemTypes": ["armor", "helmet", "shield", "necklace", "earrings"]
+    },
+    {
+      "type": "resist_dagger",
+      "label": "Resist Dagger",
+      "min": 0.01,
+      "max": 0.08,
+      "itemTypes": ["armor", "helmet", "shield", "necklace", "earrings"]
+    },
+    {
+      "type": "resist_bow",
+      "label": "Resist Bow",
+      "min": 0.01,
+      "max": 0.08,
+      "itemTypes": ["armor", "helmet", "shield", "necklace", "earrings"]
+    },
+    {
+      "type": "resist_magic",
+      "label": "Resist Magic",
+      "min": 0.01,
+      "max": 0.08,
+      "itemTypes": ["armor", "helmet", "shield", "necklace", "earrings"]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "version": 1,
+  "maxLevel": 9,
+  "steps": [
+    { "from": 0, "to": 1, "chance": 0.95, "gold": 1000, "materials": [] },
+    { "from": 1, "to": 2, "chance": 0.9, "gold": 2000, "materials": [] },
+    { "from": 2, "to": 3, "chance": 0.85, "gold": 4000, "materials": [] },
+    {
+      "from": 3,
+      "to": 4,
+      "chance": 0.7,
+      "gold": 8000,
+      "materials": [{ "itemId": "material_wolf_fang", "quantity": 1 }]
+    },
+    {
+      "from": 4,
+      "to": 5,
+      "chance": 0.6,
+      "gold": 15000,
+      "materials": [{ "itemId": "material_wolf_fang", "quantity": 2 }]
+    },
+    {
+      "from": 5,
+      "to": 6,
+      "chance": 0.5,
+      "gold": 30000,
+      "materials": [{ "itemId": "material_wolf_fang", "quantity": 3 }]
+    },
+    {
+      "from": 6,
+      "to": 7,
+      "chance": 0.4,
+      "gold": 60000,
+      "materials": [{ "itemId": "material_spirit_shard", "quantity": 2 }]
+    },
+    {
+      "from": 7,
+      "to": 8,
+      "chance": 0.25,
+      "gold": 120000,
+      "materials": [{ "itemId": "material_spirit_shard", "quantity": 4 }]
+    },
+    {
+      "from": 8,
+      "to": 9,
+      "chance": 0.15,
+      "gold": 250000,
+      "materials": [{ "itemId": "material_corrupted_crystal", "quantity": 1 }]
+    }
+  ]
+}

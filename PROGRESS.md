@@ -227,6 +227,36 @@ Plan: `docs/plans/phase-6.md`.
 
 **Gate verification (2026-11-08):** `pnpm typecheck`, `pnpm lint` and `pnpm build` pass. Full suite against `jade_throne_test`: **86 files / 713 tests pass**, including 48-skill data completeness, party registry/XP/loot, skill cast/combat/status, stone manager/room, boss timer and the float32 co-location combat regression. `pnpm verify:phase6-e2e` against the live server passes **11 checks**, including a two-player party breaking a spirit stone and both members gaining XP. `@reviewer` findings were fixed before this gate (ally target resolution, stealth break on swings, buff stat application, stone XP grouping, autosave/skill-state race, client stale state, hotbar guards, FX presets). Report: `docs/reports/phase-6.md`.
 
+## Phase 7 — Upgrades, bonuses, trading
+
+Plan: `docs/plans/phase-7.md`.
+
+- [x] Task 1 — Upgrade and bonus data
+- [ ] Task 2 — Shared bonus/upgrade contracts
+- [ ] Task 3 — Persist upgrade/bonus row changes
+- [ ] Task 4 — Bonus stats in gameplay
+- [ ] Task 5 — Bonus-aware tooltips and names
+- [ ] Task 6 — Pure upgrade planner and roll
+- [ ] Task 7 — Blacksmith protocol and preview
+- [ ] Task 8 — Server upgrade execution
+- [ ] Task 9 — Client blacksmith window
+- [ ] Task 10 — Pure enchant/reinforce planners
+- [ ] Task 11 — Scroll application flow
+- [ ] Task 12 — Client scroll UX
+- [ ] Task 13 — Trade protocol and errors
+- [ ] Task 14 — Pure trade registry
+- [ ] Task 15 — Trade transaction and log
+- [ ] Task 16 — Room trade integration
+- [ ] Task 17 — Client trade window and context menu
+- [ ] Task 18 — Admin trade log
+- [ ] Task 19 — Override table and catalog store
+- [ ] Task 20 — Refactor server consumers to catalog
+- [ ] Task 21 — Admin data API
+- [ ] Task 22 — Admin game-data editor
+- [ ] Task 23 — Client catalog refresh
+- [ ] Task 24 — Phase 7 E2E, decisions and report
+- [ ] Task 25 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above

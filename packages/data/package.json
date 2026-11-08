@@ -4,6 +4,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./bonuses": "./src/bonuses.ts",
     "./classes": "./src/classes.ts",
     "./dropTables": "./src/dropTables.ts",
     "./items": "./src/items.ts",
@@ -14,6 +15,7 @@
     "./starterKits": "./src/starterKits.ts",
     "./spawnGroups": "./src/spawnGroups.ts",
     "./stones": "./src/stones.ts",
+    "./upgrades": "./src/upgrades.ts",
     "./maps/*": "./maps/*"
   },
   "types": "./src/index.ts",
