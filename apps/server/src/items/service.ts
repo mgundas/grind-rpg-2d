@@ -8,6 +8,11 @@ import { logger } from "../logger";
 import type { ItemPlan } from "./itemChanges";
 import { applyItemTransaction } from "./itemTransactions";
 import {
+  applySkillBookTransaction,
+  type SkillBookTransactionInput,
+  type SkillBookTransactionResult,
+} from "./skillBookTransaction";
+import {
   applyTradeTransaction,
   type TradeExecutionInput,
   type TradeExecutionResult,
@@ -32,6 +37,8 @@ export interface ItemService {
   ): Promise<{ gold: number }>;
   /** One DB transaction swaps both sides; runtimes update only on success. */
   trade(input: TradeExecutionInput): Promise<TradeExecutionResult>;
+  /** Consume a mastery book and persist level/cooldown in one transaction. */
+  readSkillBook(input: SkillBookTransactionInput): Promise<SkillBookTransactionResult>;
   /** Ground drops are inserted before they enter room state (Task 13). */
   insertGroundItem(row: NewItemRow): Promise<boolean>;
   deleteGroundItem(id: string): Promise<boolean>;
@@ -67,6 +74,7 @@ export function createItemService(db: Db): ItemService {
     apply: (accountId, characterId, plan) =>
       applyItemTransaction(db, { accountId, characterId }, plan),
     trade: (input) => applyTradeTransaction(db, input),
+    readSkillBook: (input) => applySkillBookTransaction(db, input),
     async insertGroundItem(row) {
       try {
         await db.transaction(async (tx) => {

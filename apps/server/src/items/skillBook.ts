@@ -31,10 +31,13 @@ export interface SkillBookReadResult {
   state: InventoryState;
   plan: ItemPlan;
   skillId: string;
+  bookItemId: string;
   success: boolean;
   previousLevel: number;
   level: number;
+  readAtMs: number;
   nextReadAtMs: number;
+  chance: number;
 }
 
 /**
@@ -50,7 +53,10 @@ export function planSkillBookRead(
 ): SkillBookReadResult {
   const book = findStack(state, bookInstanceId);
   if (!book) {
-    throw new ItemError("item_not_found", "Skill book not found.");
+    throw new ItemError("book_missing", "Skill book not found.");
+  }
+  if (book.location !== "inventory") {
+    throw new ItemError("book_invalid", "That book is not in your bag.");
   }
   const bookDefinition = catalog.findItem(book.stack.itemId);
   if (
@@ -59,35 +65,36 @@ export function planSkillBookRead(
     bookDefinition.id !== MASTERY_BOOK_ID ||
     bookDefinition.effect?.kind !== "skill_book"
   ) {
-    throw new ItemError("not_usable", "That item is not a mastery book.");
+    throw new ItemError("book_invalid", "That item is not a mastery book.");
   }
 
   const skill = catalog.findSkill(input.skillId);
   if (!skill) {
-    throw new ItemError("not_usable", "Unknown skill.");
+    throw new ItemError("book_invalid", "Unknown skill.");
   }
   if (skill.classId !== input.classId) {
-    throw new ItemError("not_usable", "That skill belongs to another class.");
+    throw new ItemError("book_invalid", "That skill belongs to another class.");
   }
   if (input.doctrine === null || skill.doctrineId !== input.doctrine) {
-    throw new ItemError("not_usable", "That skill is not in your doctrine.");
+    throw new ItemError("book_invalid", "That skill is not in your doctrine.");
   }
   if (input.rank < MASTERY_RULES.requiredRank) {
     throw new ItemError(
-      "not_usable",
+      "rank_required",
       `Mastery requires rank ${MASTERY_RULES.requiredRank}.`,
     );
   }
   if (input.mastery.level >= MASTERY_RULES.maxMasterLevel) {
-    throw new ItemError("not_usable", "This skill is already at maximum mastery.");
+    throw new ItemError("mastery_max", "This skill is already at maximum mastery.");
   }
   const readyAt = input.mastery.lastReadAtMs + MASTERY_RULES.readCooldownMs;
   if (input.mastery.lastReadAtMs > 0 && input.now < readyAt) {
-    throw new ItemError("cooldown", "This skill's reading cooldown is still active.");
+    throw new ItemError("mastery_cooldown", "This skill's reading cooldown is still active.");
   }
 
   const previousLevel = input.mastery.level;
-  const success = input.rng.next() < masterySuccessChance(previousLevel);
+  const chance = masterySuccessChance(previousLevel);
+  const success = input.rng.next() < chance;
   const level = success ? previousLevel + 1 : previousLevel;
   const nextReadAtMs = input.now + MASTERY_RULES.readCooldownMs;
 
@@ -107,8 +114,9 @@ export function planSkillBookRead(
     success,
     previousLevel,
     level,
+    readAtMs: input.now,
     nextReadAtMs,
-    chance: masterySuccessChance(previousLevel),
+    chance,
   };
   const changes = diffInventory(state, next, characterId, "skill_book");
   return {
@@ -118,9 +126,12 @@ export function planSkillBookRead(
       logs: describeChanges(changes, "skill_book_read", detail),
     },
     skillId: input.skillId,
+    bookItemId: book.stack.itemId,
     success,
     previousLevel,
     level,
+    readAtMs: input.now,
     nextReadAtMs,
+    chance,
   };
 }

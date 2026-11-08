@@ -55,6 +55,8 @@ export const MSG = {
   blacksmithError: "blacksmithError",
   applyBonusScroll: "applyBonusScroll",
   bonusScrollApplied: "bonusScrollApplied",
+  readSkillBook: "readSkillBook",
+  skillBookResult: "skillBookResult",
   tradeInvite: "tradeInvite",
   tradeRespond: "tradeRespond",
   tradeOffer: "tradeOffer",
@@ -373,6 +375,34 @@ export interface BonusScrollAppliedPayload {
   bonuses: ItemBonus[];
 }
 
+export const SKILL_BOOK_ERROR_CODES = [
+  "book_missing",
+  "book_invalid",
+  "rank_required",
+  "mastery_max",
+  "mastery_cooldown",
+] as const;
+export type SkillBookErrorCode = (typeof SKILL_BOOK_ERROR_CODES)[number];
+
+/** Client → server: read a mastery book for one learned rank-20 skill. */
+export const readSkillBookMessageSchema = z
+  .object({ bookInstanceId: instanceIdSchema, skillId: skillIdSchema })
+  .strict();
+export type ReadSkillBookMessage = z.infer<typeof readSkillBookMessageSchema>;
+
+export interface SkillBookResultPayload {
+  bookInstanceId: string;
+  skillId: string;
+  ok: boolean;
+  code?: ItemActionErrorCode;
+  message?: string;
+  success?: boolean;
+  previousLevel?: number;
+  masterLevel?: number;
+  nextReadAtMs?: number;
+  chance?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Phase 7: trading
 // ---------------------------------------------------------------------------
@@ -618,6 +648,8 @@ export interface WarehouseSnapshotPayload {
  */
 export type ItemActionErrorCode =
   | InventoryErrorCode
+  | SkillBookErrorCode
+  | "in_trade"
   | "not_owner"
   | "out_of_range"
   | "already_taken"

@@ -11,6 +11,7 @@ import {
   moveItemMessageSchema,
   pickupMessageSchema,
   requestInventoryMessageSchema,
+  readSkillBookMessageSchema,
   requestUpgradePreviewMessageSchema,
   respawnMessageSchema,
   setTargetMessageSchema,
@@ -188,6 +189,21 @@ describe("Phase 4 item/economy message schemas", () => {
     expect(upgradeItemMessageSchema.safeParse({ instanceId: id }).success).toBe(false);
     expect(
       upgradeItemMessageSchema.safeParse({ instanceId: id, useBlessing: "yes" }).success,
+    ).toBe(false);
+  });
+
+  it("validates skill-book reading", () => {
+    expect(
+      readSkillBookMessageSchema.safeParse({
+        bookInstanceId: id,
+        skillId: "warrior_blade_whirlwind",
+      }).success,
+    ).toBe(true);
+    expect(
+      readSkillBookMessageSchema.safeParse({ bookInstanceId: id }).success,
+    ).toBe(false);
+    expect(
+      readSkillBookMessageSchema.safeParse({ bookInstanceId: "nope", skillId: "x" }).success,
     ).toBe(false);
   });
 

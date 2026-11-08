@@ -86,6 +86,7 @@ import {
   requestBossTimerMessageSchema,
   requestSkillStateMessageSchema,
   requestStatsMessageSchema,
+  readSkillBookMessageSchema,
   requestUpgradePreviewMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
@@ -131,6 +132,7 @@ import {
   type SkillBuffResult,
   type SkillCastCancelPayload,
   type SkillCastPayload,
+  type SkillBookResultPayload,
   type SkillCastStartPayload,
   type StatKey,
   type TradeSidePayload,
@@ -153,7 +155,7 @@ import { isGmRole, parseGmCommand } from "../admin/gmCommands";
 import type { AdminLiveActions, AdminRoomHandle } from "../admin/liveBus";
 import { equipmentBonusStats, equipmentBonusValue, equipmentVisualKeys } from "../items/equipment";
 import { toItemDto } from "../items/itemMappers";
-import { ItemError } from "../items/errors";
+import { ItemError, isItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
 import { buildUpgradePreview, planUpgrade } from "../items/upgrade";
@@ -1187,6 +1189,38 @@ export class MapRoom extends Room {
           bonuses: result.bonuses,
         });
       });
+    });
+
+    this.onMessage(MSG.readSkillBook, (client, raw) => {
+      const parsed = readSkillBookMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid readSkillBook message");
+        return;
+      }
+      this.runItemCommand(
+        client,
+        (runtime) =>
+          this.performSkillBookRead(
+            client,
+            runtime,
+            parsed.data.bookInstanceId,
+            parsed.data.skillId,
+          ),
+        "item",
+        async (error, runtime) => {
+          if (error.code === "stale") {
+            await this.reloadRuntimeInventory(runtime);
+            this.sendInventory(client.sessionId);
+          }
+          this.sendSkillBookResult(client, {
+            bookInstanceId: parsed.data.bookInstanceId,
+            skillId: parsed.data.skillId,
+            ok: false,
+            code: error.code,
+            message: error.message,
+          });
+        },
+      );
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);
@@ -2839,6 +2873,7 @@ export class MapRoom extends Room {
     client: Client,
     handler: (runtime: PlayerRuntime) => Promise<void>,
     channel: "item" | "blacksmith" = "item",
+    onItemError?: (error: ItemError, runtime: PlayerRuntime) => Promise<void>,
   ): void {
     const runtime = this.runtimes.get(client.sessionId);
     if (!runtime || runtime.inventoryClosed) {
@@ -2849,13 +2884,16 @@ export class MapRoom extends Room {
       if (!current || current.inventoryClosed) {
         return;
       }
-      if (current.dead) {
-        this.sendErrorFor(channel, client, "dead");
-        return;
-      }
       try {
+        if (current.dead) {
+          throw new ItemError("dead", "The dead cannot use items.");
+        }
         await handler(current);
       } catch (error) {
+        if (onItemError && isItemError(error)) {
+          await onItemError(error, current);
+          return;
+        }
         await this.handleItemFailure(client, current, error, channel);
       }
     };
@@ -4218,6 +4256,52 @@ export class MapRoom extends Room {
     } catch (error) {
       logger.error({ roomId: this.roomId, characterId, error }, "guild roster refresh failed");
     }
+  }
+
+  private sendSkillBookResult(client: Client, payload: SkillBookResultPayload): void {
+    this.safeSend(client, MSG.skillBookResult, payload);
+  }
+
+  private async performSkillBookRead(
+    client: Client,
+    runtime: PlayerRuntime,
+    bookInstanceId: string,
+    skillId: string,
+  ): Promise<void> {
+    if (runtime.warping) {
+      throw new ItemError("warping", "You cannot read a skill book while warping.");
+    }
+    if (this.trades.getByCharacter(runtime.characterId)) {
+      throw new ItemError("in_trade", "Finish your trade before reading a skill book.");
+    }
+    const result = await getServerServices().items.readSkillBook({
+      accountId: runtime.accountId,
+      characterId: runtime.characterId,
+      bookInstanceId,
+      skillId,
+      now: Date.now(),
+      rng: this.rng,
+      catalog: this.catalog(),
+    });
+    runtime.inventory = result.inventory;
+    runtime.gold = result.gold;
+    runtime.inventoryRevision += 1;
+    runtime.skillMastery[skillId] = {
+      level: result.masterLevel,
+      lastReadAtMs: result.readAtMs,
+    };
+    this.sendInventory(client.sessionId);
+    this.sendSkillBookResult(client, {
+      bookInstanceId,
+      skillId,
+      ok: true,
+      success: result.success,
+      previousLevel: result.previousLevel,
+      masterLevel: result.masterLevel,
+      nextReadAtMs: result.nextReadAtMs,
+      chance: result.chance,
+    });
+    this.sendSkillState(client.sessionId);
   }
 
   private catalog(): CatalogLookup {

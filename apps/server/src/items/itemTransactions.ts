@@ -102,151 +102,157 @@ export function groundClear() {
  * swaps cannot trip the partial unique indexes, applies the writes, and appends
  * the item and gold ledgers.
  */
-export async function applyItemTransaction(
-  db: Db,
+export async function applyItemPlanInTx(
+  tx: Tx,
   context: ItemTransactionContext,
   plan: ItemPlan,
 ): Promise<{ gold: number }> {
-  try {
-    return await db.transaction(async (tx) => {
-      if (plan.lockAccount) {
-        await lockAccount(tx, context.accountId);
-      }
-      const { gold: currentGold } = await lockCharacter(
-        tx,
-        context.accountId,
-        context.characterId,
-      );
+  if (plan.lockAccount) {
+    await lockAccount(tx, context.accountId);
+  }
+  const { gold: currentGold } = await lockCharacter(
+    tx,
+    context.accountId,
+    context.characterId,
+  );
 
-      const ids = [...new Set(plan.changes.map((change) => change.id))];
-      const rows =
-        ids.length === 0
-          ? []
-          : await tx
-              .select()
-              .from(items)
-              .where(inArray(items.id, ids))
-              .orderBy(items.id)
-              .for("update");
-      const byId = new Map(rows.map((row) => [row.id, row]));
-      for (const change of plan.changes) {
-        verifyChange(change, byId.get(change.id));
-      }
+  const ids = [...new Set(plan.changes.map((change) => change.id))];
+  const rows =
+    ids.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(items)
+          .where(inArray(items.id, ids))
+          .orderBy(items.id)
+          .for("update");
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  for (const change of plan.changes) {
+    verifyChange(change, byId.get(change.id));
+  }
 
-      // Validate the gold delta before any item write. Two concurrent purchases
-      // that both planned against the old balance must fail with `no_gold`
-      // rather than colliding on a slot insert.
-      let gold = currentGold;
-      if (plan.gold) {
-        const requested = Math.trunc(plan.gold.delta);
-        if (requested < 0 && -requested > currentGold) {
-          throw new ItemError("no_gold", "Not enough gold.");
-        }
-        gold = Math.max(0, Math.min(MAX_GOLD, currentGold + requested));
-      }
+  // Validate the gold delta before any item write. Two concurrent purchases
+  // that both planned against the old balance must fail with `no_gold`
+  // rather than colliding on a slot insert.
+  let gold = currentGold;
+  if (plan.gold) {
+    const requested = Math.trunc(plan.gold.delta);
+    if (requested < 0 && -requested > currentGold) {
+      throw new ItemError("no_gold", "Not enough gold.");
+    }
+    gold = Math.max(0, Math.min(MAX_GOLD, currentGold + requested));
+  }
 
-      // Deletes first: they free slots for inserts/swaps in the same plan.
-      for (const change of plan.changes) {
-        if (change.kind === "delete") {
-          await tx.delete(items).where(eq(items.id, change.id));
-        }
-      }
+  // Deletes first: they free slots for inserts/swaps in the same plan.
+  for (const change of plan.changes) {
+    if (change.kind === "delete") {
+      await tx.delete(items).where(eq(items.id, change.id));
+    }
+  }
 
-      // Park every row that changes its slot or location.
-      let parkCounter = 0;
-      for (const change of plan.changes) {
-        if (
-          change.kind === "update" &&
-          (change.to.slot !== change.expect.slot ||
-            change.to.location !== change.expect.location)
-        ) {
-          parkCounter++;
-          await tx
-            .update(items)
-            .set({ slot: -parkCounter })
-            .where(eq(items.id, change.id));
-        }
-      }
+  // Park every row that changes its slot or location.
+  let parkCounter = 0;
+  for (const change of plan.changes) {
+    if (
+      change.kind === "update" &&
+      (change.to.slot !== change.expect.slot ||
+        change.to.location !== change.expect.location)
+    ) {
+      parkCounter++;
+      await tx
+        .update(items)
+        .set({ slot: -parkCounter })
+        .where(eq(items.id, change.id));
+    }
+  }
 
-      for (const change of plan.changes) {
-        if (change.kind !== "update") {
-          continue;
-        }
-        await tx
-          .update(items)
-          .set({
-            location: change.to.location,
-            slot: change.to.slot,
-            quantity: change.to.quantity,
-            upgradeLevel: change.to.upgradeLevel,
-            bonuses: [...change.to.bonuses],
-            ownerCharacterId: change.to.ownerCharacterId,
-            ownerAccountId: change.to.ownerAccountId,
-            ...(change.to.location === "ground"
-              ? { mapId: change.to.mapId }
-              : groundClear()),
-          })
-          .where(eq(items.id, change.id));
-      }
+  for (const change of plan.changes) {
+    if (change.kind !== "update") {
+      continue;
+    }
+    await tx
+      .update(items)
+      .set({
+        location: change.to.location,
+        slot: change.to.slot,
+        quantity: change.to.quantity,
+        upgradeLevel: change.to.upgradeLevel,
+        bonuses: [...change.to.bonuses],
+        ownerCharacterId: change.to.ownerCharacterId,
+        ownerAccountId: change.to.ownerAccountId,
+        ...(change.to.location === "ground"
+          ? { mapId: change.to.mapId }
+          : groundClear()),
+      })
+      .where(eq(items.id, change.id));
+  }
 
-      for (const change of plan.changes) {
-        if (change.kind !== "insert") {
-          continue;
-        }
-        await tx.insert(items).values({
-          id: change.id,
-          definitionId: change.itemId,
-          location: change.location,
-          slot: change.slot,
-          quantity: change.quantity,
-          upgradeLevel: change.upgradeLevel,
-          bonuses: [...change.bonuses],
-          ownerCharacterId: change.ownerCharacterId,
-          ownerAccountId: change.ownerAccountId,
-          createdBy: change.createdBy,
-        });
-      }
-
-      if (plan.gold) {
-        const actual = gold - currentGold;
-        await tx
-          .update(characters)
-          .set({ gold, updatedAt: new Date() })
-          .where(eq(characters.id, context.characterId));
-        if (actual !== 0) {
-          await tx.insert(goldLog).values({
-            id: randomUUID(),
-            characterId: context.characterId,
-            accountId: context.accountId,
-            delta: actual,
-            balanceAfter: gold,
-            reason: plan.gold.reason,
-            detail: plan.gold.detail ?? {},
-          });
-        }
-      }
-
-      if (plan.logs.length > 0) {
-        await tx.insert(itemLog).values(
-          plan.logs.map((log) => ({
-            id: randomUUID(),
-            itemId: log.itemId,
-            actorCharacterId: context.characterId,
-            accountId: context.accountId,
-            action: log.action,
-            definitionId: log.definitionId,
-            quantity: log.quantity,
-            fromLocation: log.fromLocation ?? null,
-            fromSlot: log.fromSlot ?? null,
-            toLocation: log.toLocation ?? null,
-            toSlot: log.toSlot ?? null,
-            detail: log.detail ?? {},
-          })),
-        );
-      }
-
-      return { gold };
+  for (const change of plan.changes) {
+    if (change.kind !== "insert") {
+      continue;
+    }
+    await tx.insert(items).values({
+      id: change.id,
+      definitionId: change.itemId,
+      location: change.location,
+      slot: change.slot,
+      quantity: change.quantity,
+      upgradeLevel: change.upgradeLevel,
+      bonuses: [...change.bonuses],
+      ownerCharacterId: change.ownerCharacterId,
+      ownerAccountId: change.ownerAccountId,
+      createdBy: change.createdBy,
     });
+  }
+
+  if (plan.gold) {
+    const actual = gold - currentGold;
+    await tx
+      .update(characters)
+      .set({ gold, updatedAt: new Date() })
+      .where(eq(characters.id, context.characterId));
+    if (actual !== 0) {
+      await tx.insert(goldLog).values({
+        id: randomUUID(),
+        characterId: context.characterId,
+        accountId: context.accountId,
+        delta: actual,
+        balanceAfter: gold,
+        reason: plan.gold.reason,
+        detail: plan.gold.detail ?? {},
+      });
+    }
+  }
+
+  if (plan.logs.length > 0) {
+    await tx.insert(itemLog).values(
+      plan.logs.map((log) => ({
+        id: randomUUID(),
+        itemId: log.itemId,
+        actorCharacterId: context.characterId,
+        accountId: context.accountId,
+        action: log.action,
+        definitionId: log.definitionId,
+        quantity: log.quantity,
+        fromLocation: log.fromLocation ?? null,
+        fromSlot: log.fromSlot ?? null,
+        toLocation: log.toLocation ?? null,
+        toSlot: log.toSlot ?? null,
+        detail: log.detail ?? {},
+      })),
+    );
+  }
+
+  return { gold };
+}
+
+export async function withItemTransaction<T>(
+  db: Db,
+  context: ItemTransactionContext,
+  run: (tx: Tx) => Promise<T>,
+): Promise<T> {
+  try {
+    return await db.transaction(run);
   } catch (error) {
     if (error instanceof ItemError) {
       throw error;
@@ -260,4 +266,12 @@ export async function applyItemTransaction(
     );
     throw new ItemError("internal", "Item transaction failed.");
   }
+}
+
+export async function applyItemTransaction(
+  db: Db,
+  context: ItemTransactionContext,
+  plan: ItemPlan,
+): Promise<{ gold: number }> {
+  return withItemTransaction(db, context, (tx) => applyItemPlanInTx(tx, context, plan));
 }
