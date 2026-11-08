@@ -37,6 +37,7 @@ import {
   listChatLogs,
   listGoldLogs,
   listItemLogs,
+  listTradeLogs,
   searchAccountsAndCharacters,
 } from "../admin/adminService";
 import { adminCookieStatus } from "../http/adminCookie";
@@ -127,6 +128,9 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   });
   router.get("/logs/chat", async (req, res) => {
     res.json({ entries: await listChatLogs(deps.db, parseBody(adminLogQuerySchema, req.query)) });
+  });
+  router.get("/logs/trade", async (req, res) => {
+    res.json({ entries: await listTradeLogs(deps.db, parseBody(adminLogQuerySchema, req.query)) });
   });
 
   router.get("/server", (_req, res) => {

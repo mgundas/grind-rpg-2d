@@ -4,7 +4,7 @@ import type { CreateCharacterRequest } from "@jadethrone/shared";
 import { registerAccount, type AuthDeps } from "../../src/auth/accountService";
 import { createCharacter } from "../../src/characters/characterService";
 import type { Db } from "../../src/db/client";
-import { adminLog, chatLog, goldLog, itemLog, items } from "../../src/db/schema";
+import { adminLog, chatLog, goldLog, itemLog, items, tradeLog } from "../../src/db/schema";
 import { writeAdminLog } from "../../src/admin/adminLog";
 import {
   dashboard,
@@ -13,6 +13,7 @@ import {
   listChatLogs,
   listGoldLogs,
   listItemLogs,
+  listTradeLogs,
   searchAccountsAndCharacters,
 } from "../../src/admin/adminService";
 import { createTestDb, hasTestDatabase, type TestDb } from "../db/testDb";
@@ -185,6 +186,60 @@ describeDb("admin read service", () => {
       offset: 0,
     });
     expect(chatRows[0]?.detail?.text).toContain(marker);
+  });
+
+  it("lists trade logs with participant, gold and trade-id filters", async () => {
+    const { db } = testDb;
+    const first = await accountWithCharacter(db, `TradeA${suffix()}`);
+    const second = await accountWithCharacter(db, `TradeB${suffix()}`);
+    const tradeId = randomUUID();
+    await db.insert(tradeLog).values({
+      id: tradeId,
+      revision: 3,
+      mapId: "map_ember_village",
+      characterAId: first.characterId,
+      accountAId: first.accountId,
+      characterBId: second.characterId,
+      accountBId: second.accountId,
+      goldA: 25,
+      goldB: 0,
+      itemsA: [
+        {
+          instanceId: randomUUID(),
+          itemId: "potion_hp_s",
+          quantity: 1,
+          upgradeLevel: 0,
+          bonuses: [],
+          fromSlot: 0,
+          toSlot: 0,
+        },
+      ],
+      itemsB: [],
+    });
+
+    const byTrade = await listTradeLogs(db, { tradeId, limit: 10, offset: 0 });
+    expect(byTrade).toHaveLength(1);
+    expect(byTrade[0]?.action).toBe("trade");
+    expect(byTrade[0]?.characterName).toContain("Trade");
+    expect(byTrade[0]?.detail?.goldA).toBe(25);
+    expect(Array.isArray(byTrade[0]?.detail?.itemsA)).toBe(true);
+
+    const byCharacter = await listTradeLogs(db, {
+      characterId: second.characterId,
+      limit: 10,
+      offset: 0,
+    });
+    expect(byCharacter.map((row) => row.id)).toContain(tradeId);
+
+    const bySearch = await listTradeLogs(db, { q: tradeId, limit: 10, offset: 0 });
+    expect(bySearch.map((row) => row.id)).toContain(tradeId);
+
+    const missing = await listTradeLogs(db, {
+      tradeId: randomUUID(),
+      limit: 10,
+      offset: 0,
+    });
+    expect(missing).toHaveLength(0);
   });
 
   it("writes an admin audit row", async () => {

@@ -21,6 +21,7 @@ import {
   chatLog,
   goldLog,
   itemLog,
+  tradeLog,
   type AccountRow,
   type AnnouncementRow,
   type CharacterRow,
@@ -364,6 +365,66 @@ export async function listChatLogs(db: Db, query: AdminLogQuery): Promise<AdminL
     .limit(query.limit)
     .offset(query.offset);
   return rows.map((row) => ({ ...row, createdAt: row.createdAt.toISOString() }));
+}
+
+export async function listTradeLogs(db: Db, query: AdminLogQuery): Promise<AdminLogRow[]> {
+  const conditions: Array<ReturnType<typeof eq> | undefined> = [];
+  if (query.tradeId) conditions.push(eq(tradeLog.id, query.tradeId));
+  if (query.characterId) {
+    conditions.push(
+      or(
+        eq(tradeLog.characterAId, query.characterId),
+        eq(tradeLog.characterBId, query.characterId),
+      ),
+    );
+  }
+  if (query.from) conditions.push(gte(tradeLog.createdAt, new Date(query.from)));
+  if (query.to) conditions.push(lte(tradeLog.createdAt, new Date(query.to)));
+  if (query.q) {
+    conditions.push(sql`${tradeLog.id}::text ILIKE ${pattern(query.q)}`);
+  }
+  const rows = await db
+    .select()
+    .from(tradeLog)
+    .where(whereAll(conditions))
+    .orderBy(desc(tradeLog.createdAt))
+    .limit(query.limit)
+    .offset(query.offset);
+
+  const characterIds = [...new Set(rows.flatMap((row) => [row.characterAId, row.characterBId]))];
+  const names =
+    characterIds.length === 0
+      ? []
+      : await db
+          .select({ id: characters.id, name: characters.name })
+          .from(characters)
+          .where(inArray(characters.id, characterIds));
+  const nameById = new Map(names.map((row) => [row.id, row.name]));
+
+  return rows.map((row) => {
+    const nameA = nameById.get(row.characterAId) ?? row.characterAId;
+    const nameB = nameById.get(row.characterBId) ?? row.characterBId;
+    return {
+      id: row.id,
+      characterId: row.characterAId,
+      characterName: `${nameA} vs ${nameB}`,
+      action: "trade",
+      detail: {
+        tradeId: row.id,
+        revision: row.revision,
+        mapId: row.mapId,
+        goldA: row.goldA,
+        goldB: row.goldB,
+        participants: [
+          { characterId: row.characterAId, name: nameA, accountId: row.accountAId, gold: row.goldA },
+          { characterId: row.characterBId, name: nameB, accountId: row.accountBId, gold: row.goldB },
+        ],
+        itemsA: row.itemsA,
+        itemsB: row.itemsB,
+      },
+      createdAt: row.createdAt.toISOString(),
+    };
+  });
 }
 
 export async function listAnnouncements(db: Db): Promise<AdminAnnouncementRow[]> {

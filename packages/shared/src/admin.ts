@@ -101,6 +101,7 @@ export const adminLogQuerySchema = z.object({
   q: z.string().trim().max(100).optional(),
   characterId: z.string().uuid().optional(),
   itemId: z.string().uuid().optional(),
+  tradeId: z.string().uuid().optional(),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),

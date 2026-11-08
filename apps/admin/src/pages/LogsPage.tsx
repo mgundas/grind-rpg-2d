@@ -20,11 +20,19 @@ interface Filters {
   q: string;
   characterId: string;
   itemId: string;
+  tradeId: string;
   from: string;
   to: string;
 }
 
-const EMPTY_FILTERS: Filters = { q: "", characterId: "", itemId: "", from: "", to: "" };
+const EMPTY_FILTERS: Filters = {
+  q: "",
+  characterId: "",
+  itemId: "",
+  tradeId: "",
+  from: "",
+  to: "",
+};
 
 function localToIso(value: string): string | null {
   if (value === "") {
@@ -47,6 +55,9 @@ function queryString(filters: Filters, offset: number): string {
   if (UUID.test(filters.itemId.trim())) {
     params.set("itemId", filters.itemId.trim());
   }
+  if (UUID.test(filters.tradeId.trim())) {
+    params.set("tradeId", filters.tradeId.trim());
+  }
   const from = localToIso(filters.from);
   if (from) {
     params.set("from", from);
@@ -68,9 +79,6 @@ export function LogsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tab === "trade") {
-      return;
-    }
     let cancelled = false;
     const load = async () => {
       try {
@@ -125,15 +133,7 @@ export function LogsPage() {
         ))}
       </div>
 
-      {tab === "trade" ? (
-        <div className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-6">
-          <h3 className="text-sm font-semibold text-[var(--gold)]">Trade log</h3>
-          <p className="mt-2 text-xs text-[#8d9a94]">
-            No trades are recorded yet. Trading arrives in Phase 7.
-          </p>
-        </div>
-      ) : (
-        <div className="grid gap-4">
+      <div className="grid gap-4">
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -185,6 +185,16 @@ export function LogsPage() {
                 value={draft.to}
                 onChange={(event) => setDraft({ ...draft, to: event.target.value })}
                 className="mt-1 w-full rounded border border-[var(--jade-soft)] bg-[#0e1311] px-2 py-1 text-sm"
+              />
+            </label>
+            <label className="text-xs">
+              Trade ID
+              <input
+                value={draft.tradeId}
+                onChange={(event) => setDraft({ ...draft, tradeId: event.target.value })}
+                placeholder="uuid"
+                disabled={tab !== "trade"}
+                className="mt-1 w-full rounded border border-[var(--jade-soft)] bg-[#0e1311] px-2 py-1 font-mono text-[11px] disabled:opacity-40"
               />
             </label>
             <div className="flex items-end gap-2">
@@ -241,8 +251,7 @@ export function LogsPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

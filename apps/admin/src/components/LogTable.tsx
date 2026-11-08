@@ -1,7 +1,7 @@
 import { Fragment, useState } from "react";
 import type { AdminLogRow } from "@jadethrone/shared";
 
-export type LogKind = "item" | "gold" | "admin" | "chat";
+export type LogKind = "item" | "gold" | "admin" | "chat" | "trade";
 
 interface Column {
   header: string;
@@ -68,6 +68,30 @@ const COLUMNS: Record<LogKind, Column[]> = {
         return typeof text === "string" ? text : JSON.stringify(row.detail ?? {});
       },
     },
+  ],
+  trade: [
+    { header: "Time", render: (row) => time(row.createdAt) },
+    { header: "Participants", render: (row) => row.characterName ?? "—" },
+    {
+      header: "Gold offered",
+      render: (row) => {
+        const goldA = row.detail?.goldA;
+        const goldB = row.detail?.goldB;
+        return `${typeof goldA === "number" ? goldA.toLocaleString() : "—"} ↔ ${
+          typeof goldB === "number" ? goldB.toLocaleString() : "—"
+        }`;
+      },
+    },
+    {
+      header: "Items",
+      render: (row) => {
+        const itemsA = Array.isArray(row.detail?.itemsA) ? row.detail.itemsA.length : 0;
+        const itemsB = Array.isArray(row.detail?.itemsB) ? row.detail.itemsB.length : 0;
+        return `${itemsA} / ${itemsB}`;
+      },
+    },
+    { header: "Map", render: (row) => String(row.detail?.mapId ?? "—") },
+    { header: "Trade ID", className: "font-mono text-[10px]", render: (row) => row.id },
   ],
 };
 

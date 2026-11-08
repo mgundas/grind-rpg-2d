@@ -144,7 +144,7 @@ export const adminApi = {
     request<AdminCharacterDetail>(`/api/admin/players/${characterId}`),
   serverStatus: () => request<AdminServerStatus>("/api/admin/server"),
   monitorStatus: () => request<AdminMonitorStatus>("/api/admin/monitor/status"),
-  logs: (kind: "item" | "gold" | "admin" | "chat", query = "") =>
+  logs: (kind: "item" | "gold" | "admin" | "chat" | "trade", query = "") =>
     request<{ entries: AdminLogRow[] }>(`/api/admin/logs/${kind}${query}`),
   announcements: () =>
     request<{ announcements: AdminAnnouncementRow[] }>("/api/admin/announcements"),
