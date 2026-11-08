@@ -2,7 +2,6 @@ import {
   cloneInventory,
   isEquipmentType,
   type InventoryState,
-  type ItemStack,
   type RandomSource,
   type UpgradePreview,
   type UpgradeMaterialView,
@@ -11,6 +10,7 @@ import { getItem, hasItem } from "@jadethrone/data/items";
 import { getUpgradeStep, MAX_UPGRADE_LEVEL, type UpgradeStep } from "@jadethrone/data/upgrades";
 import { ItemError } from "./errors";
 import { describeChanges, type GoldDelta, type ItemPlan } from "./itemChanges";
+import { consumeItem, countItem, findStack, setStack } from "./inventoryDraft";
 import { diffInventory } from "./planning";
 
 const BLESSING_SCROLL = "scroll_blessing";
@@ -26,67 +26,6 @@ export interface UpgradePlanResult {
   usedBlessing: boolean;
 }
 
-interface LocatedStack {
-  stack: ItemStack;
-  location: "inventory" | "equipment";
-}
-
-function locate(state: InventoryState, instanceId: string): LocatedStack | null {
-  const inventory = state.items.find((item) => item.id === instanceId);
-  if (inventory) {
-    return { stack: inventory, location: "inventory" };
-  }
-  const equipment = state.equipment.find((item) => item?.id === instanceId);
-  return equipment ? { stack: equipment, location: "equipment" } : null;
-}
-
-function countItems(state: InventoryState, itemId: string): number {
-  return state.items
-    .filter((item) => item.itemId === itemId)
-    .reduce((total, item) => total + item.quantity, 0);
-}
-
-/** Consume `quantity` from inventory stacks, mutating the working state. */
-function consumeItem(state: InventoryState, itemId: string, quantity: number): void {
-  let remaining = quantity;
-  for (let index = 0; index < state.items.length && remaining > 0; index += 1) {
-    const stack = state.items[index]!;
-    if (stack.itemId !== itemId) {
-      continue;
-    }
-    const consumed = Math.min(stack.quantity, remaining);
-    remaining -= consumed;
-    if (consumed === stack.quantity) {
-      state.items.splice(index, 1);
-      index -= 1;
-    } else {
-      state.items[index] = { ...stack, quantity: stack.quantity - consumed };
-    }
-  }
-  if (remaining > 0) {
-    throw new ItemError("not_usable", `Not enough ${itemId}.`);
-  }
-}
-
-/** Apply the level outcome to the working inventory. */
-function applyTargetLevel(state: InventoryState, instanceId: string, level: number | null): void {
-  const inventoryIndex = state.items.findIndex((item) => item.id === instanceId);
-  if (inventoryIndex >= 0) {
-    if (level === null) {
-      state.items.splice(inventoryIndex, 1);
-    } else {
-      state.items[inventoryIndex] = { ...state.items[inventoryIndex]!, upgradeLevel: level };
-    }
-    return;
-  }
-  const equipmentIndex = state.equipment.findIndex((item) => item?.id === instanceId);
-  if (equipmentIndex < 0) {
-    throw new ItemError("item_not_found", "Item not found.");
-  }
-  const stack = state.equipment[equipmentIndex]!;
-  state.equipment[equipmentIndex] = level === null ? null : { ...stack, upgradeLevel: level };
-}
-
 function previewMaterials(
   state: InventoryState,
   step: UpgradeStep | undefined,
@@ -94,7 +33,7 @@ function previewMaterials(
   return (step?.materials ?? []).map((material) => ({
     itemId: material.itemId,
     required: material.quantity,
-    owned: countItems(state, material.itemId),
+    owned: countItem(state, material.itemId),
   }));
 }
 
@@ -103,7 +42,7 @@ export function buildUpgradePreview(
   gold: number,
   instanceId: string,
 ): UpgradePreview {
-  const located = locate(state, instanceId);
+  const located = findStack(state, instanceId);
   if (!located) {
     throw new ItemError("item_not_found", "Item not found.");
   }
@@ -124,7 +63,7 @@ export function buildUpgradePreview(
       materials: [],
       hasGold: true,
       hasMaterials: true,
-      blessingAvailable: countItems(state, BLESSING_SCROLL) > 0,
+      blessingAvailable: countItem(state, BLESSING_SCROLL) > 0,
       canUpgrade: false,
     };
   }
@@ -141,7 +80,7 @@ export function buildUpgradePreview(
     materials,
     hasGold,
     hasMaterials,
-    blessingAvailable: countItems(state, BLESSING_SCROLL) > 0,
+    blessingAvailable: countItem(state, BLESSING_SCROLL) > 0,
     canUpgrade: hasGold && hasMaterials,
   };
 }
@@ -158,7 +97,7 @@ export function planUpgrade(
   instanceId: string,
   options: { useBlessing: boolean; rng: RandomSource },
 ): UpgradePlanResult {
-  const located = locate(state, instanceId);
+  const located = findStack(state, instanceId);
   if (!located) {
     throw new ItemError("item_not_found", "Item not found.");
   }
@@ -171,14 +110,14 @@ export function planUpgrade(
   if (!step) {
     throw new ItemError("not_usable", "This item is already at maximum level.");
   }
-  if (options.useBlessing && countItems(state, BLESSING_SCROLL) <= 0) {
+  if (options.useBlessing && countItem(state, BLESSING_SCROLL) <= 0) {
     throw new ItemError("not_usable", "No Blessing Scroll available.");
   }
   if (gold < step.gold) {
     throw new ItemError("no_gold", "Not enough gold for this upgrade.");
   }
   for (const material of step.materials) {
-    if (countItems(state, material.itemId) < material.quantity) {
+    if (countItem(state, material.itemId) < material.quantity) {
       throw new ItemError("not_usable", `Not enough ${material.itemId}.`);
     }
   }
@@ -204,7 +143,12 @@ export function planUpgrade(
       destroyed = true;
     }
   }
-  applyTargetLevel(next, instanceId, level);
+  const target = findStack(next, instanceId);
+  setStack(
+    next,
+    instanceId,
+    level === null ? null : { ...target!.stack, upgradeLevel: level },
+  );
 
   const detail = {
     instanceId,
