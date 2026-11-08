@@ -403,7 +403,7 @@ export interface ShopViewPayload {
   items: ShopStockEntry[];
 }
 
-export type AnnouncementKind = "admin" | "scheduled" | "shutdown";
+export type AnnouncementKind = "admin" | "scheduled" | "shutdown" | "upgrade";
 
 /** Server-wide banner (admin panel / scheduled announcement / shutdown countdown). */
 export interface AnnouncementPayload {

@@ -1,4 +1,5 @@
 import {
+  cloneInventory,
   isEquipmentType,
   type InventoryState,
   type ItemStack,
@@ -9,19 +10,14 @@ import {
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getUpgradeStep, MAX_UPGRADE_LEVEL, type UpgradeStep } from "@jadethrone/data/upgrades";
 import { ItemError } from "./errors";
-import {
-  describeChanges,
-  rowStateFromStack,
-  type DeleteChange,
-  type GoldDelta,
-  type ItemChange,
-  type ItemPlan,
-  type UpdateChange,
-} from "./itemChanges";
+import { describeChanges, type GoldDelta, type ItemPlan } from "./itemChanges";
+import { diffInventory } from "./planning";
 
 const BLESSING_SCROLL = "scroll_blessing";
 
 export interface UpgradePlanResult {
+  /** Next in-memory inventory; commit the plan before assigning it. */
+  state: InventoryState;
   plan: ItemPlan;
   success: boolean;
   previousLevel: number;
@@ -50,74 +46,45 @@ function countItems(state: InventoryState, itemId: string): number {
     .reduce((total, item) => total + item.quantity, 0);
 }
 
-/** Consume `quantity` from inventory stacks, returning the plan changes. */
-function consumeItem(
-  state: InventoryState,
-  characterId: string,
-  itemId: string,
-  quantity: number,
-): ItemChange[] {
+/** Consume `quantity` from inventory stacks, mutating the working state. */
+function consumeItem(state: InventoryState, itemId: string, quantity: number): void {
   let remaining = quantity;
-  const changes: ItemChange[] = [];
-  for (const stack of state.items) {
-    if (remaining <= 0) {
-      break;
-    }
+  for (let index = 0; index < state.items.length && remaining > 0; index += 1) {
+    const stack = state.items[index]!;
     if (stack.itemId !== itemId) {
       continue;
     }
     const consumed = Math.min(stack.quantity, remaining);
     remaining -= consumed;
-    const expect = rowStateFromStack(stack, "inventory", characterId);
     if (consumed === stack.quantity) {
-      changes.push({
-        kind: "delete",
-        id: stack.id,
-        itemId: stack.itemId,
-        expect,
-      });
+      state.items.splice(index, 1);
+      index -= 1;
     } else {
-      changes.push({
-        kind: "update",
-        id: stack.id,
-        itemId: stack.itemId,
-        expect,
-        to: {
-          ...expect,
-          quantity: stack.quantity - consumed,
-        },
-      });
+      state.items[index] = { ...stack, quantity: stack.quantity - consumed };
     }
   }
   if (remaining > 0) {
     throw new ItemError("not_usable", `Not enough ${itemId}.`);
   }
-  return changes;
 }
 
-function targetChange(
-  located: LocatedStack,
-  characterId: string,
-  upgradeLevel: number | null,
-): ItemChange {
-  const expect = rowStateFromStack(located.stack, located.location, characterId);
-  if (upgradeLevel === null) {
-    const change: DeleteChange = {
-      kind: "delete",
-      id: located.stack.id,
-      itemId: located.stack.itemId,
-      expect,
-    };
-    return change;
+/** Apply the level outcome to the working inventory. */
+function applyTargetLevel(state: InventoryState, instanceId: string, level: number | null): void {
+  const inventoryIndex = state.items.findIndex((item) => item.id === instanceId);
+  if (inventoryIndex >= 0) {
+    if (level === null) {
+      state.items.splice(inventoryIndex, 1);
+    } else {
+      state.items[inventoryIndex] = { ...state.items[inventoryIndex]!, upgradeLevel: level };
+    }
+    return;
   }
-  const change: UpdateChange = {
-    kind: "update",
-    id: located.stack.id,
-    itemId: located.stack.itemId,
-    expect,
-    to: { ...expect, upgradeLevel },
-  };
-  return change;
+  const equipmentIndex = state.equipment.findIndex((item) => item?.id === instanceId);
+  if (equipmentIndex < 0) {
+    throw new ItemError("item_not_found", "Item not found.");
+  }
+  const stack = state.equipment[equipmentIndex]!;
+  state.equipment[equipmentIndex] = level === null ? null : { ...stack, upgradeLevel: level };
 }
 
 function previewMaterials(
@@ -180,8 +147,9 @@ export function buildUpgradePreview(
 }
 
 /**
- * Plan one atomic upgrade. The caller supplies the authoritative gold balance;
- * the transaction re-validates it when applying the plan.
+ * Plan one atomic upgrade against a copy of the inventory. The caller supplies
+ * the authoritative gold balance; the transaction re-validates it when
+ * applying the plan, then assigns `state` only after the commit.
  */
 export function planUpgrade(
   state: InventoryState,
@@ -215,15 +183,15 @@ export function planUpgrade(
     }
   }
 
-  const changes: ItemChange[] = [];
+  const next = cloneInventory(state);
   for (const material of step.materials) {
-    changes.push(...consumeItem(state, characterId, material.itemId, material.quantity));
+    consumeItem(next, material.itemId, material.quantity);
   }
 
   const success = options.rng.next() < step.chance;
   const usedBlessing = !success && options.useBlessing;
   if (usedBlessing) {
-    changes.push(...consumeItem(state, characterId, BLESSING_SCROLL, 1));
+    consumeItem(next, BLESSING_SCROLL, 1);
   }
 
   let level: number | null = previousLevel + 1;
@@ -236,36 +204,33 @@ export function planUpgrade(
       destroyed = true;
     }
   }
-  changes.push(targetChange(located, characterId, level));
-  const goldDelta: GoldDelta = {
-    delta: -step.gold,
-    reason: "upgrade",
-    detail: {
-      instanceId,
-      previousLevel,
-      level,
-      success,
-      usedBlessing,
-      chance: step.chance,
-    },
+  applyTargetLevel(next, instanceId, level);
+
+  const detail = {
+    instanceId,
+    previousLevel,
+    level,
+    success,
+    usedBlessing,
+    chance: step.chance,
   };
   const action = success
     ? "upgrade_success"
     : usedBlessing
       ? "upgrade_blessing_saved"
       : "upgrade_failure";
+  const changes = diffInventory(state, next, characterId, "upgrade");
+  const goldDelta: GoldDelta = {
+    delta: -step.gold,
+    reason: "upgrade",
+    detail,
+  };
 
   return {
+    state: next,
     plan: {
       changes,
-      logs: describeChanges(changes, action, {
-        instanceId,
-        previousLevel,
-        level,
-        success,
-        usedBlessing,
-        chance: step.chance,
-      }),
+      logs: describeChanges(changes, action, detail),
       gold: goldDelta,
     },
     success,

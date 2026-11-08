@@ -80,6 +80,7 @@ import {
   splitStackMessageSchema,
   stepMover,
   unequipItemMessageSchema,
+  upgradeItemMessageSchema,
   upgradeSkillMessageSchema,
   useItemMessageSchema,
   type AdminGiveItemRequest,
@@ -131,7 +132,7 @@ import { toItemDto } from "../items/itemMappers";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
-import { buildUpgradePreview } from "../items/upgrade";
+import { buildUpgradePreview, planUpgrade } from "../items/upgrade";
 import {
   diffInventory,
   planAdminGive,
@@ -795,6 +796,43 @@ export class MapRoom extends Room {
             parsed.data.instanceId,
           );
           this.safeSend(client, MSG.upgradePreview, preview);
+        },
+        "blacksmith",
+      );
+    });
+
+    this.onMessage(MSG.upgradeItem, (client, raw) => {
+      const parsed = upgradeItemMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid upgradeItem message");
+        return;
+      }
+      this.runItemCommand(
+        client,
+        async (runtime) => {
+          this.requireBlacksmithRange(runtime);
+          if (runtime.warping) {
+            throw new ItemError("warping", "You cannot upgrade while warping.");
+          }
+          const result = planUpgrade(
+            runtime.inventory,
+            runtime.gold,
+            runtime.characterId,
+            parsed.data.instanceId,
+            { useBlessing: parsed.data.useBlessing, rng: this.rng },
+          );
+          await this.applyItemPlan(runtime, result.state, result.plan);
+          this.safeSend(client, MSG.upgradeResult, {
+            instanceId: parsed.data.instanceId,
+            success: result.success,
+            previousLevel: result.previousLevel,
+            level: result.level,
+            destroyed: result.destroyed,
+            usedBlessing: result.usedBlessing,
+          });
+          if (result.success && result.level !== null && result.level >= 7) {
+            this.announceUpgrade(client.sessionId, parsed.data.instanceId, result.level);
+          }
         },
         "blacksmith",
       );
@@ -2766,6 +2804,24 @@ export class MapRoom extends Room {
       return;
     }
     this.safeSend(client, MSG.warehouse, buildWarehouseSnapshot(runtime));
+  }
+
+  private announceUpgrade(sessionId: string, instanceId: string, level: number): void {
+    const runtime = this.runtimes.get(sessionId);
+    const player = this.state.players.get(sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    const stack =
+      runtime.inventory.items.find((item) => item.id === instanceId) ??
+      runtime.inventory.equipment.find((item) => item?.id === instanceId) ??
+      null;
+    const itemName = stack && hasItem(stack.itemId) ? getItem(stack.itemId).name : "an item";
+    getServerServices().adminBus.broadcastAnnouncement({
+      message: `${player.name} forged ${itemName} to +${level}!`,
+      kind: "upgrade",
+      sentAtMs: Date.now(),
+    });
   }
 
   private requireBlacksmithRange(runtime: PlayerRuntime): void {

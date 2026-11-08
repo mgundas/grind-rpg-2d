@@ -126,6 +126,9 @@ describe("planUpgrade", () => {
       expect(target.to.upgradeLevel).toBe(4);
     }
 
+    expect(result.state.items.find((entry) => entry.id === item.id)?.upgradeLevel).toBe(4);
+    expect(result.state.items.find((entry) => entry.id === fangs.id)?.quantity).toBe(2);
+
     const consumed = result.plan.changes.find((change) => change.id === fangs.id);
     expect(consumed?.kind).toBe("update");
     if (consumed?.kind === "update") {
@@ -160,6 +163,7 @@ describe("planUpgrade", () => {
     expect(result.level).toBeNull();
     const target = result.plan.changes.find((change) => change.id === item.id);
     expect(target?.kind).toBe("delete");
+    expect(result.state.items.some((entry) => entry.id === item.id)).toBe(false);
     expect(result.plan.logs.map((entry) => entry.action)).toContain("upgrade_failure");
   });
 
@@ -183,6 +187,7 @@ describe("planUpgrade", () => {
     if (target?.kind === "update") {
       expect(target.to.upgradeLevel).toBe(2);
     }
+    expect(result.state.items.find((entry) => entry.id === item.id)?.upgradeLevel).toBe(2);
     const scrollChange = result.plan.changes.find((change) => change.id === blessing.id);
     expect(scrollChange?.kind).toBe("update");
     if (scrollChange?.kind === "update") {

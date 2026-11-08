@@ -8,6 +8,8 @@ import {
   type NpcDialogPayload,
   type SelfStatsPayload,
   type UpgradePreview,
+  type UpgradeResultPayload,
+  type AnnouncementPayload,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
@@ -35,6 +37,24 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2000): Promise<vo
     }
     await sleep(10);
   }
+}
+
+function moveToBlacksmith(room: MapRoom, sessionId: string): void {
+  const internals = room as unknown as {
+    runtimes: Map<string, { mover: { pos: { x: number; y: number } } }>;
+  };
+  const runtime = internals.runtimes.get(sessionId)!;
+  const player = room.state.players.get(sessionId)!;
+  const npcX = 36 * 32 + 16;
+  const npcY = 40 * 32 + 12;
+  runtime.mover.pos.x = npcX + 8;
+  runtime.mover.pos.y = npcY + 8;
+  player.x = npcX + 8;
+  player.y = npcY + 8;
+}
+
+function setRoomRng(room: MapRoom, value: number): void {
+  (room as unknown as { rng: { next: () => number } }).rng = { next: () => value };
 }
 
 async function joinWithInventory(
@@ -629,5 +649,166 @@ describe("MapRoom inventory snapshots", () => {
     const unknown = client.waitForMessage(MSG.blacksmithError, 2000);
     send(client, MSG.requestUpgradePreview, { instanceId: randomUUID() });
     expect(((await unknown) as { code: string }).code).toBe("item_not_found");
+  });
+
+  it("executes a successful upgrade and consumes gold and materials once", async () => {
+    const swordId = randomUUID();
+    const fangId = randomUUID();
+    const { room, client } = await joinWithInventory("Forger", (id) => {
+      fake.setGold(id.character.id, 9_000);
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        upgradeLevel: 3,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: fangId,
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 1,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    moveToBlacksmith(room, client.sessionId);
+    setRoomRng(room, 0.1);
+
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    const resultPromise = client.waitForMessage(MSG.upgradeResult, 2000);
+    send(client, MSG.upgradeItem, { instanceId: swordId, useBlessing: false });
+
+    const result = (await resultPromise) as UpgradeResultPayload;
+    expect(result).toEqual({
+      instanceId: swordId,
+      success: true,
+      previousLevel: 3,
+      level: 4,
+      destroyed: false,
+      usedBlessing: false,
+    });
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(snapshot.gold).toBe(1_000);
+    expect(snapshot.items.find((item) => item.id === swordId)?.upgradeLevel).toBe(4);
+    expect(snapshot.items.some((item) => item.id === fangId)).toBe(false);
+  });
+
+  it("destroys the item on a failed roll without a blessing", async () => {
+    const swordId = randomUUID();
+    const { room, client } = await joinWithInventory("Doomed", (id) => {
+      fake.setGold(id.character.id, 9_000);
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        upgradeLevel: 3,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 1,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    moveToBlacksmith(room, client.sessionId);
+    setRoomRng(room, 0.99);
+
+    const resultPromise = client.waitForMessage(MSG.upgradeResult, 2000);
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.upgradeItem, { instanceId: swordId, useBlessing: false });
+
+    const result = (await resultPromise) as UpgradeResultPayload;
+    expect(result.success).toBe(false);
+    expect(result.destroyed).toBe(true);
+    expect(result.level).toBeNull();
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(snapshot.gold).toBe(1_000);
+    expect(snapshot.items.some((item) => item.id === swordId)).toBe(false);
+  });
+
+  it("downgrades instead of destroying when a blessing is used", async () => {
+    const swordId = randomUUID();
+    const scrollId = randomUUID();
+    const { room, client } = await joinWithInventory("Blessed", (id) => {
+      fake.setGold(id.character.id, 9_000);
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        upgradeLevel: 3,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 1,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: scrollId,
+        itemId: "scroll_blessing",
+        location: "inventory",
+        slot: 2,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    moveToBlacksmith(room, client.sessionId);
+    setRoomRng(room, 0.99);
+
+    const resultPromise = client.waitForMessage(MSG.upgradeResult, 2000);
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.upgradeItem, { instanceId: swordId, useBlessing: true });
+
+    const result = (await resultPromise) as UpgradeResultPayload;
+    expect(result.success).toBe(false);
+    expect(result.destroyed).toBe(false);
+    expect(result.usedBlessing).toBe(true);
+    expect(result.level).toBe(2);
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(snapshot.items.find((item) => item.id === swordId)?.upgradeLevel).toBe(2);
+    expect(snapshot.items.some((item) => item.id === scrollId)).toBe(false);
+  });
+
+  it("refreshes equipped stats and announces +7 upgrades server-wide", async () => {
+    const swordId = randomUUID();
+    const { room, client } = await joinWithInventory("Legend", (id) => {
+      fake.setGold(id.character.id, 60_000);
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "equipment",
+        slot: 0,
+        upgradeLevel: 6,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "material_spirit_shard",
+        location: "inventory",
+        slot: 1,
+        quantity: 2,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    moveToBlacksmith(room, client.sessionId);
+    setRoomRng(room, 0.1);
+
+    const selfStatsPromise = client.waitForMessage(MSG.selfStats, 2000);
+    const announcementPromise = client.waitForMessage(MSG.announcement, 2000);
+    const resultPromise = client.waitForMessage(MSG.upgradeResult, 2000);
+    send(client, MSG.upgradeItem, { instanceId: swordId, useBlessing: false });
+
+    const result = (await resultPromise) as UpgradeResultPayload;
+    expect(result.level).toBe(7);
+    await selfStatsPromise;
+    const announcement = (await announcementPromise) as AnnouncementPayload;
+    expect(announcement.kind).toBe("upgrade");
+    expect(announcement.message).toContain("Ember Sword to +7");
   });
 });

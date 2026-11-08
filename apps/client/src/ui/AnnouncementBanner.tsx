@@ -6,6 +6,7 @@ const KIND_COLOR = {
   admin: "#5da88f",
   scheduled: "#c9a227",
   shutdown: "#ff8f84",
+  upgrade: "#e0b64a",
 } as const;
 
 /** Top-centre server-wide banner; auto-dismisses after a short display. */
