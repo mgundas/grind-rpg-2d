@@ -140,6 +140,8 @@ interface MonsterVisual {
   label: Phaser.GameObjects.Text;
   barBackground: Phaser.GameObjects.Rectangle;
   barFill: Phaser.GameObjects.Rectangle;
+  /** Cached at creation so the per-frame update never re-reads the catalog. */
+  scale: number;
 }
 
 interface StoneData {
@@ -1602,16 +1604,27 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createMonsterVisual(entity: MonsterEntity, playerLevel: number): void {
-    const spec = getMonster(entity.typeId);
-    const scale = spec.isBoss
+    // A catalog skew (a monster type the client has not refreshed yet) must not
+    // take down the whole scene: fall back to the generic character texture.
+    let size: string | null = null;
+    let spriteKey: string | null = null;
+    try {
+      const spec = getMonster(entity.typeId);
+      size = spec.size;
+      spriteKey = spec.spriteKey;
+    } catch {
+      size = null;
+    }
+    const scale = entity.isBoss
       ? 1.4
-      : spec.size === "large"
+      : size === "large"
         ? 1.2
-        : spec.size === "small"
+        : size === "small"
           ? 0.85
           : 1;
     const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
-    const textureKey = this.textures.exists(spec.spriteKey) ? spec.spriteKey : KEY_CHARACTER;
+    const textureKey =
+      spriteKey && this.textures.exists(spriteKey) ? spriteKey : KEY_CHARACTER;
     const shadow = this.add
       .ellipse(pos.x, pos.y + 6, 24 * scale, 9 * scale, 0x000000, 0.3)
       .setDepth(pos.y - 1);
@@ -1623,7 +1636,7 @@ export class WorldScene extends Phaser.Scene {
     const label = this.add
       .text(pos.x, pos.y - 52 * scale, entity.name, {
         fontFamily: "monospace",
-        fontSize: `${spec.isBoss ? 11 : 10}px`,
+        fontSize: `${entity.isBoss ? 11 : 10}px`,
         color: monsterNameColor(entity.level, playerLevel),
         stroke: "#0b0f0d",
         strokeThickness: 3,
@@ -1649,6 +1662,7 @@ export class WorldScene extends Phaser.Scene {
       label,
       barBackground,
       barFill,
+      scale,
     });
   }
 
@@ -1683,14 +1697,7 @@ export class WorldScene extends Phaser.Scene {
           this.monsterKnockback.delete(entity.id);
         }
       }
-      const spec = getMonster(entity.typeId);
-      const scale = entity.isBoss
-        ? 1.4
-        : spec.size === "large"
-          ? 1.2
-          : spec.size === "small"
-            ? 0.85
-            : 1;
+      const scale = visual.scale;
       visual.sprite.setPosition(renderX, renderY);
       visual.sprite.setDepth(renderY);
       visual.shadow.setPosition(renderX, renderY + 6);
