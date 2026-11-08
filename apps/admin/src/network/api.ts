@@ -5,8 +5,12 @@ import type {
   AdminLogRow,
   AdminMonitorStatus,
   AdminSearchResponse,
+  AdminGameDataDatasetResponse,
+  AdminGameDataMutationResponse,
+  AdminGameDataReloadResponse,
   AdminServerStatus,
   AuthResponse,
+  GameDataDataset,
   MeResponse,
 } from "@jadethrone/shared";
 import { adminTokens } from "./tokens";
@@ -146,6 +150,20 @@ export const adminApi = {
   monitorStatus: () => request<AdminMonitorStatus>("/api/admin/monitor/status"),
   logs: (kind: "item" | "gold" | "admin" | "chat" | "trade", query = "") =>
     request<{ entries: AdminLogRow[] }>(`/api/admin/logs/${kind}${query}`),
+  gameData: (dataset: GameDataDataset) =>
+    request<AdminGameDataDatasetResponse>(`/api/admin/data/${dataset}`),
+  saveGameData: (dataset: GameDataDataset, entryId: string, payload: Record<string, unknown>) =>
+    request<AdminGameDataMutationResponse>(
+      `/api/admin/data/${dataset}/${encodeURIComponent(entryId)}`,
+      { method: "PUT", body: { payload } },
+    ),
+  deleteGameData: (dataset: GameDataDataset, entryId: string) =>
+    request<AdminGameDataMutationResponse>(
+      `/api/admin/data/${dataset}/${encodeURIComponent(entryId)}`,
+      { method: "DELETE" },
+    ),
+  reloadGameData: () =>
+    request<AdminGameDataReloadResponse>("/api/admin/data/reload", { method: "POST" }),
   announcements: () =>
     request<{ announcements: AdminAnnouncementRow[] }>("/api/admin/announcements"),
   updateCharacter: (characterId: string, body: unknown) =>

@@ -252,7 +252,7 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 19 — Override table and catalog store
 - [x] Task 20 — Refactor server consumers to catalog
 - [x] Task 21 — Admin data API
-- [ ] Task 22 — Admin game-data editor
+- [x] Task 22 — Admin game-data editor
 - [ ] Task 23 — Client catalog refresh
 - [ ] Task 24 — Phase 7 E2E, decisions and report
 - [ ] Task 25 — Phase gate
