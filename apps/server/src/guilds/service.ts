@@ -303,3 +303,34 @@ export async function findGuildIdByName(db: Db, name: string): Promise<string | 
   return row?.id ?? null;
 }
 
+
+/** Room-facing seam; production is DB-backed, room tests can inject a fake. */
+export interface GuildService {
+  loadByCharacter(characterId: string): Promise<GuildRecord | null>;
+  loadById(guildId: string): Promise<GuildRecord | null>;
+  create(characterId: string, name: string): Promise<string>;
+  join(guildId: string, characterId: string): Promise<void>;
+  leave(characterId: string): Promise<void>;
+  kick(actorCharacterId: string, targetCharacterId: string): Promise<void>;
+  setRank(
+    actorCharacterId: string,
+    targetCharacterId: string,
+    rank: Exclude<GuildRank, "leader">,
+  ): Promise<void>;
+  disband(characterId: string): Promise<void>;
+}
+
+export function createGuildService(db: Db): GuildService {
+  return {
+    loadByCharacter: (characterId) => loadGuildByCharacter(db, characterId),
+    loadById: (guildId) => loadGuild(db, guildId),
+    create: (characterId, name) => createGuild(db, { characterId, name }),
+    join: (guildId, characterId) => joinGuild(db, { guildId, characterId }),
+    leave: (characterId) => leaveGuild(db, characterId),
+    kick: (actorCharacterId, targetCharacterId) =>
+      kickGuildMember(db, { actorCharacterId, targetCharacterId }),
+    setRank: (actorCharacterId, targetCharacterId, rank) =>
+      setGuildRank(db, { actorCharacterId, targetCharacterId, rank }),
+    disband: (characterId) => disbandGuild(db, characterId),
+  };
+}

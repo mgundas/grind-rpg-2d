@@ -45,6 +45,8 @@ import { createDbGameDataStore } from "./gameData/dbStore";
 import type { GameDataStore } from "./gameData/store";
 import { createSocialDirectory } from "./social/bus";
 import type { SocialDirectory } from "./social/bus";
+import { createGuildService } from "./guilds/service";
+import type { GuildService } from "./guilds/service";
 import { createCryptoRandomSource } from "./util/random";
 
 /**
@@ -67,6 +69,7 @@ export interface ServerDeps {
   items?: ItemService;
   gameData?: GameDataStore;
   social?: SocialDirectory;
+  guilds?: GuildService;
   adminBus?: AdminBus;
   adminRuntime?: AdminRuntime;
   logChat?: (entry: ChatLogInput) => Promise<void>;
@@ -121,6 +124,7 @@ export function createGameServer(deps: ServerDeps = {}) {
   const itemService = deps.items ?? createItemService(db);
   const gameData = deps.gameData ?? createDbGameDataStore(db);
   const social = deps.social ?? createSocialDirectory();
+  const guilds = deps.guilds ?? (deps.joinAuthenticator ? null : createGuildService(db));
   const adminBus = deps.adminBus ?? createAdminBus();
   const adminRuntime =
     deps.adminRuntime ?? createAdminRuntime({ db, bus: adminBus });
@@ -154,6 +158,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     items: itemService,
     gameData,
     social,
+    guilds,
     adminBus,
     adminRuntime,
     logChat: deps.logChat ?? logChat,

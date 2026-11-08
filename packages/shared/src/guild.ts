@@ -10,6 +10,7 @@ export const GUILD_NAME_MAX = 20;
 
 export const GUILD_ERROR_CODES = [
   "not_found",
+  "expired",
   "not_member",
   "already_member",
   "invalid_name",
@@ -20,6 +21,8 @@ export const GUILD_ERROR_CODES = [
   "permission",
   "leader",
   "target_not_found",
+  "dead",
+  "warping",
   "internal",
 ] as const;
 export type GuildErrorCode = (typeof GUILD_ERROR_CODES)[number];

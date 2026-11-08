@@ -13,6 +13,8 @@ export class PlayerState extends Schema {
   @type("string") characterId!: string;
   @type("string") name!: string;
   @type("string") kingdom!: string;
+  /** Guild display name; empty when guildless. */
+  @type("string") guildName!: string;
   /** Persisted class id (warrior / assassin / hexblade / mystic). */
   @type("string") classId!: string;
   @type("string") gender!: string;

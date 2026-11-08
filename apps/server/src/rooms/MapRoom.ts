@@ -50,6 +50,13 @@ import {
   facing4FromIndex,
   facing4Index,
   findPath,
+  guildCreateMessageSchema,
+  guildDisbandMessageSchema,
+  guildInviteMessageSchema,
+  guildKickMessageSchema,
+  guildLeaveMessageSchema,
+  guildRespondMessageSchema,
+  guildSetRankMessageSchema,
   inputMessageSchema,
   interactNpcMessageSchema,
   isClassId,
@@ -100,6 +107,9 @@ import {
   type CombatHit,
   type DeathPayload,
   type Dir8,
+  type GuildErrorPayload,
+  type GuildInvitePayload,
+  type GuildStatePayload,
   type InputMessage,
   type InventoryState,
   type ItemActionErrorCode,
@@ -237,6 +247,12 @@ import {
   type SpawnManager,
 } from "./spawnManager";
 import type { JoinIdentity } from "../auth/joinAuth";
+import {
+  createGuildInviteRegistry,
+  GuildInviteError,
+} from "../social/guildInvites";
+import { GuildRuleError, canInvite } from "../guilds/rules";
+import { toGuildView, type GuildRecord, type GuildService } from "../guilds/service";
 
 /** Converts a runtime buff to the wire shape used by skill/buff messages. */
 function toBuffView(buff: PlayerBuff): BuffView {
@@ -283,6 +299,7 @@ export class MapRoom extends Room {
   private adminActions = new Map<string, AdminLiveActions>();
   private adminRoom: AdminRoomHandle | null = null;
   private readonly parties = createPartyRegistry();
+  private readonly guildInvites = createGuildInviteRegistry();
   private readonly trades = createTradeRegistry({
     isOnline: (characterId) => this.runtimeForCharacter(characterId) !== undefined,
   });
@@ -630,6 +647,66 @@ export class MapRoom extends Room {
         return;
       }
       this.handleTradeCancel(client, parsed.data.tradeId);
+    });
+
+
+    this.onMessage(MSG.guildCreate, (client, raw) => {
+      const parsed = guildCreateMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid guildCreate message");
+        return;
+      }
+      this.handleGuildCreate(client, parsed.data.name);
+    });
+
+    this.onMessage(MSG.guildInvite, (client, raw) => {
+      const parsed = guildInviteMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid guildInvite message");
+        return;
+      }
+      this.handleGuildInvite(client, parsed.data.characterId, parsed.data.name);
+    });
+
+    this.onMessage(MSG.guildRespond, (client, raw) => {
+      const parsed = guildRespondMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid guildRespond message");
+        return;
+      }
+      this.handleGuildRespond(client, parsed.data.inviteId, parsed.data.accept);
+    });
+
+    this.onMessage(MSG.guildLeave, (client, raw) => {
+      if (!guildLeaveMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.handleGuildLeave(client);
+    });
+
+    this.onMessage(MSG.guildKick, (client, raw) => {
+      const parsed = guildKickMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid guildKick message");
+        return;
+      }
+      this.handleGuildKick(client, parsed.data.characterId);
+    });
+
+    this.onMessage(MSG.guildSetRank, (client, raw) => {
+      const parsed = guildSetRankMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid guildSetRank message");
+        return;
+      }
+      this.handleGuildSetRank(client, parsed.data.characterId, parsed.data.rank);
+    });
+
+    this.onMessage(MSG.guildDisband, (client, raw) => {
+      if (!guildDisbandMessageSchema.safeParse(raw).success) {
+        return;
+      }
+      this.handleGuildDisband(client);
     });
 
     this.onMessage(MSG.requestStats, (client, raw) => {
@@ -1149,7 +1226,29 @@ export class MapRoom extends Room {
           this.safeSend(client, type, payload);
         }
       },
+      setGuildTag: (name) => {
+        const active = this.state.players.get(client.sessionId);
+        if (active) {
+          active.guildName = name ?? "";
+        }
+      },
     });
+
+    try {
+      const guilds = getServerServices().guilds;
+      if (guilds) {
+        const guild = await guilds.loadByCharacter(runtime.characterId);
+        if (guild) {
+          player.guildName = guild.name;
+          await this.publishGuild(guild);
+        }
+      }
+    } catch (error) {
+      logger.error(
+        { roomId: this.roomId, characterId: runtime.characterId, error },
+        "guild state load failed on join",
+      );
+    }
 
     logger.info(
       {
@@ -1172,6 +1271,8 @@ export class MapRoom extends Room {
     const runtime = this.runtimes.get(client.sessionId);
     if (runtime) {
       getServerServices().social.unregister(runtime.characterId, client.sessionId);
+      this.guildInvites.cancelForCharacter(runtime.characterId);
+      await this.refreshGuildRoster(runtime.characterId);
       this.cancelTradeForCharacter(runtime.characterId, "disconnect");
     }
     this.state.players.delete(client.sessionId);
@@ -1209,6 +1310,7 @@ export class MapRoom extends Room {
     this.adminRoom = null;
     this.parties.clear();
     this.trades.clear();
+    this.guildInvites.clear();
   }
 
   /**
@@ -1983,6 +2085,7 @@ export class MapRoom extends Room {
     for (const trade of [...expiredTrades.expiredInvites, ...expiredTrades.expiredTrades]) {
       this.sendTradeState(trade);
     }
+    this.guildInvites.prune(now);
     this.checkWarps();
   }
 
@@ -3564,6 +3667,285 @@ export class MapRoom extends Room {
     }
   }
 
+  private guildService(): GuildService {
+    const guilds = getServerServices().guilds;
+    if (!guilds) {
+      throw new GuildRuleError("internal", "Guilds are unavailable.");
+    }
+    return guilds;
+  }
+
+  private sendGuildError(client: Client, error: unknown): void {
+    if (error instanceof GuildRuleError) {
+      this.safeSend(client, MSG.guildError, {
+        code: error.code,
+        message: error.message,
+      } satisfies GuildErrorPayload);
+      return;
+    }
+    if (error instanceof GuildInviteError) {
+      this.safeSend(client, MSG.guildError, {
+        code: error.code,
+        message: error.message,
+      } satisfies GuildErrorPayload);
+      return;
+    }
+    logger.error({ roomId: this.roomId, session: client.sessionId, error }, "guild command failed");
+    this.safeSend(client, MSG.guildError, {
+      code: "internal",
+      message: "The guild action failed.",
+    } satisfies GuildErrorPayload);
+  }
+
+  private runGuildCommand(
+    client: Client,
+    handler: (runtime: PlayerRuntime) => Promise<void>,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime || runtime.inventoryClosed) {
+      return;
+    }
+    const run = async (): Promise<void> => {
+      const current = this.runtimes.get(client.sessionId);
+      if (!current || current.inventoryClosed) {
+        return;
+      }
+      if (current.dead) {
+        this.safeSend(client, MSG.guildError, {
+          code: "dead",
+          message: "The dead cannot use guild commands.",
+        } satisfies GuildErrorPayload);
+        return;
+      }
+      if (current.warping) {
+        this.safeSend(client, MSG.guildError, {
+          code: "warping",
+          message: "You cannot use guild commands while warping.",
+        } satisfies GuildErrorPayload);
+        return;
+      }
+      try {
+        await handler(current);
+      } catch (error) {
+        this.sendGuildError(client, error);
+      }
+    };
+    const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
+    runtime.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  private async publishGuild(
+    guild: GuildRecord | null,
+    fallbackIds: readonly string[] = [],
+  ): Promise<void> {
+    const directory = getServerServices().social;
+    if (!guild) {
+      for (const characterId of fallbackIds) {
+        directory.updateGuildTag(characterId, null);
+      }
+      directory.sendMany(fallbackIds, MSG.guildState, { guild: null } satisfies GuildStatePayload);
+      return;
+    }
+    const view = toGuildView(guild, directory);
+    const ids = guild.members.map((member) => member.characterId);
+    for (const characterId of ids) {
+      directory.updateGuildTag(characterId, guild.name);
+    }
+    directory.sendMany(ids, MSG.guildState, { guild: view } satisfies GuildStatePayload);
+  }
+
+  private async sendGuildStateTo(characterId: string): Promise<void> {
+    const guild = await this.guildService().loadByCharacter(characterId);
+    if (!guild) {
+      getServerServices().social.send(characterId, MSG.guildState, {
+        guild: null,
+      } satisfies GuildStatePayload);
+      return;
+    }
+    getServerServices().social.send(characterId, MSG.guildState, {
+      guild: toGuildView(guild, getServerServices().social),
+    } satisfies GuildStatePayload);
+  }
+
+  private handleGuildCreate(client: Client, name: string): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const guilds = this.guildService();
+      const guildId = await guilds.create(runtime.characterId, name);
+      await this.reloadRuntimeInventory(runtime);
+      this.sendInventory(client.sessionId);
+      const guild = await guilds.loadById(guildId);
+      if (!guild) {
+        throw new GuildRuleError("internal", "Guild creation did not persist.");
+      }
+      await this.publishGuild(guild);
+      await this.sendGuildStateTo(runtime.characterId);
+    });
+  }
+
+  private handleGuildInvite(
+    client: Client,
+    characterId: string | undefined,
+    name: string | undefined,
+  ): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const player = this.state.players.get(client.sessionId);
+      if (!player) {
+        return;
+      }
+      const guild = await this.guildService().loadByCharacter(runtime.characterId);
+      if (!guild) {
+        throw new GuildRuleError("not_member", "You are not in a guild.");
+      }
+      const inviter = guild.members.find((member) => member.characterId === runtime.characterId);
+      if (!inviter) {
+        throw new GuildRuleError("not_member", "You are not in a guild.");
+      }
+      if (!canInvite(inviter.rank)) {
+        throw new GuildRuleError("permission", "You cannot invite to this guild.");
+      }
+      const directory = getServerServices().social;
+      const target = characterId
+        ? directory.get(characterId)
+        : name
+          ? directory.findByName(name)
+          : undefined;
+      if (!target || target.characterId === runtime.characterId) {
+        throw new GuildRuleError("target_not_found", "That player is not online.");
+      }
+      if (await this.guildService().loadByCharacter(target.characterId)) {
+        throw new GuildRuleError("already_member", "That player is already in a guild.");
+      }
+      const invite = this.guildInvites.create({
+        guildId: guild.id,
+        guildName: guild.name,
+        fromCharacterId: runtime.characterId,
+        fromName: player.name,
+        targetCharacterId: target.characterId,
+        inviterRank: inviter.rank,
+      });
+      const payload: GuildInvitePayload = {
+        inviteId: invite.id,
+        guildId: invite.guildId,
+        guildName: invite.guildName,
+        fromCharacterId: invite.fromCharacterId,
+        fromName: invite.fromName,
+        expiresAtMs: invite.expiresAtMs,
+      };
+      directory.send(target.characterId, MSG.guildInvite, payload);
+    });
+  }
+
+  private handleGuildRespond(client: Client, inviteId: string, accept: boolean): void {
+    this.runGuildCommand(client, async (runtime) => {
+      if (!accept) {
+        this.guildInvites.decline(inviteId, runtime.characterId);
+        return;
+      }
+      const invite = this.guildInvites.take(inviteId, runtime.characterId);
+      const guilds = this.guildService();
+      const inviterGuild = await guilds.loadByCharacter(invite.fromCharacterId);
+      if (!inviterGuild || inviterGuild.id !== invite.guildId) {
+        throw new GuildRuleError("not_member", "The inviting guild no longer exists.");
+      }
+      const inviter = inviterGuild.members.find(
+        (member) => member.characterId === invite.fromCharacterId,
+      );
+      if (!inviter || !canInvite(inviter.rank)) {
+        throw new GuildRuleError("permission", "The inviter can no longer invite.");
+      }
+      if (await guilds.loadByCharacter(runtime.characterId)) {
+        throw new GuildRuleError("already_member", "You are already in a guild.");
+      }
+      await guilds.join(invite.guildId, runtime.characterId);
+      const guild = await guilds.loadById(invite.guildId);
+      await this.publishGuild(guild);
+      await this.sendGuildStateTo(runtime.characterId);
+    });
+  }
+
+  private handleGuildLeave(client: Client): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const guilds = this.guildService();
+      const guild = await guilds.loadByCharacter(runtime.characterId);
+      if (!guild) {
+        throw new GuildRuleError("not_member", "You are not in a guild.");
+      }
+      await guilds.leave(runtime.characterId);
+      const remaining: GuildRecord = {
+        ...guild,
+        members: guild.members.filter((member) => member.characterId !== runtime.characterId),
+      };
+      getServerServices().social.updateGuildTag(runtime.characterId, null);
+      getServerServices().social.send(runtime.characterId, MSG.guildState, {
+        guild: null,
+      } satisfies GuildStatePayload);
+      await this.publishGuild(remaining);
+    });
+  }
+
+  private handleGuildKick(client: Client, targetCharacterId: string): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const guilds = this.guildService();
+      const guild = await guilds.loadByCharacter(runtime.characterId);
+      if (!guild) {
+        throw new GuildRuleError("not_member", "You are not in a guild.");
+      }
+      await guilds.kick(runtime.characterId, targetCharacterId);
+      const remaining: GuildRecord = {
+        ...guild,
+        members: guild.members.filter((member) => member.characterId !== targetCharacterId),
+      };
+      getServerServices().social.updateGuildTag(targetCharacterId, null);
+      getServerServices().social.send(targetCharacterId, MSG.guildState, {
+        guild: null,
+      } satisfies GuildStatePayload);
+      await this.publishGuild(remaining);
+    });
+  }
+
+  private handleGuildSetRank(
+    client: Client,
+    targetCharacterId: string,
+    rank: "officer" | "member",
+  ): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const guilds = this.guildService();
+      await guilds.setRank(runtime.characterId, targetCharacterId, rank);
+      const guild = await guilds.loadByCharacter(runtime.characterId);
+      await this.publishGuild(guild);
+    });
+  }
+
+  private handleGuildDisband(client: Client): void {
+    this.runGuildCommand(client, async (runtime) => {
+      const guilds = this.guildService();
+      const guild = await guilds.loadByCharacter(runtime.characterId);
+      if (!guild) {
+        throw new GuildRuleError("not_member", "You are not in a guild.");
+      }
+      await guilds.disband(runtime.characterId);
+      await this.publishGuild(
+        null,
+        guild.members.map((member) => member.characterId),
+      );
+    });
+  }
+
+  private async refreshGuildRoster(characterId: string): Promise<void> {
+    try {
+      const guilds = getServerServices().guilds;
+      if (!guilds) {
+        return;
+      }
+      await this.publishGuild(await guilds.loadByCharacter(characterId));
+    } catch (error) {
+      logger.error({ roomId: this.roomId, characterId, error }, "guild roster refresh failed");
+    }
+  }
+
   private catalog(): CatalogLookup {
     return getServerServices().gameData.getCatalog();
   }
@@ -4819,6 +5201,7 @@ export class MapRoom extends Room {
     }
 
     getServerServices().social.unregister(runtime.characterId, client.sessionId);
+    this.guildInvites.cancelForCharacter(runtime.characterId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);

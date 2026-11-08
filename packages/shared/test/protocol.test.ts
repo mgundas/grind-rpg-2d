@@ -25,6 +25,10 @@ import {
   tradeRespondMessageSchema,
   friendAddMessageSchema,
   friendRemoveMessageSchema,
+  guildCreateMessageSchema,
+  guildInviteMessageSchema,
+  guildRespondMessageSchema,
+  guildSetRankMessageSchema,
   unequipItemMessageSchema,
   upgradeItemMessageSchema,
   useItemMessageSchema,
@@ -252,6 +256,30 @@ describe("chatMessageSchema", () => {
       chatMessageSchema.safeParse({ text: "hi", channel: "local", targetName: "Bob" }).success,
     ).toBe(false);
     expect(chatMessageSchema.safeParse({ text: "hi", channel: "trade" }).success).toBe(false);
+  });
+});
+
+describe("guild message schemas", () => {
+  const inviteId = "66666666-6666-4666-8666-666666666666";
+  const characterId = "77777777-7777-4777-8777-777777777777";
+
+  it("validates guild creation and invites", () => {
+    expect(guildCreateMessageSchema.safeParse({ name: "Jade" }).success).toBe(true);
+    expect(guildCreateMessageSchema.safeParse({ name: "" }).success).toBe(false);
+    expect(guildInviteMessageSchema.safeParse({ characterId }).success).toBe(true);
+    expect(guildInviteMessageSchema.safeParse({ name: "Alice" }).success).toBe(true);
+    expect(guildInviteMessageSchema.safeParse({}).success).toBe(false);
+  });
+
+  it("validates guild responses and rank changes", () => {
+    expect(guildRespondMessageSchema.safeParse({ inviteId, accept: true }).success).toBe(true);
+    expect(guildRespondMessageSchema.safeParse({ inviteId }).success).toBe(false);
+    expect(
+      guildSetRankMessageSchema.safeParse({ characterId, rank: "officer" }).success,
+    ).toBe(true);
+    expect(
+      guildSetRankMessageSchema.safeParse({ characterId, rank: "leader" }).success,
+    ).toBe(false);
   });
 });
 

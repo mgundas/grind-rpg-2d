@@ -12,6 +12,7 @@ import type { Db } from "./db/client";
 import type { ItemService } from "./items/service";
 import type { GameDataStore } from "./gameData/store";
 import type { SocialDirectory } from "./social/bus";
+import type { GuildService } from "./guilds/service";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
 export interface CombatTuning {
@@ -50,6 +51,8 @@ export interface ServerServices {
   gameData: GameDataStore;
   /** Process-wide online directory for cross-map social delivery. */
   social: SocialDirectory;
+  /** Guild persistence; room tests can inject an in-memory fake. */
+  guilds: GuildService | null;
   /** In-process registry of live players/rooms for the admin panel. */
   adminBus: AdminBus;
   /** Process-level admin policy: rates, metrics, announcements, shutdown. */

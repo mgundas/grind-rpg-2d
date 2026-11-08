@@ -1,5 +1,6 @@
 import { CHAT_MAX_LEN, MAX_GOLD, TRADE_MAX_OFFER_ITEMS, type MapId, type Stats } from "./constants";
 import { CHAT_CHANNELS, type ChatChannel } from "./chat";
+import { GUILD_RANKS, type GuildErrorPayload, type GuildRank, type GuildStatePayload } from "./guild";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
 import { PARTY_LOOT_RULES } from "./party";
@@ -66,6 +67,15 @@ export const MSG = {
   friendRemove: "friendRemove",
   friendsState: "friendsState",
   friendError: "friendError",
+  guildCreate: "guildCreate",
+  guildInvite: "guildInvite",
+  guildRespond: "guildRespond",
+  guildLeave: "guildLeave",
+  guildKick: "guildKick",
+  guildSetRank: "guildSetRank",
+  guildDisband: "guildDisband",
+  guildState: "guildState",
+  guildError: "guildError",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -518,6 +528,58 @@ export const friendRemoveMessageSchema = z
   .object({ characterId: z.string().uuid() })
   .strict();
 export type FriendRemoveMessage = z.infer<typeof friendRemoveMessageSchema>;
+
+export const guildCreateMessageSchema = z
+  .object({ name: z.string().trim().min(2).max(20) })
+  .strict();
+export type GuildCreateMessage = z.infer<typeof guildCreateMessageSchema>;
+
+export const guildInviteMessageSchema = z
+  .object({
+    characterId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(16).optional(),
+  })
+  .strict()
+  .refine((value) => value.characterId !== undefined || value.name !== undefined, {
+    message: "characterId or name is required",
+  });
+export type GuildInviteMessage = z.infer<typeof guildInviteMessageSchema>;
+
+export const guildRespondMessageSchema = z
+  .object({ inviteId: z.string().uuid(), accept: z.boolean() })
+  .strict();
+export type GuildRespondMessage = z.infer<typeof guildRespondMessageSchema>;
+
+export const guildKickMessageSchema = z
+  .object({ characterId: z.string().uuid() })
+  .strict();
+export type GuildKickMessage = z.infer<typeof guildKickMessageSchema>;
+
+export const guildSetRankMessageSchema = z
+  .object({
+    characterId: z.string().uuid(),
+    rank: z.enum(["officer", "member"]),
+  })
+  .strict();
+export type GuildSetRankMessage = z.infer<typeof guildSetRankMessageSchema>;
+
+export const guildLeaveMessageSchema = z.object({}).strict();
+export type GuildLeaveMessage = z.infer<typeof guildLeaveMessageSchema>;
+
+export const guildDisbandMessageSchema = z.object({}).strict();
+export type GuildDisbandMessage = z.infer<typeof guildDisbandMessageSchema>;
+
+export interface GuildInvitePayload {
+  inviteId: string;
+  guildId: string;
+  guildName: string;
+  fromCharacterId: string;
+  fromName: string;
+  expiresAtMs: number;
+}
+
+export type { GuildErrorPayload, GuildRank, GuildStatePayload };
+export const GUILD_RANK_VALUES = GUILD_RANKS;
 
 export interface BlacksmithErrorPayload {
   code: ItemActionErrorCode;
