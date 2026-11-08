@@ -16,7 +16,7 @@ import { createFakeServices, type FakeServices } from "./fakes";
 let colyseus: ColyseusTestServer;
 let fake: FakeServices;
 
-const PORT = 2582;
+const PORT = 2590;
 
 async function waitUntil(predicate: () => boolean, timeoutMs = 3000): Promise<void> {
   const start = Date.now();
