@@ -7,6 +7,7 @@ import {
   type InventoryState,
   type MoveIntent,
   type MoverState,
+  type PvpMode,
   type Vec2,
   type WarehouseState,
 } from "@jadethrone/shared";
@@ -40,6 +41,8 @@ export interface PlayerRuntime {
   progression: PlayerProgression;
   /** Master levels and read cooldowns keyed by skill id. */
   skillMastery: SkillMasteryMap;
+  /** Persisted PvP stance mirrored into public state. */
+  pvpMode: PvpMode;
   /** Inputs received since the last tick, applied in seq order. */
   pending: InputMessage[];
   /** Highest applied input sequence. */
@@ -127,6 +130,7 @@ export interface PlayerIdentity {
   channel?: number;
   progression?: PlayerProgression;
   skillMastery?: SkillMasteryMap;
+  pvpMode?: PvpMode;
   inventory?: InventoryState;
   gold?: number;
 }
@@ -160,6 +164,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
       stats: { ...FALLBACK_PROGRESSION.stats },
     },
     skillMastery: identity.skillMastery ?? {},
+    pvpMode: identity.pvpMode ?? "peaceful",
     pending: [],
     lastSeq: 0,
     lastIntent: { kind: "none" },

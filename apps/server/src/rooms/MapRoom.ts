@@ -88,6 +88,7 @@ import {
   requestStatsMessageSchema,
   readSkillBookMessageSchema,
   requestUpgradePreviewMessageSchema,
+  setPvpModeMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
   seedFromString,
@@ -801,6 +802,15 @@ export class MapRoom extends Room {
       this.handleFriendRemove(client, parsed.data.characterId);
     });
 
+    this.onMessage(MSG.setPvpMode, (client, raw) => {
+      const parsed = setPvpModeMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid setPvpMode message");
+        return;
+      }
+      this.handleSetPvpMode(client, parsed.data.mode);
+    });
+
     this.onMessage(MSG.guildCreate, (client, raw) => {
       const parsed = guildCreateMessageSchema.safeParse(raw);
       if (!parsed.success) {
@@ -1277,6 +1287,7 @@ export class MapRoom extends Room {
       channel: auth.character.channel,
       progression,
       skillMastery: auth.character.skillMastery ?? {},
+      pvpMode: auth.character.pvpMode,
       inventory: loaded.inventory,
       gold: loaded.gold,
     });
@@ -1298,6 +1309,7 @@ export class MapRoom extends Room {
     player.characterId = auth.character.id;
     player.name = auth.character.name;
     player.kingdom = auth.account.kingdom;
+    player.pvpMode = auth.character.pvpMode;
     player.classId = auth.character.classId;
     player.gender = auth.character.gender;
     player.hairStyle = auth.character.hairStyle;
@@ -1366,6 +1378,8 @@ export class MapRoom extends Room {
       );
       activeRuntime.progression = refreshed;
       activeRuntime.skillMastery = fresh.skillMastery ?? {};
+      activeRuntime.pvpMode = fresh.pvpMode;
+      activePlayer.pvpMode = fresh.pvpMode;
       activePlayer.level = refreshed.level;
       activePlayer.hp = refreshed.hp;
       activePlayer.maxHp = refreshed.maxHp;
@@ -3869,6 +3883,53 @@ export class MapRoom extends Room {
     } catch (error) {
       this.sendPartyError(client, error);
     }
+  }
+
+  private handleSetPvpMode(
+    client: Client,
+    mode: "peaceful" | "kingdom" | "free",
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    if (runtime.dead) {
+      this.sendItemError(client, "dead");
+      return;
+    }
+    if (runtime.warping) {
+      this.sendItemError(client, "warping");
+      return;
+    }
+    if (runtime.pvpMode === mode) {
+      return;
+    }
+    const persist = getServerServices().setPvpMode;
+    if (!persist) {
+      this.sendItemError(client, "internal");
+      return;
+    }
+    void persist(runtime.characterId, mode)
+      .then((saved) => {
+        const active = this.runtimes.get(client.sessionId);
+        const activePlayer = this.state.players.get(client.sessionId);
+        if (!saved || !active || !activePlayer) {
+          if (!saved) {
+            this.sendItemError(client, "stale");
+          }
+          return;
+        }
+        active.pvpMode = mode;
+        activePlayer.pvpMode = mode;
+      })
+      .catch((error: unknown) => {
+        logger.error(
+          { roomId: this.roomId, session: client.sessionId, error },
+          "pvp mode update failed",
+        );
+        this.sendItemError(client, "internal");
+      });
   }
 
   private friendsService(): FriendsService {

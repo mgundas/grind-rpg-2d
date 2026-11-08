@@ -1,6 +1,7 @@
 import { CHAT_MAX_LEN, MAX_GOLD, TRADE_MAX_OFFER_ITEMS, type MapId, type Stats } from "./constants";
 import { CHAT_CHANNELS, type ChatChannel } from "./chat";
 import { GUILD_RANKS, type GuildErrorPayload, type GuildRank, type GuildStatePayload } from "./guild";
+import { PVP_MODES, type PvpMode } from "./pvp";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
 import { PARTY_LOOT_RULES } from "./party";
@@ -78,6 +79,7 @@ export const MSG = {
   guildDisband: "guildDisband",
   guildState: "guildState",
   guildError: "guildError",
+  setPvpMode: "setPvpMode",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -598,6 +600,13 @@ export type GuildLeaveMessage = z.infer<typeof guildLeaveMessageSchema>;
 
 export const guildDisbandMessageSchema = z.object({}).strict();
 export type GuildDisbandMessage = z.infer<typeof guildDisbandMessageSchema>;
+
+export const setPvpModeMessageSchema = z
+  .object({ mode: z.enum(PVP_MODES) })
+  .strict();
+export type SetPvpModeMessage = z.infer<typeof setPvpModeMessageSchema>;
+
+export type { PvpMode };
 
 export interface GuildInvitePayload {
   inviteId: string;

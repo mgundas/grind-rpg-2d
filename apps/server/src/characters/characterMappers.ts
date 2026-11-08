@@ -6,6 +6,8 @@ import {
   type ClassId,
   type Gender,
   type MapId,
+  type PvpMode,
+  isPvpMode,
 } from "@jadethrone/shared";
 import { ServiceError } from "../errors";
 import type { CharacterRow } from "../db/schema";
@@ -42,7 +44,7 @@ export interface CharacterRecord {
   x: number;
   y: number;
   channel: number;
-  pvpMode: string;
+  pvpMode: PvpMode;
 }
 
 function invalidRow(message: string): never {
@@ -84,7 +86,7 @@ export function toCharacterRecord(
     x: row.x,
     y: row.y,
     channel: row.channel,
-    pvpMode: row.pvpMode,
+    pvpMode: isPvpMode(row.pvpMode) ? row.pvpMode : "peaceful",
   };
 }
 

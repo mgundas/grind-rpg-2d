@@ -12,6 +12,7 @@ import {
   pickupMessageSchema,
   requestInventoryMessageSchema,
   readSkillBookMessageSchema,
+  setPvpModeMessageSchema,
   requestUpgradePreviewMessageSchema,
   respawnMessageSchema,
   setTargetMessageSchema,
@@ -272,6 +273,16 @@ describe("chatMessageSchema", () => {
       chatMessageSchema.safeParse({ text: "hi", channel: "local", targetName: "Bob" }).success,
     ).toBe(false);
     expect(chatMessageSchema.safeParse({ text: "hi", channel: "trade" }).success).toBe(false);
+  });
+});
+
+describe("pvp mode schema", () => {
+  it("accepts only the three stances", () => {
+    expect(setPvpModeMessageSchema.safeParse({ mode: "peaceful" }).success).toBe(true);
+    expect(setPvpModeMessageSchema.safeParse({ mode: "kingdom" }).success).toBe(true);
+    expect(setPvpModeMessageSchema.safeParse({ mode: "free" }).success).toBe(true);
+    expect(setPvpModeMessageSchema.safeParse({ mode: "chaos" }).success).toBe(false);
+    expect(setPvpModeMessageSchema.safeParse({}).success).toBe(false);
   });
 });
 

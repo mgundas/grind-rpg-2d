@@ -48,6 +48,8 @@ import type { SocialDirectory } from "./social/bus";
 import { createGuildService } from "./guilds/service";
 import type { GuildService } from "./guilds/service";
 import { createFriendsService } from "./friends/service";
+import { setCharacterPvpMode } from "./characters/pvp";
+import type { PvpMode } from "@jadethrone/shared";
 import type { FriendsService } from "./friends/service";
 import { createCryptoRandomSource } from "./util/random";
 
@@ -73,6 +75,7 @@ export interface ServerDeps {
   social?: SocialDirectory;
   guilds?: GuildService;
   friends?: FriendsService;
+  setPvpMode?: (characterId: string, mode: PvpMode) => Promise<boolean>;
   adminBus?: AdminBus;
   adminRuntime?: AdminRuntime;
   logChat?: (entry: ChatLogInput) => Promise<void>;
@@ -129,6 +132,10 @@ export function createGameServer(deps: ServerDeps = {}) {
   const social = deps.social ?? createSocialDirectory();
   const guilds = deps.guilds ?? (deps.joinAuthenticator ? null : createGuildService(db));
   const friends = deps.friends ?? (deps.joinAuthenticator ? null : createFriendsService(db));
+  const setPvpMode =
+    deps.setPvpMode ??
+    (deps.joinAuthenticator ? null : (characterId: string, mode: PvpMode) =>
+      setCharacterPvpMode(db, characterId, mode));
   const adminBus = deps.adminBus ?? createAdminBus();
   const adminRuntime =
     deps.adminRuntime ?? createAdminRuntime({ db, bus: adminBus });
@@ -165,6 +172,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     social,
     guilds,
     friends,
+    setPvpMode,
     adminBus,
     adminRuntime,
     logChat: deps.logChat ?? logChat,

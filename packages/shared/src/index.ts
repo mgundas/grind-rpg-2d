@@ -19,6 +19,7 @@ export * from "./movement";
 export * from "./pathfinding";
 export * from "./party";
 export * from "./protocol";
+export * from "./pvp";
 export * from "./rng";
 export * from "./skills";
 export * from "./stones";
