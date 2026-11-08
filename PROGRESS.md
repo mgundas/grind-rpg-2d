@@ -284,6 +284,33 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [ ] Task 21 — Phase 8 E2E, decisions and report
 - [ ] Task 22 — Phase gate
 
+### Phase 8 — Review follow-ups (Important, from `docs/reviews/review-2026-11-09.md`)
+
+Fix during this phase, before the Phase 8 gate. The five Critical items were
+fixed on 2026-11-09 (see the review's git commits); these are the Important
+findings, numbered as in the review.
+
+- [ ] R6 — Reject stat allocation, doctrine and skill upgrades while dead/warping
+- [ ] R7 — Re-fetch the runtime inside `runSkillCommand` like the other command chains
+- [ ] R8 — Serialize the PvP-mode persist so rapid toggles cannot land out of order
+- [ ] R9 — Return `stack_full` instead of a silent `ok` when merging into a full stack
+- [ ] R10 — Never persist overlapping inventory cells (`normalizeInventory` overflow path)
+- [ ] R11 — Validate `monster.dropTableId` in `buildCatalog` and log missing tables
+- [ ] R12 — Route auto-walk pathfinding through the shared `MAX_ASTAR_PER_TICK` budget
+- [ ] R13 — Cache the path per goal tile so repeated `path` intents stop recomputing A*
+- [ ] R14 — Fix the line-corridor end-cap math and add line/circle target tests
+- [ ] R15 — Move the move-speed stacking formula into shared and use it from the predictor
+- [ ] R16 — Age ground drops by server time instead of the local wall clock
+- [ ] R17 — Audit in-game GM commands to `admin_log`
+- [ ] R18 — Block self-ban and banning an `admin` from a `gm` account
+- [ ] R19 — Do not mark an announcement sent when it had zero recipients
+- [ ] R20 — Decide and implement stealth visibility against enemy players in PvP
+- [ ] R21 — Pin the full PvP rules matrix (modes, party/guild, safe maps) in tests
+- [ ] R22 — Add the position and item-bonus editors the admin API already supports
+- [ ] R23 — Document the fresh-clone migrate/seed sequence (or fix the dev DB default)
+- [ ] R24 — Build the PvP actor map once per tick and hoist `Date.now()`
+- [ ] R25 — Add a per-command rate limit to DB-backed intents (shop/upgrade/move)
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
