@@ -246,7 +246,7 @@ Plan: `docs/plans/phase-7.md`.
 - [ ] Task 13 — Trade protocol and errors
 - [ ] Task 14 — Pure trade registry
 - [ ] Task 15 — Trade transaction and log
-- [ ] Task 16 — Room trade integration
+- [x] Task 16 — Room trade integration
 - [ ] Task 17 — Client trade window and context menu
 - [ ] Task 18 — Admin trade log
 - [ ] Task 19 — Override table and catalog store
