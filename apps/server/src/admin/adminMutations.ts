@@ -20,7 +20,10 @@ import { ServiceError } from "../errors";
 import { logger } from "../logger";
 import { ItemError } from "../items/errors";
 import { toItemDto } from "../items/itemMappers";
-import { applyItemTransaction } from "../items/itemTransactions";
+import {
+  applyItemPlanInTx,
+  withItemTransaction,
+} from "../items/itemTransactions";
 import { loadInventory } from "../items/itemRepository";
 import { planAdminGive, planAdminRemove } from "../items/planning";
 import { writeAdminLog } from "./adminLog";
@@ -265,9 +268,11 @@ async function characterAccount(db: Db, characterId: string) {
 }
 
 /**
- * Offline item grant. The route must check the live bus immediately before
- * calling this; `isOnline` re-checks after the load and aborts if the player
- * joined in the meantime (the admin can retry through the live path).
+ * Offline item grant. The route checks the live bus immediately before calling
+ * this; the `isOnline` re-check runs inside the item transaction (after the
+ * owner rows are locked) so a player who joins between the route lookup and the
+ * commit aborts the offline write instead of having a stale inventory snapshot
+ * clobber their live one. The admin retries through the live path.
  */
 export async function grantItemOffline(
   db: Db,
@@ -288,9 +293,6 @@ export async function grantItemOffline(
   }
   const owner = await characterAccount(db, input.characterId);
   const loaded = await loadInventory(db, owner.accountId, input.characterId, catalog);
-  if (input.isOnline?.(input.characterId)) {
-    throw new ServiceError("conflict", "Character is online; retry the live grant.");
-  }
 
   const definition = catalog.getItem(input.request.definitionId);
   const generatedIds: string[] = [];
@@ -322,11 +324,25 @@ export async function grantItemOffline(
     throw error;
   }
 
-  await applyItemTransaction(
+  let online = false;
+  await withItemTransaction(
     db,
     { accountId: owner.accountId, characterId: input.characterId },
-    plan.plan,
+    async (tx) => {
+      if (input.isOnline?.(input.characterId)) {
+        online = true;
+        return;
+      }
+      await applyItemPlanInTx(
+        tx,
+        { accountId: owner.accountId, characterId: input.characterId },
+        plan.plan,
+      );
+    },
   );
+  if (online) {
+    throw new ServiceError("conflict", "Character is online; retry the live grant.");
+  }
   await audit(
     db,
     input.actorAccountId,
@@ -363,7 +379,7 @@ export async function removeItemOffline(
     characterId: string;
     itemId: string;
     ip?: string | null;
-    /** Re-checked after loading; the player may join after the route lookup. */
+    /** Re-checked inside the item transaction; the player may join after the route lookup. */
     isOnline?: (characterId: string) => boolean;
     catalog?: CatalogLookup;
   },
@@ -375,9 +391,6 @@ export async function removeItemOffline(
     input.characterId,
     input.catalog ?? BASE_CATALOG,
   );
-  if (input.isOnline?.(input.characterId)) {
-    throw new ServiceError("conflict", "Character is online; retry the live removal.");
-  }
   let plan;
   try {
     plan = planAdminRemove(loaded.inventory, input.characterId, input.itemId);
@@ -390,11 +403,25 @@ export async function removeItemOffline(
     }
     throw error;
   }
-  await applyItemTransaction(
+  let online = false;
+  await withItemTransaction(
     db,
     { accountId: owner.accountId, characterId: input.characterId },
-    plan.plan,
+    async (tx) => {
+      if (input.isOnline?.(input.characterId)) {
+        online = true;
+        return;
+      }
+      await applyItemPlanInTx(
+        tx,
+        { accountId: owner.accountId, characterId: input.characterId },
+        plan.plan,
+      );
+    },
   );
+  if (online) {
+    throw new ServiceError("conflict", "Character is online; retry the live removal.");
+  }
   await audit(
     db,
     input.actorAccountId,

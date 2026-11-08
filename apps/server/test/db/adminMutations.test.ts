@@ -189,6 +189,49 @@ describeDb("admin mutations", () => {
     expect(removed).toHaveLength(0);
   });
 
+  it("aborts an offline grant or removal when the character is online", async () => {
+    const { db } = testDb;
+    const target = await setup(db);
+    const before = await db
+      .select()
+      .from(items)
+      .where(eq(items.ownerCharacterId, target.characterId));
+
+    await expect(
+      grantItemOffline(db, {
+        actorAccountId: target.accountId,
+        characterId: target.characterId,
+        request: {
+          definitionId: "sword_ember_t1",
+          quantity: 1,
+          upgradeLevel: 5,
+          bonuses: [],
+        },
+        isOnline: () => true,
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    const afterGrant = await db
+      .select()
+      .from(items)
+      .where(eq(items.ownerCharacterId, target.characterId));
+    expect(afterGrant).toHaveLength(before.length);
+
+    const starter = before.find((row) => row.definitionId === "sword_ember_t1");
+    expect(starter).toBeDefined();
+    await expect(
+      removeItemOffline(db, {
+        actorAccountId: target.accountId,
+        characterId: target.characterId,
+        itemId: starter!.id,
+        isOnline: () => true,
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    const afterRemove = await db.select().from(items).where(eq(items.id, starter!.id));
+    expect(afterRemove).toHaveLength(1);
+  });
+
   it("refuses an offline grant when the bag is full", async () => {
     const { db } = testDb;
     const target = await setup(db);
