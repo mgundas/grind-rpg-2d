@@ -497,8 +497,10 @@ export class WorldScene extends Phaser.Scene {
     });
 
     room.onMessage("chatMsg", (payload: ChatMsgPayload) => {
-      useUiStore.getState().pushChat(payload);
-      this.showBubble(payload.from, payload.text);
+      useUiStore.getState().chatDispatch({ type: "push", message: payload });
+      if (payload.channel === "local" || payload.channel === "shout") {
+        this.showBubble(payload.from, payload.text);
+      }
     });
 
     room.onMessage("warp", (payload: WarpPayload) => {

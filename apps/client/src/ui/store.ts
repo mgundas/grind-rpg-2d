@@ -7,7 +7,6 @@ import type {
   BuffStatePayload,
   BuffView,
   CharacterSummary,
-  ChatMsgPayload,
   InventorySnapshotPayload,
   MapId,
   NpcDialogPayload,
@@ -32,6 +31,12 @@ import {
   type TradeUiState,
   type TradeUiAction,
 } from "./trade";
+import {
+  chatTabsReducer,
+  initialChatTabsState,
+  type ChatTabsAction,
+  type ChatTabsState,
+} from "./chatTabs";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -83,8 +88,8 @@ interface UiState {
   chatFocused: boolean;
   setChatFocused: (focused: boolean) => void;
 
-  chatLog: ChatMsgPayload[];
-  pushChat: (message: ChatMsgPayload) => void;
+  chat: ChatTabsState;
+  chatDispatch: (action: ChatTabsAction) => void;
 
   /** Latest server-wide banner (admin / scheduled / shutdown). */
   announcement: AnnouncementPayload | null;
@@ -280,8 +285,9 @@ export const useUiStore = create<UiState>((set) => ({
   chatFocused: false,
   setChatFocused: (chatFocused) => set({ chatFocused }),
 
-  chatLog: [],
-  pushChat: (message) => set((state) => ({ chatLog: [...state.chatLog, message].slice(-100) })),
+  chat: initialChatTabsState(),
+  chatDispatch: (action) =>
+    set((state) => ({ chat: chatTabsReducer(state.chat, action) })),
 
   announcement: null,
   setAnnouncement: (announcement) => set({ announcement }),

@@ -196,6 +196,7 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.cancelScrollTarget();
   leaving.setBonusScrollResult(null);
   leaving.tradeDispatch({ type: "close" });
+  leaving.chatDispatch({ type: "reset" });
   leaving.setPlayerContext(null);
   if (!current) {
     return;
@@ -518,24 +519,30 @@ function bindSessionEvents(current: Room): void {
   });
 
   current.onMessage(MSG.partyError, (payload: PartyErrorPayload) => {
-    useUiStore.getState().pushChat({
-      from: "system",
-      name: "Party",
-      kingdom: "system",
-      channel: "system",
-      text: payload.message,
-      sentAt: Date.now(),
+    useUiStore.getState().chatDispatch({
+      type: "push",
+      message: {
+        from: "system",
+        name: "Party",
+        kingdom: "system",
+        channel: "system",
+        text: payload.message,
+        sentAt: Date.now(),
+      },
     });
   });
 
   current.onMessage(MSG.skillError, (payload: SkillErrorPayload) => {
-    useUiStore.getState().pushChat({
-      from: "system",
-      name: "System",
-      kingdom: "system",
-      channel: "system",
-      text: payload.message,
-      sentAt: Date.now(),
+    useUiStore.getState().chatDispatch({
+      type: "push",
+      message: {
+        from: "system",
+        name: "System",
+        kingdom: "system",
+        channel: "system",
+        text: payload.message,
+        sentAt: Date.now(),
+      },
     });
   });
 
