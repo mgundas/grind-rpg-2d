@@ -92,6 +92,7 @@ export const SKILL_ERROR_CODES = [
   "already_casting",
   "dead",
   "warping",
+  "pvp_blocked",
   "internal",
 ] as const;
 export type SkillErrorCode = (typeof SKILL_ERROR_CODES)[number];

@@ -80,6 +80,8 @@ export const MSG = {
   guildState: "guildState",
   guildError: "guildError",
   setPvpMode: "setPvpMode",
+  setPlayerTarget: "setPlayerTarget",
+  playerTarget: "playerTarget",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -874,9 +876,24 @@ export interface SkillCastPayload {
 export interface AutoWalkPayload {
   active: boolean;
   targetMonsterId?: string;
+  targetCharacterId?: string;
 }
 
-export type TargetClearedReason = "unreachable" | "target_lost" | "cancelled";
+export type TargetClearedReason =
+  | "unreachable"
+  | "target_lost"
+  | "cancelled"
+  | "pvp_blocked";
+
+export const setPlayerTargetMessageSchema = z
+  .object({ characterId: z.string().uuid().nullable() })
+  .strict();
+export type SetPlayerTargetMessage = z.infer<typeof setPlayerTargetMessageSchema>;
+
+export interface PlayerTargetPayload {
+  characterId: string | null;
+  reason?: TargetClearedReason;
+}
 
 export interface TargetClearedPayload {
   reason: TargetClearedReason;

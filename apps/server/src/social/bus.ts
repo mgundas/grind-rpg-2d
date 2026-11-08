@@ -8,7 +8,9 @@ export interface SocialHandle {
   mapId: string;
   roomId: string;
   send(type: string, payload: unknown): void;
+  guildId?: string | null;
   /** Optional until guild integration updates live name plates. */
+  setGuild?(guildId: string | null, name: string | null): void;
   setGuildTag?(name: string | null): void;
 }
 
@@ -25,6 +27,7 @@ export interface SocialDirectory {
   send(characterId: string, type: string, payload: unknown): boolean;
   sendMany(characterIds: Iterable<string>, type: string, payload: unknown): number;
   list(): SocialHandle[];
+  updateGuild(characterId: string, guildId: string | null, name: string | null): void;
   updateGuildTag(characterId: string, name: string | null): void;
   clear(): void;
 }
@@ -99,8 +102,28 @@ export function createSocialDirectory(): SocialDirectory {
       return delivered;
     },
     list: () => [...byCharacter.values()],
+    updateGuild(characterId, guildId, name) {
+      const handle = byCharacter.get(characterId);
+      if (!handle) {
+        return;
+      }
+      handle.guildId = guildId;
+      if (handle.setGuild) {
+        handle.setGuild(guildId, name);
+      } else {
+        handle.setGuildTag?.(name);
+      }
+    },
     updateGuildTag(characterId, name) {
-      byCharacter.get(characterId)?.setGuildTag?.(name);
+      const handle = byCharacter.get(characterId);
+      if (!handle) {
+        return;
+      }
+      if (handle.setGuild) {
+        handle.setGuild(handle.guildId ?? null, name);
+      } else {
+        handle.setGuildTag?.(name);
+      }
     },
     clear() {
       byCharacter.clear();

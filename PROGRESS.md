@@ -276,7 +276,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 13 — Atomic skill-book transaction and room handler
 - [x] Task 14 — Client skill-book UX
 - [x] Task 15 — PvP rules, modes and map enforcement
-- [ ] Task 16 — PvP combat integration
+- [x] Task 16 — PvP combat integration
 - [ ] Task 17 — Client PvP targeting, mode and name colors
 - [ ] Task 18 — Day/night and weather
 - [ ] Task 19 — Minimap and world map

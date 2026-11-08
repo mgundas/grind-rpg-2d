@@ -88,6 +88,7 @@ import {
   requestStatsMessageSchema,
   readSkillBookMessageSchema,
   requestUpgradePreviewMessageSchema,
+  setPlayerTargetMessageSchema,
   setPvpModeMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
@@ -239,13 +240,17 @@ import {
 } from "../skills/skillRuntime";
 import {
   applyDamageToMonster,
+  applyDamageToPlayer,
   resolveMonsterAttack,
   resolvePlayerSwing,
   topDamageOwner,
   type KilledMonster,
+  type PlayerHit,
+  type PvpCombatContext,
   type StoneHit,
   type SwingOutcome,
 } from "./combat";
+import { buildPvpActors, canPvpTarget, type PvpActorInput } from "./pvpActors";
 import { applyRegenTick } from "./regen";
 import { stepMonsterAi, aggroMonster, type AiPlayerSnapshot } from "./monsterAi";
 import type { MonsterRuntime } from "./monsterRuntime";
@@ -629,6 +634,15 @@ export class MapRoom extends Room {
         return;
       }
       this.setAutoWalkTarget(client, parsed.data.monsterId);
+    });
+
+    this.onMessage(MSG.setPlayerTarget, (client, raw) => {
+      const parsed = setPlayerTargetMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid setPlayerTarget message");
+        return;
+      }
+      this.setPlayerTarget(client, parsed.data.characterId);
     });
 
     this.onMessage(MSG.respawn, (client, raw) => {
@@ -1420,15 +1434,20 @@ export class MapRoom extends Room {
       kingdom: player.kingdom,
       mapId: this.mapId,
       roomId: this.roomId,
+      guildId: null,
       send: (type, payload) => {
         if (this.clientFor(client.sessionId)) {
           this.safeSend(client, type, payload);
         }
       },
-      setGuildTag: (name) => {
+      setGuild: (guildId, name) => {
         const active = this.state.players.get(client.sessionId);
+        const activeRuntime = this.runtimes.get(client.sessionId);
         if (active) {
           active.guildName = name ?? "";
+        }
+        if (activeRuntime) {
+          activeRuntime.guildId = guildId;
         }
       },
     });
@@ -1437,6 +1456,7 @@ export class MapRoom extends Room {
       const guilds = getServerServices().guilds;
       if (guilds) {
         const guild = await guilds.loadByCharacter(runtime.characterId);
+        runtime.guildId = guild?.id ?? null;
         if (guild) {
           player.guildName = guild.name;
           await this.publishGuild(guild);
@@ -1448,6 +1468,7 @@ export class MapRoom extends Room {
         "guild state load failed on join",
       );
     }
+    runtime.pvpReady = true;
 
     try {
       await this.sendFriendsState(runtime.characterId);
@@ -1973,6 +1994,7 @@ export class MapRoom extends Room {
     runtime.lastIntent = { kind: "none" };
     runtime.lastPathTargetKey = null;
     runtime.targetMonsterId = null;
+    runtime.targetCharacterId = null;
     runtime.pendingAttack = null;
     player.x = x;
     player.y = y;
@@ -2309,6 +2331,7 @@ export class MapRoom extends Room {
       monsterRuntimes: this.monsterRuntimes,
       stoneRuntimes: this.stones.stones,
       catalog: this.catalog(),
+      pvp: this.pvpContext(),
     };
 
     for (const [sessionId, runtime] of this.runtimes) {
@@ -2354,10 +2377,14 @@ export class MapRoom extends Room {
       return dx * dx + dy * dy <= radiusSquared;
     });
 
+    const playerResult = this.applyPlayerHits(sessionId, outcome.playerHits, now);
     const payload: CombatEventPayload = {
       eventSeq: ++this.eventSeq,
       attacker: { kind: "player", sessionId },
-      hits: outcome.hits,
+      hits: [
+        ...outcome.hits.filter((hit) => hit.target.kind !== "player"),
+        ...playerResult.broadcast,
+      ],
     };
     for (const client of recipients) {
       this.safeSend(client, MSG.combat, payload);
@@ -2366,7 +2393,11 @@ export class MapRoom extends Room {
     if (outcome.stoneHits.length > 0) {
       this.applyStoneHits(sessionId, outcome.stoneHits, now);
     }
-    if (outcome.damagedMonsterIds.length > 0 || outcome.stoneHits.length > 0) {
+    if (
+      outcome.damagedMonsterIds.length > 0 ||
+      outcome.stoneHits.length > 0 ||
+      outcome.playerHits.some((hit) => !hit.miss)
+    ) {
       const attacker = this.runtimes.get(sessionId);
       if (attacker && removeStealth(attacker.buffs)) {
         this.sendBuffState(sessionId);
@@ -2421,6 +2452,37 @@ export class MapRoom extends Room {
       stone.color = info.color;
       this.state.stones.set(runtime.stoneId, stone);
     }
+  }
+
+  private applyPlayerHits(
+    attackerSessionId: string,
+    hits: readonly PlayerHit[],
+    now: number,
+  ): { broadcast: CombatHit[]; applied: string[] } {
+    const broadcast: CombatHit[] = [];
+    const applied: string[] = [];
+    for (const hit of hits) {
+      if (hit.miss) {
+        broadcast.push(hit);
+        continue;
+      }
+      const result = applyDamageToPlayer(
+        { now, runtimes: this.runtimes, state: this.state },
+        hit.target.sessionId,
+        hit.damage,
+      );
+      if (!result) {
+        continue;
+      }
+      applied.push(hit.target.sessionId);
+      broadcast.push(hit);
+      this.sendSelfStats(hit.target.sessionId);
+      if (result.killed) {
+        this.handlePlayerDeath(hit.target.sessionId, now);
+      }
+    }
+    void attackerSessionId;
+    return { broadcast, applied };
   }
 
   private applyStoneHits(sessionId: string, hits: readonly StoneHit[], now: number): void {
@@ -2805,6 +2867,7 @@ export class MapRoom extends Room {
     runtime.mover.path = [];
     runtime.graceTicksRemaining = 0;
     runtime.targetMonsterId = null;
+    runtime.targetCharacterId = null;
     runtime.nextChaseRepathAtMs = 0;
     runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
     runtime.noProgressSinceMs = 0;
@@ -4117,7 +4180,7 @@ export class MapRoom extends Room {
     const directory = getServerServices().social;
     if (!guild) {
       for (const characterId of fallbackIds) {
-        directory.updateGuildTag(characterId, null);
+        directory.updateGuild(characterId, null, null);
       }
       directory.sendMany(fallbackIds, MSG.guildState, { guild: null } satisfies GuildStatePayload);
       return;
@@ -4125,7 +4188,7 @@ export class MapRoom extends Room {
     const view = toGuildView(guild, directory);
     const ids = guild.members.map((member) => member.characterId);
     for (const characterId of ids) {
-      directory.updateGuildTag(characterId, guild.name);
+      directory.updateGuild(characterId, guild.id, guild.name);
     }
     directory.sendMany(ids, MSG.guildState, { guild: view } satisfies GuildStatePayload);
   }
@@ -4251,7 +4314,7 @@ export class MapRoom extends Room {
         ...guild,
         members: guild.members.filter((member) => member.characterId !== runtime.characterId),
       };
-      getServerServices().social.updateGuildTag(runtime.characterId, null);
+      getServerServices().social.updateGuild(runtime.characterId, null, null);
       getServerServices().social.send(runtime.characterId, MSG.guildState, {
         guild: null,
       } satisfies GuildStatePayload);
@@ -4271,7 +4334,7 @@ export class MapRoom extends Room {
         ...guild,
         members: guild.members.filter((member) => member.characterId !== targetCharacterId),
       };
-      getServerServices().social.updateGuildTag(targetCharacterId, null);
+      getServerServices().social.updateGuild(targetCharacterId, null, null);
       getServerServices().social.send(targetCharacterId, MSG.guildState, {
         guild: null,
       } satisfies GuildStatePayload);
@@ -4363,6 +4426,30 @@ export class MapRoom extends Room {
       chance: result.chance,
     });
     this.sendSkillState(client.sessionId);
+  }
+
+  private pvpContext(): PvpCombatContext {
+    const policy = getMapPolicy(this.mapId);
+    const inputs: PvpActorInput[] = [];
+    for (const [sessionId, runtime] of this.runtimes) {
+      const player = this.state.players.get(sessionId);
+      inputs.push({
+        sessionId,
+        characterId: runtime.characterId,
+        kingdom: player?.kingdom ?? "",
+        pvpMode: runtime.pvpMode,
+        partyId: this.parties.getByCharacter(runtime.characterId)?.id ?? null,
+        guildId: runtime.guildId,
+        dead: runtime.dead,
+        warping: runtime.warping,
+        invisible: runtime.invisible,
+        pvpReady: runtime.pvpReady,
+      });
+    }
+    return {
+      policy: { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
+      actors: buildPvpActors(inputs),
+    };
   }
 
   private catalog(): CatalogLookup {
@@ -4980,6 +5067,23 @@ export class MapRoom extends Room {
       const skill = this.catalog().getSkill(request.skillId);
       const targetPos = this.skillAim(runtime, skill, request);
       const allySessionId = this.resolveAllySession(request.targetCharacterId);
+      if (skill.damage && request.targetCharacterId && allySessionId) {
+        const policy = getMapPolicy(this.mapId);
+        if (
+          !canPvpTarget(
+            this.pvpContext().actors,
+            { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
+            client.sessionId,
+            allySessionId,
+          )
+        ) {
+          throw new SkillRuleError(
+            "pvp_blocked",
+            "You cannot attack that player here.",
+            request.skillId,
+          );
+        }
+      }
       const partySessionIds = this.partySessionIdsFor(runtime);
       const validation = validateSkillCast({
         progression: runtime.progression,
@@ -5140,6 +5244,7 @@ export class MapRoom extends Room {
           grid: this.assets.grid,
           casterModifiers: playerBuffModifiers(runtime.buffs, now),
           catalog: this.catalog(),
+          pvp: this.pvpContext(),
         },
         {
           sessionId,
@@ -5175,6 +5280,10 @@ export class MapRoom extends Room {
       return;
     }
     const affected = new Set<string>();
+    const playerResult = this.applyPlayerHits(sessionId, outcome.playerHits, now);
+    for (const targetSessionId of playerResult.applied) {
+      affected.add(targetSessionId);
+    }
     if (outcome.stoneHits.length > 0) {
       this.applyStoneHits(sessionId, outcome.stoneHits, now);
     }
@@ -5291,7 +5400,10 @@ export class MapRoom extends Room {
       y: outcome.y,
       targetX: outcome.targetX,
       targetY: outcome.targetY,
-      hits: outcome.hits,
+      hits: [
+        ...outcome.hits.filter((hit) => hit.target.kind !== "player"),
+        ...playerResult.broadcast,
+      ],
       heals: outcome.heals.map((heal) => ({
         targetSessionId: heal.targetSessionId,
         targetCharacterId: heal.targetCharacterId,
@@ -5801,7 +5913,7 @@ export class MapRoom extends Room {
   /** Convert a validated intent into mover state and step it once. */
   private applyMessage(runtime: PlayerRuntime, sessionId: string, message: InputMessage): void {
     // Any deliberate movement cancels click-to-attack.
-    if (runtime.targetMonsterId) {
+    if (runtime.targetMonsterId || runtime.targetCharacterId) {
       this.clearAutoWalk(runtime, sessionId, "cancelled");
     }
     switch (message.kind) {
@@ -5843,6 +5955,10 @@ export class MapRoom extends Room {
     if (!runtime || !player || runtime.dead || runtime.warping) {
       return;
     }
+    if (runtime.targetCharacterId) {
+      runtime.targetCharacterId = null;
+      this.safeSend(client, MSG.playerTarget, { characterId: null, reason: "cancelled" });
+    }
     if (!monsterRuntime || !monster || monsterRuntime.hp <= 0 || monsterRuntime.ai === "return") {
       this.notifyTargetCleared(client, "target_lost");
       return;
@@ -5866,22 +5982,112 @@ export class MapRoom extends Room {
     this.safeSend(client, MSG.autoWalk, { active: true, targetMonsterId: monsterId });
   }
 
+  /** Click-to-attack a hostile player (PvP rules checked at resolution too). */
+  private setPlayerTarget(client: Client, characterId: string | null): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player || runtime.dead || runtime.warping) {
+      return;
+    }
+    if (characterId === null) {
+      this.clearAutoWalk(runtime, client.sessionId, "cancelled");
+      return;
+    }
+    const targetSessionId = this.resolveAllySession(characterId);
+    const targetRuntime = targetSessionId ? this.runtimes.get(targetSessionId) : undefined;
+    if (!targetSessionId || !targetRuntime) {
+      this.safeSend(client, MSG.playerTarget, {
+        characterId: null,
+        reason: "target_lost",
+      });
+      return;
+    }
+    const policy = getMapPolicy(this.mapId);
+    if (
+      !canPvpTarget(
+        this.pvpContext().actors,
+        { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
+        client.sessionId,
+        targetSessionId,
+      )
+    ) {
+      this.safeSend(client, MSG.playerTarget, {
+        characterId: null,
+        reason: "pvp_blocked",
+      });
+      return;
+    }
+    const dx = targetRuntime.mover.pos.x - runtime.mover.pos.x;
+    const dy = targetRuntime.mover.pos.y - runtime.mover.pos.y;
+    if (dx * dx + dy * dy > AUTO_WALK_TARGET_RANGE_PX * AUTO_WALK_TARGET_RANGE_PX) {
+      this.safeSend(client, MSG.playerTarget, {
+        characterId: null,
+        reason: "target_lost",
+      });
+      return;
+    }
+
+    if (runtime.targetMonsterId) {
+      this.clearAutoWalk(runtime, client.sessionId, "cancelled");
+    }
+    const now = Date.now();
+    runtime.targetCharacterId = characterId;
+    runtime.nextChaseRepathAtMs = now;
+    runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
+    runtime.noProgressSinceMs = now;
+    runtime.emptyChasePaths = 0;
+    runtime.mover.path = [];
+    runtime.graceTicksRemaining = 0;
+    runtime.lastIntent = { kind: "none" };
+    this.safeSend(client, MSG.playerTarget, { characterId });
+    this.safeSend(client, MSG.autoWalk, { active: true, targetCharacterId: characterId });
+  }
+
   /** One server-driven step toward (or attack on) the auto-walk target. */
   private autoWalkStep(runtime: PlayerRuntime, sessionId: string, now: number): void {
     const monsterId = runtime.targetMonsterId;
-    if (!monsterId) {
+    const targetCharacterId = runtime.targetCharacterId;
+    if (!monsterId && !targetCharacterId) {
       return;
     }
-    const monsterRuntime = this.monsterRuntimes.get(monsterId);
-    const monster = this.state.monsters.get(monsterId);
     const player = this.state.players.get(sessionId);
-    if (!monsterRuntime || !monster || monsterRuntime.hp <= 0 || !player) {
+    let targetPos: { x: number; y: number } | null = null;
+    if (targetCharacterId) {
+      const targetSession = this.resolveAllySession(targetCharacterId);
+      const targetRuntime = targetSession ? this.runtimes.get(targetSession) : undefined;
+      const policy = getMapPolicy(this.mapId);
+      if (
+        !targetSession ||
+        !targetRuntime ||
+        targetRuntime.dead ||
+        targetRuntime.warping ||
+        !canPvpTarget(
+          this.pvpContext().actors,
+          { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
+          sessionId,
+          targetSession,
+        )
+      ) {
+        this.clearAutoWalk(runtime, sessionId, "target_lost");
+        return;
+      }
+      targetPos = targetRuntime.mover.pos;
+    } else {
+      const monsterRuntime = this.monsterRuntimes.get(monsterId!);
+      const monster = this.state.monsters.get(monsterId!);
+      if (!monsterRuntime || !monster || monsterRuntime.hp <= 0) {
+        this.clearAutoWalk(runtime, sessionId, "target_lost");
+        return;
+      }
+      targetPos = monsterRuntime.mover.pos;
+    }
+    if (!player || !targetPos) {
       this.clearAutoWalk(runtime, sessionId, "target_lost");
       return;
     }
 
-    const dx = monsterRuntime.mover.pos.x - runtime.mover.pos.x;
-    const dy = monsterRuntime.mover.pos.y - runtime.mover.pos.y;
+    const dx = targetPos.x - runtime.mover.pos.x;
+    const dy = targetPos.y - runtime.mover.pos.y;
     const distanceSquared = dx * dx + dy * dy;
     const range = this.attackRangeFor(player);
     if (distanceSquared <= range * range) {
@@ -5892,7 +6098,7 @@ export class MapRoom extends Room {
       runtime.lastIntent = { kind: "none" };
       runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
       if (now >= runtime.attackReadyAtMs) {
-        runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, monsterRuntime.mover.pos) };
+        runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, targetPos) };
       }
       return;
     }
@@ -5907,7 +6113,7 @@ export class MapRoom extends Room {
 
     if (now >= runtime.nextChaseRepathAtMs || runtime.mover.path.length === 0) {
       runtime.nextChaseRepathAtMs = now + 250;
-      const path = findPath(this.assets.grid, runtime.mover.pos, monsterRuntime.mover.pos);
+      const path = findPath(this.assets.grid, runtime.mover.pos, targetPos);
       runtime.mover.path = path;
       if (path.length === 0) {
         runtime.emptyChasePaths++;
@@ -5930,10 +6136,12 @@ export class MapRoom extends Room {
     sessionId: string,
     reason: TargetClearedReason,
   ): void {
-    if (!runtime.targetMonsterId) {
+    const hadPlayerTarget = runtime.targetCharacterId !== null;
+    if (!runtime.targetMonsterId && !hadPlayerTarget) {
       return;
     }
     runtime.targetMonsterId = null;
+    runtime.targetCharacterId = null;
     runtime.mover.path = [];
     runtime.nextChaseRepathAtMs = 0;
     runtime.bestTargetDistSq = Number.POSITIVE_INFINITY;
@@ -5942,6 +6150,9 @@ export class MapRoom extends Room {
     const client = this.clients.find((candidate) => candidate.sessionId === sessionId);
     if (!client) {
       return;
+    }
+    if (hadPlayerTarget) {
+      this.safeSend(client, MSG.playerTarget, { characterId: null, reason });
     }
     this.notifyTargetCleared(client, reason);
   }

@@ -32,7 +32,15 @@ import {
 import { BASE_CATALOG } from "@jadethrone/data/catalog";
 import type { SkillEffect, SkillInfo } from "@jadethrone/data/skills";
 import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
-import { applyDamageToMonster, type CombatContext, type KilledMonster, type StoneHit } from "../rooms/combat";
+import {
+  applyDamageToMonster,
+  canHitPlayer,
+  resolvePlayerHit,
+  type CombatContext,
+  type KilledMonster,
+  type PlayerHit,
+  type StoneHit,
+} from "../rooms/combat";
 
 export interface SkillCombatContext extends CombatContext {
   grid: CollisionGrid;
@@ -106,6 +114,7 @@ export interface SkillOutcome {
   targetY: number;
   hits: CombatHit[];
   stoneHits: StoneHit[];
+  playerHits: PlayerHit[];
   killed: KilledMonster[];
   damagedMonsterIds: string[];
   statuses: SkillStatusIntent[];
@@ -119,7 +128,7 @@ export interface SkillOutcome {
 }
 
 interface ArcRef {
-  kind: "monster" | "stone";
+  kind: "monster" | "stone" | "player";
   id: string;
 }
 
@@ -165,7 +174,10 @@ function aimPoint(ctx: SkillCombatContext, input: ResolveSkillInput, origin: Vec
   return { x: origin.x, y: origin.y };
 }
 
-function collectCandidates(ctx: SkillCombatContext): {
+function collectCandidates(
+  ctx: SkillCombatContext,
+  attackerSessionId: string,
+): {
   candidates: ArcTarget[];
   refs: Map<string, ArcRef>;
 } {
@@ -186,6 +198,26 @@ function collectCandidates(ctx: SkillCombatContext): {
     const key = `s:${stoneId}`;
     refs.set(key, { kind: "stone", id: stoneId });
     candidates.push({ id: key, x: runtime.x, y: runtime.y });
+  }
+  if (ctx.pvp) {
+    for (const [targetSessionId, targetRuntime] of ctx.runtimes) {
+      if (
+        targetSessionId === attackerSessionId ||
+        targetRuntime.dead ||
+        targetRuntime.warping ||
+        !ctx.state.players.has(targetSessionId) ||
+        !canHitPlayer(ctx, attackerSessionId, targetSessionId)
+      ) {
+        continue;
+      }
+      const key = `p:${targetSessionId}`;
+      refs.set(key, { kind: "player", id: targetSessionId });
+      candidates.push({
+        id: key,
+        x: targetRuntime.mover.pos.x,
+        y: targetRuntime.mover.pos.y,
+      });
+    }
   }
   return { candidates, refs };
 }
@@ -271,6 +303,7 @@ export function resolveSkillCast(
     targetY: aim.y,
     hits: [],
     stoneHits: [],
+    playerHits: [],
     killed: [],
     damagedMonsterIds: [],
     statuses: [],
@@ -420,7 +453,7 @@ export function resolveSkillCast(
     return outcome;
   }
 
-  const { candidates, refs } = collectCandidates(ctx);
+  const { candidates, refs } = collectCandidates(ctx, input.sessionId);
   const maxTargets = skill.maxTargets ?? (skill.type === "projectile" ? 1 : 8);
   let center = aim;
   let targetIds: string[] = [];
@@ -485,6 +518,21 @@ export function resolveSkillCast(
   for (const key of targetIds) {
     const ref = refs.get(key);
     if (!ref) {
+      continue;
+    }
+    if (ref.kind === "player") {
+      const hit = resolvePlayerHit(
+        ctx,
+        input.sessionId,
+        ref.id,
+        attack,
+        critValue,
+        power,
+      );
+      if (hit) {
+        outcome.hits.push(hit);
+        outcome.playerHits.push(hit);
+      }
       continue;
     }
     if (ref.kind === "stone") {
@@ -601,7 +649,12 @@ export function resolveSkillCast(
       Math.max(0, runtime.progression.hp - 1),
     );
   }
-  if (outcome.damagedMonsterIds.length > 0 || outcome.stoneHits.length > 0 || outcome.statuses.length > 0) {
+  if (
+    outcome.damagedMonsterIds.length > 0 ||
+    outcome.stoneHits.length > 0 ||
+    outcome.playerHits.some((hit) => !hit.miss) ||
+    outcome.statuses.length > 0
+  ) {
     runtime.lastCombatAtMs = ctx.now;
   }
   return outcome;

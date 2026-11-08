@@ -18,7 +18,10 @@ import {
   type CombatHit,
   type ArcTarget,
   type Dir8,
+  type PvpActor,
+  type PvpMapPolicy,
   type RandomSource,
+  canAttackPlayer,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
@@ -45,6 +48,14 @@ export interface CombatContext {
   stoneRuntimes?: ReadonlyMap<string, StoneRuntime>;
   /** Overridable definitions; defaults to the base catalog. */
   catalog?: CatalogLookup;
+  /** Present only when PvP is allowed on the current map. */
+  pvp?: PvpCombatContext;
+}
+
+export interface PvpCombatContext {
+  policy: PvpMapPolicy;
+  /** sessionId → eligible actor; omitted actors cannot attack or be attacked. */
+  actors: ReadonlyMap<string, PvpActor>;
 }
 
 export interface KilledMonster {
@@ -59,6 +70,114 @@ export interface KilledMonster {
 export type StoneHit = CombatHit & {
   target: { kind: "stone"; stoneId: string };
 };
+
+export type PlayerHit = CombatHit & {
+  target: { kind: "player"; sessionId: string };
+};
+
+export function canHitPlayer(
+  ctx: CombatContext,
+  attackerSessionId: string,
+  targetSessionId: string,
+): boolean {
+  const pvp = ctx.pvp;
+  if (!pvp) {
+    return false;
+  }
+  const attacker = pvp.actors.get(attackerSessionId);
+  const target = pvp.actors.get(targetSessionId);
+  return Boolean(
+    attacker && target && canAttackPlayer(attacker, target, pvp.policy),
+  );
+}
+
+/** VIT + equipment defense with buffs, shared by monster and PvP damage. */
+export function playerDefense(
+  runtime: PlayerRuntime,
+  now: number,
+  catalog: CatalogLookup = BASE_CATALOG,
+): number {
+  const equipment = equipmentBonusStats(runtime.inventory, catalog);
+  return applyBuffModifiers(
+    defenseOf(runtime.progression.stats.vit) + equipment.defense,
+    playerBuffModifiers(runtime.buffs, now),
+    "defense",
+  );
+}
+
+export function resolvePlayerHit(
+  ctx: CombatContext,
+  attackerSessionId: string,
+  targetSessionId: string,
+  attack: number,
+  critChanceValue: number,
+  power?: number,
+): PlayerHit | null {
+  const attacker = ctx.runtimes.get(attackerSessionId);
+  const targetRuntime = ctx.runtimes.get(targetSessionId);
+  const target = ctx.state.players.get(targetSessionId);
+  if (
+    !attacker ||
+    !targetRuntime ||
+    !target ||
+    !canHitPlayer(ctx, attackerSessionId, targetSessionId) ||
+    targetRuntime.dead ||
+    targetRuntime.warping ||
+    targetRuntime.progression.hp <= 0
+  ) {
+    return null;
+  }
+  const stats = targetRuntime.progression.stats;
+  const mods = playerBuffModifiers(targetRuntime.buffs, ctx.now);
+  const evasion = Math.min(0.5, Math.max(0, buffModifierTotals(mods, "evasion").flat));
+  const chance = Math.max(
+    0.2,
+    hitChance({
+      attackerDex: attacker.progression.stats.dex,
+      defenderDex: stats.dex,
+      attackerLevel: attacker.progression.level,
+      defenderLevel: targetRuntime.progression.level,
+    }) - evasion,
+  );
+  const x = targetRuntime.mover.pos.x;
+  const y = targetRuntime.mover.pos.y;
+  const victim = { kind: "player" as const, sessionId: targetSessionId };
+  if (!rollHit(ctx.rng, chance)) {
+    return { target: victim, x, y, miss: true, crit: false, damage: 0 };
+  }
+  const defense = playerDefense(targetRuntime, ctx.now, ctx.catalog);
+  const base =
+    power === undefined
+      ? resolveDamage(ctx.rng, attack, defense)
+      : skillDamage(ctx.rng, attack, defense, power);
+  const crit = rollCrit(ctx.rng, critChanceValue);
+  return {
+    target: victim,
+    x,
+    y,
+    miss: false,
+    crit,
+    damage: Math.max(1, Math.round(crit ? critDamage(base) : base)),
+  };
+}
+
+export function applyDamageToPlayer(
+  ctx: Pick<CombatContext, "now" | "runtimes" | "state">,
+  targetSessionId: string,
+  damage: number,
+): { hp: number; killed: boolean } | null {
+  const runtime = ctx.runtimes.get(targetSessionId);
+  const player = ctx.state.players.get(targetSessionId);
+  if (!runtime || !player || runtime.dead || runtime.warping || runtime.progression.hp <= 0) {
+    return null;
+  }
+  const safeDamage = Math.max(0, Math.floor(damage));
+  runtime.progression.hp = Math.max(0, runtime.progression.hp - safeDamage);
+  player.hp = runtime.progression.hp;
+  runtime.lastCombatAtMs = ctx.now;
+  runtime.dirty = true;
+  return { hp: runtime.progression.hp, killed: runtime.progression.hp === 0 };
+}
 
 /** Symmetric record for the room; never produced by the swing resolver. */
 export interface KilledStone {
@@ -77,6 +196,8 @@ export interface MonsterDamageResult {
 export interface SwingOutcome {
   /** Every target in the arc, nearest first; misses included. */
   hits: CombatHit[];
+  /** Player damage intents; the room applies HP and death. */
+  playerHits: PlayerHit[];
   killed: KilledMonster[];
   /** Monsters that actually took damage; used for pack aggro. */
   damagedMonsterIds: string[];
@@ -212,7 +333,7 @@ export function resolvePlayerSwing(
   // Candidates come from authoritative movers; returning and dead monsters are
   // removed before the arc test so they cannot consume max-target slots.
   const candidates: ArcTarget[] = [];
-  const refs = new Map<string, { kind: "monster" | "stone"; id: string }>();
+  const refs = new Map<string, { kind: "monster" | "stone" | "player"; id: string }>();
   for (const [monsterId, monsterRuntime] of ctx.monsterRuntimes) {
     if (monsterRuntime.hp <= 0 || monsterRuntime.ai === "return") {
       continue;
@@ -235,6 +356,26 @@ export function resolvePlayerSwing(
     const key = `s:${stoneId}`;
     refs.set(key, { kind: "stone", id: stoneId });
     candidates.push({ id: key, x: stoneRuntime.x, y: stoneRuntime.y });
+  }
+  if (ctx.pvp) {
+    for (const [targetSessionId, targetRuntime] of ctx.runtimes) {
+      if (
+        targetSessionId === sessionId ||
+        targetRuntime.dead ||
+        targetRuntime.warping ||
+        !ctx.state.players.has(targetSessionId) ||
+        !canHitPlayer(ctx, sessionId, targetSessionId)
+      ) {
+        continue;
+      }
+      const key = `p:${targetSessionId}`;
+      refs.set(key, { kind: "player", id: targetSessionId });
+      candidates.push({
+        id: key,
+        x: targetRuntime.mover.pos.x,
+        y: targetRuntime.mover.pos.y,
+      });
+    }
   }
 
   const origin = runtime.mover.pos;
@@ -267,6 +408,7 @@ export function resolvePlayerSwing(
   const killed: KilledMonster[] = [];
   const damagedMonsterIds: string[] = [];
   const stoneHits: StoneHit[] = [];
+  const playerHits: PlayerHit[] = [];
   let damaged = false;
 
   for (const key of targetIds) {
@@ -281,6 +423,23 @@ export function resolvePlayerSwing(
         hits.push(hit);
         stoneHits.push(hit);
         damaged = true;
+      }
+      continue;
+    }
+    if (ref.kind === "player") {
+      const hit = resolvePlayerHit(
+        ctx,
+        sessionId,
+        ref.id,
+        attack,
+        critChanceValue,
+      );
+      if (hit) {
+        hits.push(hit);
+        playerHits.push(hit);
+        if (!hit.miss) {
+          damaged = true;
+        }
       }
       continue;
     }
@@ -338,7 +497,7 @@ export function resolvePlayerSwing(
   if (damaged) {
     runtime.lastCombatAtMs = ctx.now;
   }
-  return { hits, killed, damagedMonsterIds, stoneHits };
+  return { hits, playerHits, killed, damagedMonsterIds, stoneHits };
 }
 
 export interface MonsterAttackOutcome {
@@ -405,15 +564,10 @@ export function resolveMonsterAttack(
     };
   }
 
-  const equipment = equipmentBonusStats(runtime.inventory, ctx.catalog);
   const base = resolveDamage(
     ctx.rng,
     spec.attack,
-    applyBuffModifiers(
-      defenseOf(stats.vit) + equipment.defense,
-      mods,
-      "defense",
-    ),
+    playerDefense(runtime, ctx.now, ctx.catalog),
   );
   const crit = rollCrit(ctx.rng, critChance(spec.dex));
   const damage = crit ? critDamage(base) : base;

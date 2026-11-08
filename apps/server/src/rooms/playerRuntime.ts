@@ -43,6 +43,12 @@ export interface PlayerRuntime {
   skillMastery: SkillMasteryMap;
   /** Persisted PvP stance mirrored into public state. */
   pvpMode: PvpMode;
+  /** Guild identity for friendly-fire checks; null when guildless. */
+  guildId: string | null;
+  /** False until async guild lookup finishes; blocks PvP both ways. */
+  pvpReady: boolean;
+  /** Character currently chased/auto-attacked, if any. */
+  targetCharacterId: string | null;
   /** Inputs received since the last tick, applied in seq order. */
   pending: InputMessage[];
   /** Highest applied input sequence. */
@@ -165,6 +171,9 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     },
     skillMastery: identity.skillMastery ?? {},
     pvpMode: identity.pvpMode ?? "peaceful",
+    guildId: null,
+    pvpReady: false,
+    targetCharacterId: null,
     pending: [],
     lastSeq: 0,
     lastIntent: { kind: "none" },
