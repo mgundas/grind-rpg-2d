@@ -1,4 +1,4 @@
-import { RARITY_COLORS, equipSlotForItemType, itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
+import { RARITY_COLORS, equipSlotForItemType, isBonusScrollId, itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { theme } from "./theme";
 
@@ -13,6 +13,10 @@ interface ItemGridProps {
   onEquip: (instanceId: string) => void;
   onUse: (instanceId: string) => void;
   onHover: (item: ItemInstanceDto | null, x: number, y: number) => void;
+  /** When true, a left click applies the selected scroll to this item. */
+  scrollMode?: boolean;
+  onApplyScroll?: (instanceId: string) => void;
+  onSelectScroll?: (instanceId: string, itemId: string) => void;
 }
 
 export interface DragState {
@@ -42,6 +46,9 @@ export function ItemGrid({
   onEquip,
   onUse,
   onHover,
+  scrollMode = false,
+  onApplyScroll,
+  onSelectScroll,
 }: ItemGridProps) {
   const pageItems = items.filter(
     (item) => item.slot >= startSlot && item.slot < startSlot + slotCount,
@@ -107,6 +114,10 @@ export function ItemGrid({
             onPointerDown={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              if (scrollMode && onApplyScroll) {
+                onApplyScroll(item.id);
+                return;
+              }
               onDragStart({
                 instanceId: item.id,
                 quantity: item.quantity,
@@ -124,7 +135,9 @@ export function ItemGrid({
             onPointerLeave={() => onHover(null, 0, 0)}
             onContextMenu={(event) => {
               event.preventDefault();
-              if (equipSlotForItemType(definition.type)) {
+              if (isBonusScrollId(item.itemId)) {
+                onSelectScroll?.(item.id, item.itemId);
+              } else if (equipSlotForItemType(definition.type)) {
                 onEquip(item.id);
               } else if (definition.effect) {
                 onUse(item.id);

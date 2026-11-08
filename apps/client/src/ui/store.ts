@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type {
   AccountPublic,
   AnnouncementPayload,
+  BonusScrollAppliedPayload,
   BossTimerPayload,
   BuffStatePayload,
   BuffView,
@@ -20,6 +21,11 @@ import type {
   UpgradeResultPayload,
   WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
+import {
+  IDLE_SCROLL_TARGET,
+  scrollTargetReducer,
+  type ScrollTargetMode,
+} from "./scrollTarget";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -173,6 +179,13 @@ interface UiState {
   setBlacksmithResult: (result: UpgradeResultPayload | null) => void;
   blacksmithError: { code: string; message?: string } | null;
   setBlacksmithError: (error: UiState["blacksmithError"]) => void;
+
+  /** Right-clicked enchant/reinforce scroll waiting for a target item. */
+  scrollTarget: ScrollTargetMode;
+  beginScrollTarget: (scrollInstanceId: string, scrollItemId: string) => void;
+  cancelScrollTarget: () => void;
+  bonusScrollResult: BonusScrollAppliedPayload | null;
+  setBonusScrollResult: (result: BonusScrollAppliedPayload | null) => void;
 
   npcDialog: NpcDialogPayload | null;
   setNpcDialog: (dialog: NpcDialogPayload | null) => void;
@@ -360,6 +373,22 @@ export const useUiStore = create<UiState>((set) => ({
   setBlacksmithResult: (blacksmithResult) => set({ blacksmithResult }),
   blacksmithError: null,
   setBlacksmithError: (blacksmithError) => set({ blacksmithError }),
+
+  scrollTarget: IDLE_SCROLL_TARGET,
+  beginScrollTarget: (scrollInstanceId, scrollItemId) =>
+    set((state) => ({
+      scrollTarget: scrollTargetReducer(state.scrollTarget, {
+        type: "begin",
+        scrollInstanceId,
+        scrollItemId,
+      }),
+    })),
+  cancelScrollTarget: () =>
+    set((state) => ({
+      scrollTarget: scrollTargetReducer(state.scrollTarget, { type: "cancel" }),
+    })),
+  bonusScrollResult: null,
+  setBonusScrollResult: (bonusScrollResult) => set({ bonusScrollResult }),
 
   npcDialog: null,
   setNpcDialog: (npcDialog) => set({ npcDialog }),

@@ -58,6 +58,17 @@ export type ItemEffect =
   | { kind: "heal_mp"; amount: number }
   | { kind: "warp_town" };
 
+/** Bonus-scroll definition ids shared by server planning and client UX. */
+export const BONUS_SCROLL_IDS = {
+  enchant: "scroll_enchant",
+  reinforce: "scroll_reinforce",
+} as const;
+export type BonusScrollKind = keyof typeof BONUS_SCROLL_IDS;
+
+export function isBonusScrollId(itemId: string): boolean {
+  return itemId === BONUS_SCROLL_IDS.enchant || itemId === BONUS_SCROLL_IDS.reinforce;
+}
+
 /** The subset of an item definition the shared inventory code needs. */
 export interface ItemDefinitionLike {
   id: string;

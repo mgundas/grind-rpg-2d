@@ -4,6 +4,7 @@ import {
   type ItemInstanceDto,
 } from "@jadethrone/shared";
 import { getItem } from "@jadethrone/data/items";
+import { getBonusDefinition } from "@jadethrone/data/bonuses";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
 
@@ -43,7 +44,18 @@ export function ItemTooltip({ item, x, y }: ItemTooltipProps) {
   const classicBonusTypes = new Set(["max_hp", "max_mp", "attack", "defense", "crit_chance"]);
   const bonusLines = item.bonuses
     .filter((bonus) => !classicBonusTypes.has(bonus.type))
-    .map((bonus) => `${bonus.type.replaceAll("_", " ")} +${bonus.value}`);
+    .map((bonus) => {
+      const definition = getBonusDefinition(bonus.type);
+      const label = definition?.label ?? bonus.type.replaceAll("_", " ");
+      const fractional =
+        definition !== undefined
+          ? !Number.isInteger(definition.max)
+          : Math.abs(bonus.value) < 1;
+      const value = fractional
+        ? `${Math.round(bonus.value * 1000) / 10}%`
+        : `${bonus.value}`;
+      return `${label} +${value}`;
+    });
   const missingLevel = level < definition.levelReq;
   const missingClass =
     definition.classes !== "all" && classId !== undefined && !definition.classes.includes(classId);

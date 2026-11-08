@@ -5,6 +5,7 @@ import {
   type AutoWalkPayload,
   type DeathPayload,
   type AnnouncementPayload,
+  type BonusScrollAppliedPayload,
   type BossTimerPayload,
   type BuffView,
   type CastSkillMessage,
@@ -185,6 +186,8 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setBlacksmithPreview(null);
   leaving.setBlacksmithResult(null);
   leaving.setBlacksmithError(null);
+  leaving.cancelScrollTarget();
+  leaving.setBonusScrollResult(null);
   if (!current) {
     return;
   }
@@ -420,6 +423,12 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.blacksmithError, (payload: { code: string; message?: string }) => {
     useUiStore.getState().setBlacksmithError(payload);
+  });
+
+  current.onMessage(MSG.bonusScrollApplied, (payload: BonusScrollAppliedPayload) => {
+    const store = useUiStore.getState();
+    store.setBonusScrollResult(payload);
+    store.cancelScrollTarget();
   });
 
   current.onMessage(MSG.announcement, (payload: AnnouncementPayload) => {

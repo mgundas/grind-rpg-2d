@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import type { ItemInstanceDto } from "@jadethrone/shared";
+import { BONUS_SCROLL_IDS, type ItemInstanceDto } from "@jadethrone/shared";
 import {
+  sendApplyBonusScroll,
   sendEquipItem,
   sendMoveItem,
   sendSplitStack,
@@ -30,6 +31,11 @@ export function InventoryWindow() {
   const setAutoLoot = useUiStore((state) => state.setAutoLoot);
   const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
   const setDraggedInstanceId = useUiStore((state) => state.setDraggedInstanceId);
+  const scrollTarget = useUiStore((state) => state.scrollTarget);
+  const beginScrollTarget = useUiStore((state) => state.beginScrollTarget);
+  const cancelScrollTarget = useUiStore((state) => state.cancelScrollTarget);
+  const bonusScrollResult = useUiStore((state) => state.bonusScrollResult);
+  const setBonusScrollResult = useUiStore((state) => state.setBonusScrollResult);
   const [hover, setHover] = useState<Hover | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
 
@@ -40,6 +46,14 @@ export function InventoryWindow() {
     const timer = setTimeout(() => setError(null), 2600);
     return () => clearTimeout(timer);
   }, [error, setError]);
+
+  useEffect(() => {
+    if (!bonusScrollResult) {
+      return;
+    }
+    const timer = setTimeout(() => setBonusScrollResult(null), 5000);
+    return () => clearTimeout(timer);
+  }, [bonusScrollResult, setBonusScrollResult]);
 
   useEffect(() => {
     const clear = () => {
@@ -74,9 +88,24 @@ export function InventoryWindow() {
     setDrag(null);
   };
 
+  const applyScrollTo = (instanceId: string) => {
+    if (!scrollTarget.active || scrollTarget.scrollInstanceId === instanceId) {
+      return;
+    }
+    sendApplyBonusScroll(scrollTarget.scrollInstanceId, instanceId);
+  };
+
   return (
     <>
-      <Window id="inventory" title="Inventory" width={605} onClose={() => setOpen(false)}>
+      <Window
+        id="inventory"
+        title="Inventory"
+        width={605}
+        onClose={() => {
+          cancelScrollTarget();
+          setOpen(false);
+        }}
+      >
         <div
           style={{
             display: "flex",
@@ -100,6 +129,51 @@ export function InventoryWindow() {
           </label>
         </div>
 
+        {scrollTarget.active ? (
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 8,
+              marginBottom: 8,
+              padding: "5px 8px",
+              borderRadius: 5,
+              border: "1px solid rgba(93,168,143,0.55)",
+              background: "rgba(93,168,143,0.12)",
+              fontSize: 11,
+              color: theme.text,
+            }}
+          >
+            <span>
+              Select an item to apply{" "}
+              {scrollTarget.scrollItemId === BONUS_SCROLL_IDS.enchant ? "Enchant" : "Reinforce"} Scroll
+            </span>
+            <button type="button" style={{ padding: "2px 8px", fontSize: 10 }} onClick={cancelScrollTarget}>
+              Cancel (Esc)
+            </button>
+          </div>
+        ) : null}
+
+        {bonusScrollResult ? (
+          <div
+            style={{
+              marginBottom: 8,
+              padding: "5px 8px",
+              borderRadius: 5,
+              border: "1px solid rgba(93,168,143,0.55)",
+              background: "rgba(93,168,143,0.12)",
+              fontSize: 11,
+              color: theme.jade,
+            }}
+          >
+            {bonusScrollResult.kind === "enchant" ? "Enchant" : "Reinforce"} applied:{" "}
+            {bonusScrollResult.bonuses
+              .map((bonus) => `${bonus.type.replaceAll("_", " ")} +${bonus.value}`)
+              .join(", ")}
+          </div>
+        ) : null}
+
         <div style={{ display: "flex", gap: 12 }}>
           <ItemGrid
             items={items}
@@ -111,6 +185,9 @@ export function InventoryWindow() {
             onEquip={sendEquipItem}
             onUse={sendUseItem}
             onHover={(item, x, y) => setHover(item ? { item, x, y } : null)}
+            scrollMode={scrollTarget.active}
+            onApplyScroll={applyScrollTo}
+            onSelectScroll={(instanceId, itemId) => beginScrollTarget(instanceId, itemId)}
           />
           <ItemGrid
             items={items}
@@ -122,6 +199,9 @@ export function InventoryWindow() {
             onEquip={sendEquipItem}
             onUse={sendUseItem}
             onHover={(item, x, y) => setHover(item ? { item, x, y } : null)}
+            scrollMode={scrollTarget.active}
+            onApplyScroll={applyScrollTo}
+            onSelectScroll={(instanceId, itemId) => beginScrollTarget(instanceId, itemId)}
           />
           <EquipmentPanel
             equipment={inventory?.equipment ?? Array.from({ length: 8 }, () => null)}
@@ -131,6 +211,8 @@ export function InventoryWindow() {
               setDraggedItemId(item.itemId);
               setDraggedInstanceId(item.id);
             }}
+            scrollMode={scrollTarget.active}
+            onApplyScroll={(item) => applyScrollTo(item.id)}
           />
         </div>
 
@@ -174,6 +256,9 @@ export function useInventoryHotkey(): void {
       if (event.key.toLowerCase() === "i") {
         event.preventDefault();
         store.toggleInventory();
+      } else if (event.key === "Escape" && store.scrollTarget.active) {
+        // Cancel scroll targeting before closing the inventory.
+        store.cancelScrollTarget();
       } else if (event.key === "Escape" && store.inventoryOpen) {
         store.setInventoryOpen(false);
       }

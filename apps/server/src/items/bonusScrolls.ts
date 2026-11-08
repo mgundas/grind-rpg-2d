@@ -1,6 +1,8 @@
 import {
+  BONUS_SCROLL_IDS,
   cloneInventory,
   isEquipmentType,
+  type BonusScrollKind as SharedBonusScrollKind,
   type InventoryState,
   type ItemBonus,
   type RandomSource,
@@ -12,12 +14,8 @@ import { describeChanges, type ItemPlan } from "./itemChanges";
 import { consumeItem, findStack, setStack } from "./inventoryDraft";
 import { diffInventory } from "./planning";
 
-export const BONUS_SCROLL_IDS = {
-  enchant: "scroll_enchant",
-  reinforce: "scroll_reinforce",
-} as const;
-
-export type BonusScrollKind = keyof typeof BONUS_SCROLL_IDS;
+export { BONUS_SCROLL_IDS };
+export type BonusScrollKind = SharedBonusScrollKind;
 
 export interface BonusScrollResult {
   /** Next in-memory inventory; commit the plan before assigning it. */

@@ -7,6 +7,8 @@ interface EquipmentPanelProps {
   onUnequip: (slot: number) => void;
   onHover: (item: ItemInstanceDto | null, x: number, y: number) => void;
   onDragStart?: (item: ItemInstanceDto) => void;
+  scrollMode?: boolean;
+  onApplyScroll?: (item: ItemInstanceDto) => void;
 }
 
 /** Eight equipment slots; clicking a filled slot unequips it. */
@@ -15,6 +17,8 @@ export function EquipmentPanel({
   onUnequip,
   onHover,
   onDragStart,
+  scrollMode = false,
+  onApplyScroll,
 }: EquipmentPanelProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 132 }}>
@@ -29,7 +33,12 @@ export function EquipmentPanel({
             key={slotName}
             type="button"
             onClick={() => {
-              if (item) {
+              if (!item) {
+                return;
+              }
+              if (scrollMode && onApplyScroll) {
+                onApplyScroll(item);
+              } else {
                 onUnequip(index);
               }
             }}
