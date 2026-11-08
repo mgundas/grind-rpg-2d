@@ -14,7 +14,7 @@ import type { Db } from "../../src/db/client";
 import { characters, itemLog, items } from "../../src/db/schema";
 import { ItemError } from "../../src/items/errors";
 import { applyItemTransaction } from "../../src/items/itemTransactions";
-import { planEquip, planMove } from "../../src/items/planning";
+import { diffInventory, planEquip, planMove } from "../../src/items/planning";
 import { createTestDb, hasTestDatabase, type TestDb } from "./testDb";
 
 const ACCESS_SECRET = "test-access-secret-at-least-32-characters";
@@ -132,6 +132,60 @@ describeDb("inventory mutation transactions", () => {
     expect(logs[0]?.action).toBe("move");
     expect(logs[0]?.fromSlot).toBe(0);
     expect(logs[0]?.toSlot).toBe(7);
+  });
+
+  it("persists upgrade level and bonuses on existing rows", async () => {
+    const { db } = testDb;
+    const { accountId, characterId } = await setup(db);
+    const id = await insertStack(db, characterId, "sword_ember_t1", 0, 1);
+    const before = {
+      items: [stack(id, "sword_ember_t1", 0)],
+      equipment: Array.from({ length: 8 }, () => null),
+    };
+    const after = {
+      items: [
+        {
+          ...stack(id, "sword_ember_t1", 0),
+          upgradeLevel: 5,
+          bonuses: [{ type: "attack", value: 5 }],
+        },
+      ],
+      equipment: Array.from({ length: 8 }, () => null),
+    };
+
+    const changes = diffInventory(before, after, characterId);
+    expect(changes).toHaveLength(1);
+    await applyItemTransaction(
+      db,
+      { accountId, characterId },
+      { changes, logs: [] },
+    );
+
+    const [row] = await db.select().from(items).where(eq(items.id, id));
+    expect(row?.upgradeLevel).toBe(5);
+    expect(row?.bonuses).toEqual([{ type: "attack", value: 5 }]);
+  });
+
+  it("rejects a stale plan when the upgrade level changed", async () => {
+    const { db } = testDb;
+    const { accountId, characterId } = await setup(db);
+    const id = await insertStack(db, characterId, "sword_ember_t1", 0, 1);
+    const before = {
+      items: [stack(id, "sword_ember_t1", 0)],
+      equipment: Array.from({ length: 8 }, () => null),
+    };
+    const changes = diffInventory(
+      before,
+      {
+        items: [{ ...stack(id, "sword_ember_t1", 0), upgradeLevel: 5 }],
+        equipment: Array.from({ length: 8 }, () => null),
+      },
+      characterId,
+    );
+    await db.update(items).set({ upgradeLevel: 3 }).where(eq(items.id, id));
+    await expect(
+      applyItemTransaction(db, { accountId, characterId }, { changes, logs: [] }),
+    ).rejects.toMatchObject({ code: "stale" });
   });
 
   it("swaps two rows without tripping the unique slot index", async () => {

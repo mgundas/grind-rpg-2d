@@ -350,6 +350,8 @@ export function createFakeServices(): FakeServices {
             ...row.stack,
             slot: change.to.slot ?? row.stack.slot,
             quantity: change.to.quantity,
+            upgradeLevel: change.to.upgradeLevel,
+            bonuses: [...change.to.bonuses],
           };
           row.location = change.to.location;
           row.ownerCharacterId = change.to.ownerCharacterId;

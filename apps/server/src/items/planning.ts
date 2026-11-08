@@ -99,7 +99,13 @@ export function diffInventory(
     if (
       expect.location !== to.location ||
       expect.slot !== to.slot ||
-      expect.quantity !== to.quantity
+      expect.quantity !== to.quantity ||
+      expect.upgradeLevel !== to.upgradeLevel ||
+      expect.bonuses.length !== to.bonuses.length ||
+      expect.bonuses.some(
+        (bonus, index) =>
+          bonus.type !== to.bonuses[index]?.type || bonus.value !== to.bonuses[index]?.value,
+      )
     ) {
       changes.push({
         kind: "update",
@@ -300,6 +306,8 @@ export function planPickup(
         location: "inventory",
         slot: leftoverSlot,
         quantity: leftover,
+        upgradeLevel: ground.upgradeLevel,
+        bonuses: [...ground.bonuses],
         ownerCharacterId: characterId,
         ownerAccountId: null,
         mapId: null,
@@ -560,6 +568,8 @@ export function planDeposit(
       location: "warehouse",
       slot,
       quantity: stack.quantity,
+      upgradeLevel: stack.upgradeLevel,
+      bonuses: [...stack.bonuses],
       ownerCharacterId: null,
       ownerAccountId: accountId,
       mapId: null,
@@ -616,6 +626,8 @@ export function planWithdraw(
       location: "warehouse",
       slot: stack.slot,
       quantity: stack.quantity,
+      upgradeLevel: stack.upgradeLevel,
+      bonuses: [...stack.bonuses],
       ownerCharacterId: null,
       ownerAccountId: accountId,
       mapId: null,

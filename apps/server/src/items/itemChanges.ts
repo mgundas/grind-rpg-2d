@@ -11,6 +11,8 @@ export interface RowState {
   ownerCharacterId: string | null;
   ownerAccountId: string | null;
   mapId: string | null;
+  upgradeLevel: number;
+  bonuses: readonly ItemBonus[];
 }
 
 export interface InsertChange {
@@ -56,7 +58,16 @@ export interface ItemLogEntry {
   detail?: Record<string, unknown>;
 }
 
-export type GoldReason = "kill" | "pickup" | "shop_buy" | "shop_sell" | "admin" | "starter";
+export type GoldReason =
+  | "kill"
+  | "pickup"
+  | "shop_buy"
+  | "shop_sell"
+  | "admin"
+  | "starter"
+  | "upgrade"
+  | "enchant"
+  | "trade";
 
 export interface GoldDelta {
   delta: number;
@@ -84,12 +95,16 @@ export function rowStateFromStack(
     ownerCharacterId: characterId,
     ownerAccountId: null,
     mapId: null,
+    upgradeLevel: stack.upgradeLevel,
+    bonuses: [...stack.bonuses],
   };
 }
 
 export function rowStateFromGround(row: {
   mapId: string;
   quantity: number;
+  upgradeLevel?: number;
+  bonuses?: readonly ItemBonus[];
 }): RowState {
   return {
     location: "ground",
@@ -98,6 +113,8 @@ export function rowStateFromGround(row: {
     ownerCharacterId: null,
     ownerAccountId: null,
     mapId: row.mapId,
+    upgradeLevel: row.upgradeLevel ?? 0,
+    bonuses: [...(row.bonuses ?? [])],
   };
 }
 
@@ -147,6 +164,9 @@ export function describeChanges(
       detail: {
         ...detail,
         quantityDelta,
+        previousUpgradeLevel: change.expect.upgradeLevel,
+        upgradeLevel: change.to.upgradeLevel,
+        bonusCount: change.to.bonuses.length,
       },
     };
   });

@@ -49,6 +49,13 @@ async function lockCharacter(
   return { gold: row.gold };
 }
 
+function sameBonuses(left: readonly unknown[], right: readonly unknown[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((value, index) => JSON.stringify(value) === JSON.stringify(right[index]));
+}
+
 function stateMatches(row: ItemRow, expected: RowState): boolean {
   return (
     row.location === expected.location &&
@@ -56,7 +63,9 @@ function stateMatches(row: ItemRow, expected: RowState): boolean {
     row.quantity === expected.quantity &&
     row.ownerCharacterId === expected.ownerCharacterId &&
     row.ownerAccountId === expected.ownerAccountId &&
-    (row.mapId ?? null) === expected.mapId
+    (row.mapId ?? null) === expected.mapId &&
+    row.upgradeLevel === expected.upgradeLevel &&
+    sameBonuses(row.bonuses, expected.bonuses)
   );
 }
 
@@ -169,6 +178,8 @@ export async function applyItemTransaction(
             location: change.to.location,
             slot: change.to.slot,
             quantity: change.to.quantity,
+            upgradeLevel: change.to.upgradeLevel,
+            bonuses: [...change.to.bonuses],
             ownerCharacterId: change.to.ownerCharacterId,
             ownerAccountId: change.to.ownerAccountId,
             ...(change.to.location === "ground"

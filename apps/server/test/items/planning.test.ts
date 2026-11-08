@@ -101,6 +101,8 @@ function assertRoundTrip(before: InventoryState, after: InventoryState, changes:
         ...existing,
         slot: change.to.slot ?? existing.slot,
         quantity: change.to.quantity,
+        upgradeLevel: change.to.upgradeLevel,
+        bonuses: [...change.to.bonuses],
       };
       if (change.to.location === "inventory") {
         result.items.push(moved);
