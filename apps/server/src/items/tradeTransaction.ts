@@ -340,6 +340,15 @@ export async function applyTradeTransaction(
         }
       }
 
+      const [existingTrade] = await tx
+        .select({ id: tradeLog.id })
+        .from(tradeLog)
+        .where(eq(tradeLog.id, input.tradeId))
+        .limit(1);
+      if (existingTrade) {
+        throw new TradeExecutionError("stale", "That trade was already committed.");
+      }
+
       const itemsA = a.items.map((stack) => snapshot(stack, slotById.get(stack.id)!));
       const itemsB = b.items.map((stack) => snapshot(stack, slotById.get(stack.id)!));
       await tx.insert(tradeLog).values({

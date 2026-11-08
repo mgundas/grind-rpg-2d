@@ -1,5 +1,6 @@
 import type { CastSkillMessage, ClassId, Vec2 } from "@jadethrone/shared";
-import { getSkill, hasSkill, type SkillInfo } from "@jadethrone/data/skills";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import type { SkillInfo } from "@jadethrone/data/skills";
 import type { PlayerProgression } from "../characters/progression";
 import { SkillRuleError } from "./skillState";
 
@@ -58,12 +59,13 @@ function requiresTarget(skill: SkillInfo): boolean {
  */
 export function validateSkillCast(
   input: ValidateSkillCastInput,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): SkillCastValidation {
   const { request, progression, classId } = input;
-  if (!hasSkill(request.skillId)) {
+  if (!catalog.hasSkill(request.skillId)) {
     throw new SkillRuleError("unknown_skill", "Unknown skill.", request.skillId);
   }
-  const skill = getSkill(request.skillId);
+  const skill = catalog.getSkill(request.skillId);
   if (skill.classId !== classId) {
     throw new SkillRuleError("skill_locked", "That skill is not available to your class.");
   }

@@ -71,9 +71,19 @@ afterAll(async () => {
 describe("doctrine and skill upgrades", () => {
   it("chooses a doctrine and learns a skill", async () => {
     const { room, client, identity } = await join(10);
-    const chosenPromise = client.waitForMessage(MSG.skillState, 2000);
+    const chosenPromise = new Promise<SkillStatePayload>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error("doctrine state timed out")), 3000);
+      const off = client.onMessage(MSG.skillState, (payload: SkillStatePayload) => {
+        if (payload.doctrine !== "blade") {
+          return;
+        }
+        clearTimeout(timer);
+        off();
+        resolve(payload);
+      });
+    });
     send(client, MSG.chooseDoctrine, { doctrineId: "blade" });
-    const chosen = (await chosenPromise) as SkillStatePayload;
+    const chosen = await chosenPromise;
     expect(chosen.doctrine).toBe("blade");
     expect(chosen.skills).toHaveLength(6);
     expect(chosen.skillPoints).toBe(6);

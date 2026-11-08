@@ -11,7 +11,7 @@ import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import type { BonusDefinition } from "@jadethrone/data/bonuses";
 import { ItemError } from "./errors";
 import { describeChanges, type ItemPlan } from "./itemChanges";
-import { consumeItem, findStack, setStack } from "./inventoryDraft";
+import { findStack, setStack } from "./inventoryDraft";
 import { diffInventory } from "./planning";
 
 export { BONUS_SCROLL_IDS };
@@ -98,6 +98,10 @@ export function planBonusScroll(
     throw new ItemError("not_usable", "This item has no eligible bonuses.");
   }
 
+  if (target.stack.bonuses.length >= MAX_BONUSES) {
+    throw new ItemError("not_usable", "This item already has five bonuses.");
+  }
+
   let bonuses: ItemBonus[];
   if (kind === "enchant") {
     const count = Math.min(4, 1 + Math.floor(rng.next() * 4), pool.length);
@@ -119,7 +123,14 @@ export function planBonusScroll(
   }
 
   const next = cloneInventory(state);
-  consumeItem(next, scroll.stack.itemId, 1);
+  const nextScroll = findStack(next, scrollInstanceId)!;
+  setStack(
+    next,
+    scrollInstanceId,
+    nextScroll.stack.quantity <= 1
+      ? null
+      : { ...nextScroll.stack, quantity: nextScroll.stack.quantity - 1 },
+  );
   const nextTarget = findStack(next, itemInstanceId)!;
   setStack(next, itemInstanceId, { ...nextTarget.stack, bonuses });
 

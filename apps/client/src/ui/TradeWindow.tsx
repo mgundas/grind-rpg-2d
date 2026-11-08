@@ -308,7 +308,13 @@ export function TradeWindow() {
       <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
         <button
           type="button"
-          disabled={state.phase === "completed" || state.phase === "cancelled"}
+          disabled={
+            state.phase === "completed" ||
+            state.phase === "cancelled" ||
+            (!state.you.locked &&
+              state.you.items.length === 0 &&
+              state.you.offeredGold === 0)
+          }
           style={{ flex: 1, fontSize: 11, padding: "5px 8px" }}
           onClick={() => sendTradeLock(state.tradeId, state.revision, !state.you.locked)}
         >

@@ -12,7 +12,7 @@ import { getServerServices } from "../../src/services";
 import { hasTestDatabase } from "../db/testDb";
 
 const describeDb = hasTestDatabase() ? describe : describe.skip;
-const PORT = 2586;
+const PORT = 2592;
 
 function suffix(): string {
   return Math.random().toString(36).slice(2, 8);
@@ -75,6 +75,11 @@ describeDb("admin game data routes", () => {
     await closeDb();
   });
 
+  it("rejects missing tokens", async () => {
+    const response = await fetch(`http://127.0.0.1:${PORT}/api/admin/data/items`);
+    expect(response.status).toBe(401);
+  });
+
   it("serves, edits, rejects invalid data, reverts and reloads", async () => {
     const initial = await request("/api/admin/data/items");
     expect(initial.status).toBe(200);
@@ -100,11 +105,14 @@ describeDb("admin game data routes", () => {
     );
     expect(mergedItem?.buyPrice).toBe(777);
 
+    const versionBeforeInvalid = (merged.body as { version: number }).version;
     const invalid = await request("/api/admin/data/items/potion_hp_s", {
       method: "PUT",
       body: JSON.stringify({ payload: { ...baseItem, buyPrice: -1 } }),
     });
     expect(invalid.status).toBe(400);
+    const afterInvalid = await request("/api/admin/data/items");
+    expect((afterInvalid.body as { version: number }).version).toBe(versionBeforeInvalid);
 
     const reverted = await request("/api/admin/data/items/potion_hp_s", { method: "DELETE" });
     expect(reverted.status).toBe(200);

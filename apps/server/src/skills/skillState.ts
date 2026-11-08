@@ -6,7 +6,8 @@ import {
   type SkillStatePayload,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
-import { getSkill, hasSkill, skillsForDoctrine, type SkillInfo } from "@jadethrone/data/skills";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import type { SkillInfo } from "@jadethrone/data/skills";
 import type { PlayerProgression } from "../characters/progression";
 
 /** Rule violation with a stable client-facing code. */
@@ -37,9 +38,10 @@ export function buildSkillState(
   progression: PlayerProgression,
   classId: ClassId,
   cooldowns: ReadonlyMap<string, number> = new Map(),
+  catalog: CatalogLookup = BASE_CATALOG,
 ): SkillStatePayload {
   const skills = progression.doctrine
-    ? skillsForDoctrine(classId, progression.doctrine).map((skill) => ({
+    ? catalog.skillsForDoctrine(classId, progression.doctrine).map((skill) => ({
         skillId: skill.id,
         rank: progression.skills[skill.id] ?? 0,
         readyAtMs: cooldowns.get(skill.id) ?? 0,
@@ -86,11 +88,12 @@ export function upgradeSkill(
   progression: PlayerProgression,
   classId: ClassId,
   skillId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): SkillUpgradeResult {
-  if (!hasSkill(skillId)) {
+  if (!catalog.hasSkill(skillId)) {
     throw new SkillRuleError("unknown_skill", "Unknown skill.", skillId);
   }
-  const skill = getSkill(skillId);
+  const skill = catalog.getSkill(skillId);
   if (skill.classId !== classId) {
     throw new SkillRuleError("skill_locked", "That skill is not available to your class.", skillId);
   }

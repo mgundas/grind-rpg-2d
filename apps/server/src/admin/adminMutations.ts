@@ -12,7 +12,7 @@ import {
   type ItemInstanceDto,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import type { Db } from "../db/client";
 import { accounts, characters, goldLog, type CharacterRow } from "../db/schema";
 import { loadMapAssets } from "../maps/mapRegistry";
@@ -277,20 +277,22 @@ export async function grantItemOffline(
     request: AdminGiveItemRequest;
     ip?: string | null;
     isOnline?: (characterId: string) => boolean;
+    catalog?: CatalogLookup;
   },
 ): Promise<ItemInstanceDto> {
-  if (!hasItem(input.request.definitionId)) {
+  const catalog = input.catalog ?? BASE_CATALOG;
+  if (!catalog.hasItem(input.request.definitionId)) {
     throw new ServiceError("validation", "Unknown item definition.", {
       definitionId: "unknown",
     });
   }
   const owner = await characterAccount(db, input.characterId);
-  const loaded = await loadInventory(db, owner.accountId, input.characterId);
+  const loaded = await loadInventory(db, owner.accountId, input.characterId, catalog);
   if (input.isOnline?.(input.characterId)) {
     throw new ServiceError("conflict", "Character is online; retry the live grant.");
   }
 
-  const definition = getItem(input.request.definitionId);
+  const definition = catalog.getItem(input.request.definitionId);
   const generatedIds: string[] = [];
   const newId = (): string => {
     const id = randomUUID();
@@ -307,6 +309,8 @@ export async function grantItemOffline(
       input.request.upgradeLevel,
       input.request.bonuses,
       newId,
+      undefined,
+      catalog,
     );
   } catch (error) {
     if (error instanceof ItemError) {
@@ -361,10 +365,16 @@ export async function removeItemOffline(
     ip?: string | null;
     /** Re-checked after loading; the player may join after the route lookup. */
     isOnline?: (characterId: string) => boolean;
+    catalog?: CatalogLookup;
   },
 ): Promise<void> {
   const owner = await characterAccount(db, input.characterId);
-  const loaded = await loadInventory(db, owner.accountId, input.characterId);
+  const loaded = await loadInventory(
+    db,
+    owner.accountId,
+    input.characterId,
+    input.catalog ?? BASE_CATALOG,
+  );
   if (input.isOnline?.(input.characterId)) {
     throw new ServiceError("conflict", "Character is online; retry the live removal.");
   }

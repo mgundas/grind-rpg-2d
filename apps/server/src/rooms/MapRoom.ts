@@ -125,7 +125,6 @@ import {
   type WarpZone,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
-import { getDropTable } from "@jadethrone/data/dropTables";
 import type { SkillInfo } from "@jadethrone/data/skills";
 import type { StoneInfo } from "@jadethrone/data/stones";
 import type { CatalogLookup } from "@jadethrone/data/catalog";
@@ -1478,6 +1477,8 @@ export class MapRoom extends Room {
           request.upgradeLevel,
           request.bonuses,
           newId,
+          undefined,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
         const created = findGrantedStack(before, result.state, generatedId, definition.id);
@@ -2330,7 +2331,7 @@ export class MapRoom extends Room {
     const entries =
       dropRate <= 0
         ? []
-        : getDropTable(input.dropTableId).drops.map((drop) => ({
+        : (this.catalog().findDropTable(input.dropTableId)?.drops ?? []).map((drop) => ({
             ...drop,
             chance: Math.min(1, drop.chance * dropRate),
           }));
@@ -3094,7 +3095,7 @@ export class MapRoom extends Room {
     for (const [sessionId, runtime] of this.runtimes) {
       const player = this.state.players.get(sessionId);
       if (player) {
-        applyRegenTick(runtime, player, now);
+        applyRegenTick(runtime, player, now, this.catalog());
       }
     }
   }
@@ -3366,7 +3367,7 @@ export class MapRoom extends Room {
       if (!player || !isClassId(player.classId)) {
         throw new SkillRuleError("internal", "Character class is not playable.");
       }
-      const result = validateSkillUpgrade(runtime.progression, player.classId, skillId);
+      const result = validateSkillUpgrade(runtime.progression, player.classId, skillId, this.catalog());
       const saved = await getServerServices().saveSkillState(runtime.characterId, {
         ranks: { [skillId]: result.rank },
         skillPoints: result.skillPoints,
@@ -3392,7 +3393,12 @@ export class MapRoom extends Room {
     this.safeSend(
       client,
       MSG.skillState,
-      buildSkillState(runtime.progression, player.classId, runtime.skillCooldowns),
+      buildSkillState(
+        runtime.progression,
+        player.classId,
+        runtime.skillCooldowns,
+        this.catalog(),
+      ),
     );
   }
 
@@ -3762,7 +3768,7 @@ export class MapRoom extends Room {
         const updated = this.trades.setLocked(tradeId, me.characterId, revision, locked);
         this.sendTradeState(updated);
       } catch (error) {
-        this.failTrade(tradeId, error);
+        this.handleTradeActionFailure(tradeId, me.characterId, error);
       }
     });
   }
@@ -3805,7 +3811,7 @@ export class MapRoom extends Room {
         }
         await this.settleTrade(accepted.trade, me, them);
       } catch (error) {
-        this.failTrade(tradeId, error);
+        this.handleTradeActionFailure(tradeId, me.characterId, error);
       }
     });
   }
@@ -3828,6 +3834,24 @@ export class MapRoom extends Room {
     }
   }
 
+  private handleTradeActionFailure(
+    tradeId: string,
+    characterId: string,
+    error: unknown,
+  ): void {
+    if (
+      error instanceof TradeRuleError &&
+      (error.code === "revision" ||
+        error.code === "invalid_offer" ||
+        error.code === "not_locked" ||
+        error.code === "not_found")
+    ) {
+      this.sendTradeErrorToCharacter(characterId, error, tradeId);
+      return;
+    }
+    this.failTrade(tradeId, error);
+  }
+
   private failTrade(tradeId: string, error: unknown): void {
     const trade = this.trades.get(tradeId);
     if (!trade) {
@@ -3847,14 +3871,21 @@ export class MapRoom extends Room {
   ): Promise<void> {
     const aSide = this.trades.side(trade, one.characterId);
     const bSide = this.trades.side(trade, two.characterId);
-    const participant = (runtime: PlayerRuntime, side: TradeSide) => ({
-      accountId: runtime.accountId,
-      characterId: runtime.characterId,
-      gold: side.offer.gold,
-      items: runtime.inventory.items.filter((item) =>
-        side.offer.instanceIds.includes(item.id),
-      ),
-    });
+    const participant = (runtime: PlayerRuntime, side: TradeSide) => {
+      const items = side.offer.instanceIds.map((instanceId) => {
+        const stack = runtime.inventory.items.find((item) => item.id === instanceId);
+        if (!stack) {
+          throw new TradeRuleError("stale", "An offered item left your inventory.");
+        }
+        return stack;
+      });
+      return {
+        accountId: runtime.accountId,
+        characterId: runtime.characterId,
+        gold: side.offer.gold,
+        items,
+      };
+    };
     try {
       const result = await getServerServices().items.trade({
         tradeId: trade.id,
@@ -3862,9 +3893,13 @@ export class MapRoom extends Room {
         mapId: this.mapId,
         participants: [participant(one, aSide), participant(two, bSide)],
       });
-      this.trades.complete(trade.id);
+      try {
+        this.trades.complete(trade.id);
+      } catch {
+        // A disconnect/cancel may race the commit; the DB result is authoritative.
+      }
       for (const runtime of [one, two]) {
-        const side = this.trades.side(trade, runtime.characterId);
+        const side = runtime.characterId === one.characterId ? aSide : bSide;
         const offered = new Set(side.offer.instanceIds);
         const fresh = this.runtimeForCharacter(runtime.characterId);
         if (!fresh) {
@@ -4133,7 +4168,7 @@ export class MapRoom extends Room {
         warping: runtime.warping,
         casterPos: runtime.mover.pos,
         targetPos,
-      });
+      }, this.catalog());
       const now = Date.now();
       runtime.progression.mp = Math.max(0, runtime.progression.mp - validation.mpCost);
       player.mp = runtime.progression.mp;

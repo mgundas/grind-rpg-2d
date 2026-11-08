@@ -34,7 +34,7 @@ import {
 import { getMonster } from "../data/catalog";
 import { getClass } from "@jadethrone/data/classes";
 import { getItem, hasItem } from "../data/catalog";
-import { getNpc } from "@jadethrone/data/npcs";
+import { getNpc } from "../data/catalog";
 import { createPlaceholder } from "../assets/placeholders";
 import {
   consumeWarp,
@@ -383,6 +383,16 @@ export class WorldScene extends Phaser.Scene {
         }
       } else {
         const desired = this.resolveInput();
+        const inventory = useUiStore.getState().inventory;
+        const moveBonus = (inventory?.equipment ?? []).reduce((total, item) => {
+          if (!item) {
+            return total;
+          }
+          return total + item.bonuses
+            .filter((bonus) => bonus.type === "move_speed")
+            .reduce((sum, bonus) => sum + bonus.value, 0);
+        }, 0);
+        this.predictor.setSpeedMultiplier(1 + moveBonus);
         this.predictor.update(delta, desired);
         if (this.pathTarget && !this.predictor.isFollowingPath) {
           this.pathTarget = null;

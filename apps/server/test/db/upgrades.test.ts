@@ -171,5 +171,34 @@ describeDb("upgrade persistence", () => {
     await service.apply(accountId, characterId, result.plan);
     const rows = await db.select().from(items).where(eq(items.ownerCharacterId, characterId));
     expect(rows).toHaveLength(0);
+    const [character] = await db
+      .select()
+      .from(characters)
+      .where(eq(characters.id, characterId));
+    expect(character?.gold).toBe(0);
+  });
+
+  it("downgrades and consumes the scroll instead of deleting the item", async () => {
+    const { db } = testDb;
+    const { accountId, characterId } = await setup(db);
+    const service = createItemService(db);
+    const swordId = await insertItem(db, characterId, "sword_ember_t1", 0, 1, 3);
+    const scrollId = await insertItem(db, characterId, "scroll_blessing", 1, 1);
+    await insertItem(db, characterId, "material_wolf_fang", 2, 1);
+    await db.update(characters).set({ gold: 8_000 }).where(eq(characters.id, characterId));
+
+    const before = await service.loadInventory(accountId, characterId);
+    const result = planUpgrade(before.inventory, before.gold, characterId, swordId, {
+      useBlessing: true,
+      rng: { next: () => 0.99 },
+    });
+    expect(result.level).toBe(2);
+    expect(result.destroyed).toBe(false);
+
+    await service.apply(accountId, characterId, result.plan);
+    const after = await service.loadInventory(accountId, characterId);
+    expect(after.inventory.items.find((item) => item.id === swordId)?.upgradeLevel).toBe(2);
+    expect(after.inventory.items.some((item) => item.id === scrollId)).toBe(false);
+    expect(after.gold).toBe(0);
   });
 });

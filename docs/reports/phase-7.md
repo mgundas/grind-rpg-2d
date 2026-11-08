@@ -1,6 +1,6 @@
 # Phase 7 report — upgrades, bonuses, trading and hot-reloaded game data
 
-Status: implementation complete through Task 24. Task 25 (phase gate) has not been run yet.
+Status: Phase 7 complete. The phase gate passed with the reviewer findings fixed, full DB-backed tests green and the live E2E passing.
 
 ## What was built
 
@@ -63,12 +63,13 @@ pnpm build
 pnpm verify:phase7-e2e   # requires pnpm dev + pnpm seed
 ```
 
-Working verification at the end of Task 24:
+Phase-gate verification:
 - `pnpm typecheck` passes.
 - `pnpm lint` passes.
-- client/admin builds pass.
-- Non-DB suites: **60 files / 579 tests** passed in the broad server/data/shared suite, plus client/admin suites.
-- DB-backed tests are included but skipped locally when `TEST_DATABASE_URL` is unset.
+- `pnpm build` passes for server, client and admin.
+- `TEST_DATABASE_URL=… pnpm test` passes: **106 files / 856 tests** (unit, room, DB and API suites).
+- `pnpm verify:phase7-e2e` passes against a live server and Postgres: admin grants, preview/upgrade, enchant, reinforce, two-player item+gold trade, trade logs, hot reload and revert.
+- DB-backed tests run with `TEST_DATABASE_URL`; they are skipped when it is unset.
 
 ## Manual acceptance checklist
 
@@ -78,7 +79,7 @@ Working verification at the end of Task 24:
    - Preview must show 70% and 8,000 gold.
    - Repeat with enough materials; failures must destroy the item unless a Blessing Scroll is selected, which instead drops it one level.
    - Equip an item and upgrade it for +7; confirm the server-wide announcement.
-   - Seeded planner tests assert the exact 0.95/0.9/0.85/0.7/0.6/0.5/0.4/0.25/0.15 boundaries.
+   - Seeded planner tests include exact failure boundaries at 0.95 and 0.7 plus a seeded 85% sampling check; the remaining step chances share the same `next() < chance` rule.
 
 2. **Enchant/reinforce**
    - Right-click an Enchant Scroll, click a weapon: existing bonuses are replaced by 1–4 rolls.
@@ -98,8 +99,18 @@ Working verification at the end of Task 24:
 
 ## Known issues / follow-ups
 
-- The live E2E script was added but not executed in this environment; it needs Postgres, `pnpm dev` and `pnpm seed`.
-- DB/API suites are opt-in (`TEST_DATABASE_URL`) and were skipped locally.
+- The boot path starts listening while migrations/catalog reload finish; a join in that short window may briefly see the base catalog.
+- A trade cancelled during the final DB commit still applies the committed inventory result to both runtimes, but the client may briefly receive a cancelled state before the refreshed inventory.
+- The boot path starts listening while migrations/catalog reload finish; a join in that short window may briefly see the base catalog.
+
+## Phase-gate review fixes
+
+- Trade settlement now applies committed inventory/gold results even if a disconnect/cancel races the DB commit, and rejects a partial accepted offer.
+- Stale lock/accept revisions and premature locks are rejected to the actor without cancelling the trade; the client disables Lock until an offer exists.
+- Drop-table, skill, regen, shop and NPC definitions now use the catalog on the server/client where relevant.
+- Client prediction consumes equipment move-speed bonuses.
+- Added exact +3 chance-boundary coverage, DB failure/blessing upgrade assertions, concurrent trade execution, room stale-item cancellation, API auth/rollback checks, and fixed trade-log test isolation.
+- Fixed the E2E gold expectation, added Reinforce and log checks, corrected the chance-boundary claim in this report, updated PROGRESS, and moved the admin API test to a dedicated port.
 - The client catalog refresh currently updates item/skill/monster definitions; map geometry and preloaded icon assets remain build-time data, so an override that adds a brand-new icon still needs client assets.
 - Existing living monsters keep their spawn-time stats; respawns pick up overrides.
 - Editing an entry only affects maps that already reference its id (NPC/shop/spawn group).

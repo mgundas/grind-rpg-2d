@@ -93,6 +93,14 @@ export function getMonster(id: string) {
   return current.getMonster(id);
 }
 
+export function getShop(id: string) {
+  return current.getShop(id);
+}
+
+export function getNpc(id: string) {
+  return current.getNpc(id);
+}
+
 export function getBonusDefinition(type: string) {
   return current.getBonusDefinition(type);
 }

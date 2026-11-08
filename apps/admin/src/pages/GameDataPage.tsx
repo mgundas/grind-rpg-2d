@@ -40,13 +40,15 @@ export function GameDataPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (next: GameDataDataset) => {
+  const load = useCallback(async (next: GameDataDataset, keepSelection = false) => {
     try {
       const result = await adminApi.gameData(next);
       setData(result);
-      setSelectedId(null);
-      setJsonText("");
-      setFields({});
+      if (!keepSelection) {
+        setSelectedId(null);
+        setJsonText("");
+        setFields({});
+      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load game data.");
     } finally {
@@ -151,8 +153,7 @@ export function GameDataPage() {
     try {
       const result = await adminApi.saveGameData(dataset, selected.id, parsed.payload);
       setMessage(`Saved ${selected.id} · catalog v${result.version}`);
-      await load(dataset);
-      setSelectedId(selected.id);
+      await load(dataset, true);
     } catch (saveError) {
       setError(
         saveError instanceof AdminApiError
@@ -173,7 +174,7 @@ export function GameDataPage() {
     try {
       const result = await adminApi.deleteGameData(dataset, selected.id);
       setMessage(`Reverted ${selected.id} · catalog v${result.version}`);
-      await load(dataset);
+      await load(dataset, true);
     } catch (revertError) {
       setError(
         revertError instanceof Error ? revertError.message : "Could not revert that override.",
@@ -189,7 +190,7 @@ export function GameDataPage() {
     try {
       const result = await adminApi.reloadGameData();
       setMessage(`Catalog reloaded · v${result.version} · ${result.overrides} overrides`);
-      await load(dataset);
+      await load(dataset, true);
     } catch (reloadError) {
       setError(reloadError instanceof Error ? reloadError.message : "Reload failed.");
     } finally {

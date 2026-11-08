@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { RARITY_COLORS, itemNameColor } from "@jadethrone/shared";
-import { getItem, hasItem } from "../data/catalog";
-import { getShop } from "@jadethrone/data/shops";
+import { getItem, getShop, hasItem } from "../data/catalog";
 import { sendShopBuy, sendShopSell } from "../network/session";
 import { useUiStore } from "./store";
 import { theme } from "./theme";

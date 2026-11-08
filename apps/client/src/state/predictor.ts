@@ -4,6 +4,7 @@ import {
   MAX_FRAME_DELTA_MS,
   SNAP_THRESHOLD_PX,
   TICK_MS,
+  WALK_SPEED,
   createMover,
   findPath,
   stepMover,
@@ -50,6 +51,7 @@ export class LocalPredictor {
   private correctionMs = 0;
   private snapCount = 0;
   private lastSentKind: DesiredInput["kind"] | null = null;
+  private speedMultiplier = 1;
 
   constructor(
     private readonly grid: CollisionGrid,
@@ -58,6 +60,11 @@ export class LocalPredictor {
   ) {
     this.mover = createMover(spawn);
     this.previousPosition = { x: spawn.x, y: spawn.y };
+  }
+
+  /** Match the server's equipment-derived movement speed. */
+  setSpeedMultiplier(multiplier: number): void {
+    this.speedMultiplier = Math.max(0.1, multiplier);
   }
 
   /** Authoritative local simulation position. */
@@ -211,15 +218,28 @@ export class LocalPredictor {
           { kind: "dir", dir: intent.dir },
           this.grid,
           TICK_MS,
+          WALK_SPEED * this.speedMultiplier,
         );
       case "path": {
         // Recompute from the current position every tick so replay from any
         // acknowledged position is identical to what the server does.
         const path = findPath(this.grid, mover.pos, { x: intent.x, y: intent.y });
-        return stepMover({ pos: mover.pos, path }, { kind: "path" }, this.grid, TICK_MS);
+        return stepMover(
+          { pos: mover.pos, path },
+          { kind: "path" },
+          this.grid,
+          TICK_MS,
+          WALK_SPEED * this.speedMultiplier,
+        );
       }
       case "none":
-        return stepMover({ pos: mover.pos, path: [] }, { kind: "none" }, this.grid, TICK_MS);
+        return stepMover(
+          { pos: mover.pos, path: [] },
+          { kind: "none" },
+          this.grid,
+          TICK_MS,
+          WALK_SPEED * this.speedMultiplier,
+        );
     }
   }
 

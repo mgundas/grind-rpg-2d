@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-3.md` (Phase 3 complete — see `docs/reports/phase-3.md`).
+Current plan: `docs/plans/phase-7.md` (Phase 7 complete — see `docs/reports/phase-7.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -237,17 +237,17 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 4 — Bonus stats in gameplay
 - [x] Task 5 — Bonus-aware tooltips and names
 - [x] Task 6 — Pure upgrade planner and roll
-- [ ] Task 7 — Blacksmith protocol and preview
-- [ ] Task 8 — Server upgrade execution
-- [ ] Task 9 — Client blacksmith window
-- [ ] Task 10 — Pure enchant/reinforce planners
-- [ ] Task 11 — Scroll application flow
-- [ ] Task 12 — Client scroll UX
-- [ ] Task 13 — Trade protocol and errors
-- [ ] Task 14 — Pure trade registry
-- [ ] Task 15 — Trade transaction and log
+- [x] Task 7 — Blacksmith protocol and preview
+- [x] Task 8 — Server upgrade execution
+- [x] Task 9 — Client blacksmith window
+- [x] Task 10 — Pure enchant/reinforce planners
+- [x] Task 11 — Scroll application flow
+- [x] Task 12 — Client scroll UX
+- [x] Task 13 — Trade protocol and errors
+- [x] Task 14 — Pure trade registry
+- [x] Task 15 — Trade transaction and log
 - [x] Task 16 — Room trade integration
-- [ ] Task 17 — Client trade window and context menu
+- [x] Task 17 — Client trade window and context menu
 - [x] Task 18 — Admin trade log
 - [x] Task 19 — Override table and catalog store
 - [x] Task 20 — Refactor server consumers to catalog
@@ -255,7 +255,7 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 22 — Admin game-data editor
 - [x] Task 23 — Client catalog refresh
 - [x] Task 24 — Phase 7 E2E, decisions and report
-- [ ] Task 25 — Phase gate
+- [x] Task 25 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)
 

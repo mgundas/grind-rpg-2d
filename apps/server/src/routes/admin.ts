@@ -268,6 +268,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       request,
       ip: req.ip,
       isOnline: (id) => Boolean(deps.adminBus.get(id)),
+      catalog: deps.gameData.getCatalog(),
     });
     res.status(201).json({ item });
   });
@@ -292,6 +293,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
         itemId,
         ip: req.ip,
         isOnline: (id) => Boolean(deps.adminBus.get(id)),
+        catalog: deps.gameData.getCatalog(),
       });
     }
     res.status(204).end();

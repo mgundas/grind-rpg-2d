@@ -247,6 +247,37 @@ describe("room trade integration", () => {
     expect(((await cancelled) as TradeStatePayload).phase).toBe("cancelled");
   });
 
+  it("cancels the trade when an offered item is moved", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const first = fake.prepare({ name: "MoveTrader" });
+    const second = fake.prepare({ name: "StillTrader" });
+    const itemId = randomUUID();
+    fake.giveItem({
+      id: itemId,
+      itemId: "potion_hp_s",
+      location: "inventory",
+      slot: 0,
+      ownerCharacterId: first.character.id,
+    });
+    const { firstClient, secondClient, tradeId } = await openTrade(room, first, second);
+
+    const offered = [
+      firstClient.waitForMessage(MSG.tradeState, 2000),
+      secondClient.waitForMessage(MSG.tradeState, 2000),
+    ];
+    send(firstClient, MSG.tradeOffer, {
+      tradeId,
+      revision: 0,
+      instanceIds: [itemId],
+      gold: 0,
+    });
+    await Promise.all(offered);
+
+    const cancelled = firstClient.waitForMessage(MSG.tradeState, 2000);
+    send(firstClient, MSG.moveItem, { instanceId: itemId, toSlot: 5 });
+    expect(((await cancelled) as TradeStatePayload).phase).toBe("cancelled");
+  });
+
   it("rejects an invite from out of range", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const first = fake.prepare({ name: "FarTrader" });

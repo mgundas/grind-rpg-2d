@@ -370,6 +370,12 @@ export async function listChatLogs(db: Db, query: AdminLogQuery): Promise<AdminL
 export async function listTradeLogs(db: Db, query: AdminLogQuery): Promise<AdminLogRow[]> {
   const conditions: Array<ReturnType<typeof eq> | undefined> = [];
   if (query.tradeId) conditions.push(eq(tradeLog.id, query.tradeId));
+  if (query.itemId) {
+    conditions.push(sql`(
+      EXISTS (SELECT 1 FROM jsonb_array_elements(${tradeLog.itemsA}) entry WHERE entry->>'instanceId' = ${query.itemId})
+      OR EXISTS (SELECT 1 FROM jsonb_array_elements(${tradeLog.itemsB}) entry WHERE entry->>'instanceId' = ${query.itemId})
+    )`);
+  }
   if (query.characterId) {
     conditions.push(
       or(

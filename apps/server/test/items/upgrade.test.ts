@@ -138,6 +138,19 @@ describe("planUpgrade", () => {
     expect(result.plan.logs.map((entry) => entry.action)).toContain("upgrade_success");
   });
 
+  it("treats the exact +3 chance boundary as failure", () => {
+    const item = stack({ upgradeLevel: 3, slot: 0 });
+    const result = planUpgrade(
+      state([item, material("material_wolf_fang", 1)]),
+      8_000,
+      CHARACTER,
+      item.id,
+      { useBlessing: false, rng: scripted(0.7) },
+    );
+    expect(result.success).toBe(false);
+    expect(result.destroyed).toBe(true);
+  });
+
   it("treats a roll equal to the chance as failure", () => {
     const item = stack({ upgradeLevel: 0, slot: 0 });
     const result = planUpgrade(state([item]), 1_000, CHARACTER, item.id, {

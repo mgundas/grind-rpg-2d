@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CreateCharacterRequest, ItemBonus, ItemStack } from "@jadethrone/shared";
 import { registerAccount, type AuthDeps } from "../../src/auth/accountService";
@@ -168,20 +168,37 @@ describeDb("trade transaction", () => {
       false,
     );
 
-    const goldRows = await db.select().from(goldLog).where(eq(goldLog.reason, "trade"));
+    const goldRows = await db
+      .select()
+      .from(goldLog)
+      .where(
+        and(
+          eq(goldLog.reason, "trade"),
+          or(eq(goldLog.characterId, one.characterId), eq(goldLog.characterId, two.characterId)),
+        ),
+      );
     expect(goldRows).toHaveLength(2);
     expect(goldRows.every((row) => row.detail.tradeId === tradeId)).toBe(true);
 
     const itemRows = await db
       .select()
       .from(itemLog)
-      .where(eq(itemLog.action, "trade"));
+      .where(
+        and(
+          eq(itemLog.action, "trade"),
+          or(
+            eq(itemLog.actorCharacterId, one.characterId),
+            eq(itemLog.actorCharacterId, two.characterId),
+          ),
+        ),
+      );
     expect(itemRows).toHaveLength(2);
     expect(itemRows.every((row) => row.detail.tradeId === tradeId)).toBe(true);
 
     const [tradeRow] = await db.select().from(tradeLog).where(eq(tradeLog.id, tradeId));
-    expect(tradeRow?.goldA).toBe(100);
-    expect(tradeRow?.goldB).toBe(50);
+    const firstIsA = one.characterId < two.characterId;
+    expect(tradeRow?.goldA).toBe(firstIsA ? 100 : 50);
+    expect(tradeRow?.goldB).toBe(firstIsA ? 50 : 100);
     expect(tradeRow?.itemsA).toHaveLength(1);
     expect(tradeRow?.itemsB).toHaveLength(1);
   });
@@ -302,6 +319,39 @@ describeDb("trade transaction", () => {
 
     const [row] = await db.select().from(items).where(eq(items.id, swordId));
     expect(row?.ownerCharacterId).toBe(one.characterId);
+  });
+
+  it("serialises two concurrent trades for the same item", async () => {
+    const { db, one, two } = await pair();
+    const service = createItemService(db);
+    const swordId = await insertItem(db, one.characterId, "sword_ember_t1", 0);
+    await setGold(db, one.characterId, 0);
+    await setGold(db, two.characterId, 0);
+    const oneBefore = await service.loadInventory(one.accountId, one.characterId);
+
+    const input = () =>
+      tradeInput(
+        randomUUID(),
+        { ...one, gold: 0, items: oneBefore.inventory.items },
+        { ...two, gold: 0, items: [] },
+      );
+    const results = await Promise.allSettled([
+      applyTradeTransaction(db, input()),
+      applyTradeTransaction(db, input()),
+    ]);
+    expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+    const rejected = results.find((result) => result.status === "rejected");
+    expect(rejected?.status).toBe("rejected");
+    if (rejected?.status === "rejected") {
+      expect(rejected.reason).toBeInstanceOf(TradeExecutionError);
+      expect(["stale", "not_owner"]).toContain(
+        (rejected.reason as TradeExecutionError).code,
+      );
+    }
+
+    const rows = await db.select().from(items).where(eq(items.id, swordId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.ownerCharacterId).toBe(two.characterId);
   });
 
   it("skips zero-delta gold logs but still writes the trade log", async () => {

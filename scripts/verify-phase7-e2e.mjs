@@ -203,11 +203,25 @@ async function main() {
   const swordId = first.snapshot().items.find((item) => item.itemId === "sword_ember_t1")?.id;
   const fangId = first.snapshot().items.find((item) => item.itemId === "material_wolf_fang")?.id;
   const enchantId = first.snapshot().items.find((item) => item.itemId === "scroll_enchant")?.id;
+  const reinforceId = first.snapshot().items.find((item) => item.itemId === "scroll_reinforce")?.id;
   const potionId = second.snapshot().items.find((item) => item.itemId === "potion_hp_s")?.id;
+  check("sword instance loaded", Boolean(swordId));
+  check("fang instance loaded", Boolean(fangId));
+  check("enchant instance loaded", Boolean(enchantId));
+  check("reinforce instance loaded", Boolean(reinforceId));
+  check("spare sword loaded", Boolean(first.snapshot().items.some((item) => item.id === spareSwordId)));
+  check("potion instance loaded", Boolean(potionId));
+  if (!swordId || !fangId || !enchantId || !reinforceId || !potionId) {
+    throw new Error("required granted items are missing from the loaded inventory");
+  }
 
   const previewPromise = nextMessage(first.room, "upgradePreview");
+  const blacksmithErrorPromise = nextMessage(first.room, "blacksmithError").catch(() => null);
   send(first.room, "requestUpgradePreview", { instanceId: swordId });
-  const preview = await previewPromise;
+  const preview = await Promise.race([previewPromise, blacksmithErrorPromise.then((error) => {
+    if (error) throw new Error(`blacksmith error ${JSON.stringify(error)}`);
+    return null;
+  })]);
   check("blacksmith preview chance", preview?.chance === 0.7, String(preview?.chance));
   check("blacksmith preview cost", preview?.gold === 8000, String(preview?.gold));
 
@@ -227,6 +241,14 @@ async function main() {
   });
   const applied = await appliedPromise;
   check("enchant applies bonuses", applied?.kind === "enchant" && applied.bonuses.length >= 1);
+
+  const reinforcedPromise = nextMessage(first.room, "bonusScrollApplied");
+  send(first.room, "applyBonusScroll", {
+    scrollInstanceId: reinforceId,
+    itemInstanceId: spareSwordId,
+  });
+  const reinforced = await reinforcedPromise;
+  check("reinforce appends a bonus", reinforced?.kind === "reinforce");
 
   const invitePromise = nextMessage(second.room, "tradeInvite");
   send(first.room, "tradeInvite", { characterId: two.character.id });
@@ -266,7 +288,12 @@ async function main() {
     afterFirst.items.some((item) => item.itemId === "potion_hp_s") &&
       afterSecond.items.some((item) => item.itemId === "material_wolf_fang"),
   );
-  check("trade moves gold", afterFirst.gold === 249_950 && afterSecond.gold === 250_050);
+  check("trade moves gold", afterFirst.gold === 241_950 && afterSecond.gold === 250_050);
+
+  const itemLogs = await api("/api/admin/logs/item?q=trade", { token: adminToken });
+  check("trade item logs written", (itemLogs.data?.entries ?? []).length > 0);
+  const tradeLogs = await api("/api/admin/logs/trade", { token: adminToken });
+  check("trade log written", (tradeLogs.data?.entries ?? []).length > 0);
 
   const dataset = await api("/api/admin/data/items", { token: adminToken });
   const basePotion = dataset.data?.merged?.find((entry) => entry.id === "potion_hp_s");

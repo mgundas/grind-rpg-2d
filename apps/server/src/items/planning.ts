@@ -369,6 +369,7 @@ export function planAdminGive(
   bonuses: readonly ItemBonus[],
   newId: () => string,
   detail?: Record<string, unknown>,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
   if (!Number.isInteger(quantity) || quantity < 1) {
     throw new ItemError("invalid_quantity", "Quantity must be positive.");
@@ -391,7 +392,7 @@ export function planAdminGive(
       bonuses: [...bonuses],
     },
     newId,
-    safeDefinition,
+    definitionLookup(catalog),
   );
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot grant item: ${result.code}`);
