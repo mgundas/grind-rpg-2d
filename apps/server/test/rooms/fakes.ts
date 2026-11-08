@@ -24,6 +24,8 @@ import type { SkillStateChange } from "../../src/characters/characterSkills";
 import type { ItemPlan } from "../../src/items/itemChanges";
 import { ItemError } from "../../src/items/errors";
 import type { ItemService } from "../../src/items/service";
+import { planSkillBookRead } from "../../src/items/skillBook";
+import { BASE_CATALOG } from "@jadethrone/data/catalog";
 import {
   assignReceivedSlots,
   TradeExecutionError,
@@ -375,6 +377,52 @@ export function createFakeServices(): FakeServices {
       }
       void accountId;
       return { gold };
+    },
+    async readSkillBook(input) {
+      const identity = identities.get(input.characterId);
+      if (!identity || identity.account.id !== input.accountId) {
+        throw new ItemError("stale", "Character no longer exists.");
+      }
+      const character = identity.character;
+      const read = planSkillBookRead(
+        inventoryFromRows(input.characterId),
+        input.characterId,
+        input.bookInstanceId,
+        {
+          skillId: input.skillId,
+          rank: character.skills[input.skillId] ?? 0,
+          classId: character.classId,
+          doctrine: character.doctrine,
+          mastery: character.skillMastery?.[input.skillId] ?? {
+            level: 0,
+            lastReadAtMs: 0,
+          },
+          now: input.now,
+          rng: input.rng,
+        },
+        input.catalog ?? BASE_CATALOG,
+      );
+      const { gold } = await itemsService.apply(
+        input.accountId,
+        input.characterId,
+        read.plan,
+      );
+      character.skillMastery = {
+        ...(character.skillMastery ?? {}),
+        [input.skillId]: { level: read.level, lastReadAtMs: input.now },
+      };
+      return {
+        inventory: read.state,
+        gold,
+        skillId: input.skillId,
+        bookDefinitionId: read.bookItemId,
+        success: read.success,
+        previousLevel: read.previousLevel,
+        masterLevel: read.level,
+        readAtMs: read.readAtMs,
+        nextReadAtMs: read.nextReadAtMs,
+        chance: read.chance,
+      };
     },
     async trade(input) {
       const [first, second] = input.participants;
