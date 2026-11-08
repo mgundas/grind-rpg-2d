@@ -8,6 +8,7 @@ import type { Db } from "../../src/db/client";
 import { characters, goldLog, itemLog, items } from "../../src/db/schema";
 import { createItemService } from "../../src/items/service";
 import { planUpgrade } from "../../src/items/upgrade";
+import { planBonusScroll } from "../../src/items/bonusScrolls";
 import { createTestDb, hasTestDatabase, type TestDb } from "./testDb";
 
 const ACCESS_SECRET = "test-access-secret-at-least-32-characters";
@@ -121,6 +122,35 @@ describeDb("upgrade persistence", () => {
       .where(and(eq(goldLog.characterId, characterId), eq(goldLog.reason, "upgrade")));
     expect(goldLogs).toHaveLength(1);
     expect(goldLogs[0]?.delta).toBe(-15_000);
+  });
+
+  it("persists an enchant scroll application and its log", async () => {
+    const { db } = testDb;
+    const { accountId, characterId } = await setup(db);
+    const service = createItemService(db);
+    const swordId = await insertItem(db, characterId, "sword_ember_t1", 0);
+    const scrollId = await insertItem(db, characterId, "scroll_enchant", 1, 2);
+
+    const before = await service.loadInventory(accountId, characterId);
+    const result = planBonusScroll(
+      before.inventory,
+      characterId,
+      scrollId,
+      swordId,
+      { next: () => 0.99 },
+    );
+    expect(result.bonuses).toHaveLength(4);
+    await service.apply(accountId, characterId, result.plan);
+
+    const after = await service.loadInventory(accountId, characterId);
+    expect(after.inventory.items.find((item) => item.id === swordId)?.bonuses).toHaveLength(4);
+    expect(after.inventory.items.find((item) => item.id === scrollId)?.quantity).toBe(1);
+
+    const logs = await db
+      .select()
+      .from(itemLog)
+      .where(and(eq(itemLog.itemId, swordId), eq(itemLog.action, "enchant")));
+    expect(logs).toHaveLength(1);
   });
 
   it("deletes the item row on a failed upgrade", async () => {

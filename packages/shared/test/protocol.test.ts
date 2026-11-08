@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CHAT_MAX_LEN } from "../src/constants";
 import {
   allocStatMessageSchema,
+  applyBonusScrollMessageSchema,
   attackMessageSchema,
   chatMessageSchema,
   equipItemMessageSchema,
@@ -175,6 +176,31 @@ describe("Phase 4 item/economy message schemas", () => {
     expect(upgradeItemMessageSchema.safeParse({ instanceId: id }).success).toBe(false);
     expect(
       upgradeItemMessageSchema.safeParse({ instanceId: id, useBlessing: "yes" }).success,
+    ).toBe(false);
+  });
+
+  it("validates bonus scroll application", () => {
+    expect(
+      applyBonusScrollMessageSchema.safeParse({
+        scrollInstanceId: id,
+        itemInstanceId: "22222222-2222-4222-8222-222222222222",
+      }).success,
+    ).toBe(true);
+    expect(
+      applyBonusScrollMessageSchema.safeParse({ scrollInstanceId: id }).success,
+    ).toBe(false);
+    expect(
+      applyBonusScrollMessageSchema.safeParse({
+        scrollInstanceId: "nope",
+        itemInstanceId: id,
+      }).success,
+    ).toBe(false);
+    expect(
+      applyBonusScrollMessageSchema.safeParse({
+        scrollInstanceId: id,
+        itemInstanceId: "22222222-2222-4222-8222-222222222222",
+        extra: true,
+      }).success,
     ).toBe(false);
   });
 });

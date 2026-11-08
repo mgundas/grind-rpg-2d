@@ -51,6 +51,8 @@ export const MSG = {
   upgradeItem: "upgradeItem",
   upgradeResult: "upgradeResult",
   blacksmithError: "blacksmithError",
+  applyBonusScroll: "applyBonusScroll",
+  bonusScrollApplied: "bonusScrollApplied",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -308,6 +310,21 @@ export const upgradeItemMessageSchema = z
   .object({ instanceId: instanceIdSchema, useBlessing: z.boolean() })
   .strict();
 export type UpgradeItemMessage = z.infer<typeof upgradeItemMessageSchema>;
+
+/** Client → server: apply an enchant or reinforce scroll to one equipment item. */
+export const applyBonusScrollMessageSchema = z
+  .object({ scrollInstanceId: instanceIdSchema, itemInstanceId: instanceIdSchema })
+  .strict();
+export type ApplyBonusScrollMessage = z.infer<typeof applyBonusScrollMessageSchema>;
+
+export type BonusScrollKindWire = "enchant" | "reinforce";
+
+export interface BonusScrollAppliedPayload {
+  scrollInstanceId: string;
+  itemInstanceId: string;
+  kind: BonusScrollKindWire;
+  bonuses: ItemBonus[];
+}
 
 export interface BlacksmithErrorPayload {
   code: ItemActionErrorCode;

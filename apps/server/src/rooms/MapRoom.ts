@@ -35,6 +35,7 @@ import {
   WARP_COOLDOWN_MS,
   PARTY_XP_RADIUS_PX,
   allocStatMessageSchema,
+  applyBonusScrollMessageSchema,
   applyXpGain,
   attackMessageSchema,
   castSkillMessageSchema,
@@ -133,6 +134,7 @@ import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
 import { buildUpgradePreview, planUpgrade } from "../items/upgrade";
+import { planBonusScroll } from "../items/bonusScrolls";
 import {
   diffInventory,
   planAdminGive,
@@ -836,6 +838,33 @@ export class MapRoom extends Room {
         },
         "blacksmith",
       );
+    });
+
+    this.onMessage(MSG.applyBonusScroll, (client, raw) => {
+      const parsed = applyBonusScrollMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid applyBonusScroll message");
+        return;
+      }
+      this.runItemCommand(client, async (runtime) => {
+        if (runtime.warping) {
+          throw new ItemError("warping", "You cannot use a scroll while warping.");
+        }
+        const result = planBonusScroll(
+          runtime.inventory,
+          runtime.characterId,
+          parsed.data.scrollInstanceId,
+          parsed.data.itemInstanceId,
+          this.rng,
+        );
+        await this.applyItemPlan(runtime, result.state, result.plan);
+        this.safeSend(client, MSG.bonusScrollApplied, {
+          scrollInstanceId: parsed.data.scrollInstanceId,
+          itemInstanceId: parsed.data.itemInstanceId,
+          kind: result.kind,
+          bonuses: result.bonuses,
+        });
+      });
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);

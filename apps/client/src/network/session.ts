@@ -334,6 +334,11 @@ export function sendUpgradeItem(instanceId: string, useBlessing: boolean): void 
   room?.send(MSG.upgradeItem, { instanceId, useBlessing });
 }
 
+/** Apply an enchant or reinforce scroll to an equipment item. */
+export function sendApplyBonusScroll(scrollInstanceId: string, itemInstanceId: string): void {
+  room?.send(MSG.applyBonusScroll, { scrollInstanceId, itemInstanceId });
+}
+
 function bindSessionEvents(current: Room): void {
   current.onError((code, message) => {
     if (room !== current) {

@@ -10,6 +10,7 @@ import {
   type UpgradePreview,
   type UpgradeResultPayload,
   type AnnouncementPayload,
+  type BonusScrollAppliedPayload,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
@@ -810,5 +811,124 @@ describe("MapRoom inventory snapshots", () => {
     const announcement = (await announcementPromise) as AnnouncementPayload;
     expect(announcement.kind).toBe("upgrade");
     expect(announcement.message).toContain("Ember Sword to +7");
+  });
+
+  it("applies an enchant scroll once and returns the rolled bonuses", async () => {
+    const swordId = randomUUID();
+    const scrollId = randomUUID();
+    const { room, client } = await joinWithInventory("Enchanter", (id) => {
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: scrollId,
+        itemId: "scroll_enchant",
+        location: "inventory",
+        slot: 1,
+        quantity: 2,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    setRoomRng(room, 0.99);
+
+    const appliedPromise = client.waitForMessage(MSG.bonusScrollApplied, 2000);
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.applyBonusScroll, {
+      scrollInstanceId: scrollId,
+      itemInstanceId: swordId,
+    });
+
+    const applied = (await appliedPromise) as BonusScrollAppliedPayload;
+    expect(applied.kind).toBe("enchant");
+    expect(applied.bonuses).toHaveLength(4);
+    const snapshot = (await inventoryPromise) as InventorySnapshotPayload;
+    expect(snapshot.items.find((item) => item.id === scrollId)?.quantity).toBe(1);
+    expect(snapshot.items.find((item) => item.id === swordId)?.bonuses).toEqual(
+      applied.bonuses,
+    );
+
+    const againPromise = client.waitForMessage(MSG.bonusScrollApplied, 2000);
+    send(client, MSG.applyBonusScroll, {
+      scrollInstanceId: scrollId,
+      itemInstanceId: swordId,
+    });
+    await againPromise;
+    const after = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.requestInventory, {});
+    expect(
+      ((await after) as InventorySnapshotPayload).items.some((item) => item.id === scrollId),
+    ).toBe(false);
+  });
+
+  it("leaves the scroll and target untouched when the target is invalid", async () => {
+    const potionId = randomUUID();
+    const scrollId = randomUUID();
+    const { client } = await joinWithInventory("Fizzle", (id) => {
+      fake.giveItem({
+        id: potionId,
+        itemId: "potion_hp_s",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: scrollId,
+        itemId: "scroll_enchant",
+        location: "inventory",
+        slot: 1,
+        ownerCharacterId: id.character.id,
+      });
+    });
+
+    const rejected = client.waitForMessage(MSG.inventoryError, 2000);
+    send(client, MSG.applyBonusScroll, {
+      scrollInstanceId: scrollId,
+      itemInstanceId: potionId,
+    });
+    expect(((await rejected) as { code: string }).code).toBe("not_usable");
+
+    const snapshotPromise = client.waitForMessage(MSG.inventory, 2000);
+    send(client, MSG.requestInventory, {});
+    const snapshot = (await snapshotPromise) as InventorySnapshotPayload;
+    expect(snapshot.items.find((item) => item.id === scrollId)?.quantity).toBe(1);
+    expect(snapshot.items.find((item) => item.id === potionId)?.bonuses).toEqual([]);
+  });
+
+  it("refreshes stats when reinforcing an equipped item", async () => {
+    const armorId = randomUUID();
+    const scrollId = randomUUID();
+    const { room, client } = await joinWithInventory("Plater", (id) => {
+      fake.giveItem({
+        id: armorId,
+        itemId: "armor_warrior_t1",
+        location: "equipment",
+        slot: 1,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: scrollId,
+        itemId: "scroll_reinforce",
+        location: "inventory",
+        slot: 0,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    setRoomRng(room, 0.5);
+
+    const selfStatsPromise = client.waitForMessage(MSG.selfStats, 2000);
+    const appliedPromise = client.waitForMessage(MSG.bonusScrollApplied, 2000);
+    send(client, MSG.applyBonusScroll, {
+      scrollInstanceId: scrollId,
+      itemInstanceId: armorId,
+    });
+
+    const applied = (await appliedPromise) as BonusScrollAppliedPayload;
+    expect(applied.kind).toBe("reinforce");
+    expect(applied.bonuses).toHaveLength(1);
+    await selfStatsPromise;
   });
 });
