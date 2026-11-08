@@ -29,6 +29,8 @@ import type { SessionRegistry } from "../auth/sessionRegistry";
 import type { Db } from "../db/client";
 import type { AdminBus } from "../admin/liveBus";
 import type { AdminRuntime } from "../admin/adminRuntime";
+import type { GameDataStore } from "../gameData/store";
+import { createAdminDataRouter } from "./adminData";
 import {
   dashboard,
   getCharacterDetail,
@@ -52,6 +54,7 @@ export interface AdminRouteDeps {
   sessionRegistry: SessionRegistry;
   adminBus: AdminBus;
   adminRuntime: AdminRuntime;
+  gameData: GameDataStore;
 }
 
 const characterIdSchema = z.string().uuid();
@@ -76,6 +79,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   const router = Router();
   router.use(requireAuth(deps));
   router.use(requireAdmin());
+  router.use("/data", createAdminDataRouter({ db: deps.db, gameData: deps.gameData }));
 
   router.get("/dashboard", async (_req, res) => {
     res.json(await dashboard(deps.db, deps.adminBus));

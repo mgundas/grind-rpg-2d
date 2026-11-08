@@ -32,6 +32,7 @@ import type { RateLimitSettings } from "./http/rateLimit";
 import { createAdminRouter } from "./routes/admin";
 import { createAuthRouter } from "./routes/auth";
 import { createCharactersRouter } from "./routes/characters";
+import { createDataRouter } from "./routes/data";
 import { healthHandler } from "./routes/health";
 import { randomUUID } from "node:crypto";
 import { writeAdminLog, type AdminLogInput } from "./admin/adminLog";
@@ -188,6 +189,7 @@ export function createGameServer(deps: ServerDeps = {}) {
           gameData,
         }),
       );
+      app.use("/api/data", createDataRouter({ gameData }));
       app.use("/api", notFoundHandler);
       app.use(errorHandler);
     },

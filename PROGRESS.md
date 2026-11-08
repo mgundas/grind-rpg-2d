@@ -250,8 +250,8 @@ Plan: `docs/plans/phase-7.md`.
 - [ ] Task 17 — Client trade window and context menu
 - [x] Task 18 — Admin trade log
 - [x] Task 19 — Override table and catalog store
-- [ ] Task 20 — Refactor server consumers to catalog
-- [ ] Task 21 — Admin data API
+- [x] Task 20 — Refactor server consumers to catalog
+- [x] Task 21 — Admin data API
 - [ ] Task 22 — Admin game-data editor
 - [ ] Task 23 — Client catalog refresh
 - [ ] Task 24 — Phase 7 E2E, decisions and report
