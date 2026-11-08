@@ -31,6 +31,14 @@ const FACING_VECTORS: Record<Facing4, Readonly<Vec2>> = {
 
 const DEFAULT_MAX_TARGETS = 8;
 
+/**
+ * Two positions closer than this are the same point for combat: a target
+ * standing on the attacker has no meaningful direction. The margin is larger
+ * than float32 rounding at any map coordinate (schema positions are float32),
+ * so a client walking to a rounded stone coordinate still hits it.
+ */
+const POSITION_EPSILON_PX = 0.01;
+
 /** Squared distance, useful to callers that also sort by range. */
 export function distanceSquared(a: Vec2, b: Vec2): number {
   const dx = a.x - b.x;
@@ -51,6 +59,12 @@ export function isInMeleeArc(
   const reach = Math.max(0, rangePx) + Math.max(0, padPx);
   if (squared > reach * reach) {
     return false;
+  }
+
+  // A target standing on the attacker (within float rounding) has no
+  // direction, so it is always in the arc regardless of facing.
+  if (squared <= POSITION_EPSILON_PX * POSITION_EPSILON_PX) {
+    return true;
   }
 
   const axis = FACING_VECTORS[facing];

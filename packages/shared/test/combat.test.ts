@@ -44,6 +44,14 @@ describe("isInMeleeArc", () => {
     expect(isInMeleeArc(origin, { x: 145, y: 100 }, "right", 40, 16)).toBe(true);
     expect(isInMeleeArc(origin, origin, "right", 64)).toBe(true);
   });
+
+  it("hits a target that float32 rounding places a hair behind the attacker", () => {
+    // Walking to the rounded schema coordinate can leave the authoritative
+    // target 0.0002 px west of the player while the client faces east.
+    expect(isInMeleeArc(origin, { x: 100 - 0.0002, y: 100 }, "right", 64)).toBe(true);
+    // The epsilon must stay tiny: a visibly behind target is still rejected.
+    expect(isInMeleeArc(origin, { x: 100 - 0.1, y: 100 }, "right", 64)).toBe(false);
+  });
 });
 
 describe("findArcTargets", () => {

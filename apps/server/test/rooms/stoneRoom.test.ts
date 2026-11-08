@@ -69,6 +69,46 @@ afterAll(async () => {
 });
 
 describe("room spirit stones", () => {
+  it("damages a stone through a client basic-attack message", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const identity = fake.prepare({ name: "StoneSwing", map: ROOM_NAME_FIELDS });
+    const client = await colyseus.connectTo(room, {
+      name: identity.character.name,
+      characterId: identity.character.id,
+    });
+    await room.waitForNextPatch();
+    await waitUntil(() => Boolean(fake.adminBus.get(identity.character.id)));
+
+    const stones = internals(room).stones;
+    const stone = [...stones.stones.values()][0]!;
+    const info = getStone(stone.infoId);
+    // A client walks to the float32-rounded schema coordinate, which can land a
+    // fraction of a pixel behind the authoritative stone position. Facing east
+    // must still hit a target that is effectively underfoot.
+    internals(room).runtimes.get(client.sessionId)!.mover.pos = {
+      x: stone.x + 0.0002,
+      y: stone.y,
+    };
+
+    const sendAttack = () =>
+      (client as { send: (type: string, payload: unknown) => void }).send(MSG.attack, { dir: 0 });
+    sendAttack();
+    await waitUntil(
+      () => (room.state.stones.get(stone.stoneId)?.hp ?? info.hp) < info.hp,
+      3000,
+    );
+    const firstHp = room.state.stones.get(stone.stoneId)!.hp;
+    for (let index = 0; index < 6; index++) {
+      await new Promise((resolve) => setTimeout(resolve, 350));
+      sendAttack();
+    }
+    await waitUntil(
+      () => (room.state.stones.get(stone.stoneId)?.hp ?? info.hp) < firstHp,
+      3000,
+    );
+    expect(room.state.stones.get(stone.stoneId)?.hp).toBeLessThan(firstHp);
+  });
+
   it("spawns waves on thresholds and destroys the stone with XP and drops", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
     const identity = fake.prepare({ name: "StoneBreaker", map: ROOM_NAME_FIELDS });

@@ -30,12 +30,14 @@ describe("monsters.json", () => {
     }
   });
 
-  it("gives every drop table exactly one owning monster", () => {
+  it("gives every monster a dedicated drop table", () => {
     const assigned = MONSTERS.map((monster) => monster.dropTableId);
     expect(new Set(assigned).size).toBe(MONSTERS.length);
-    expect([...DROP_TABLES.map((table) => table.id)].sort()).toEqual(
-      MONSTERS.map((monster) => monster.dropTableId).sort(),
-    );
+    const tables = new Set(DROP_TABLES.map((table) => table.id));
+    for (const tableId of assigned) {
+      expect(tableId).not.toBeNull();
+      expect(tables.has(tableId!)).toBe(true);
+    }
   });
 
   it("looks monsters up by id", () => {

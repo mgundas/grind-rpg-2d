@@ -222,7 +222,7 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 26 — Two-row hotbar and skill casting
 - [x] Task 27 — Skill FX, cast bar and buff bar
 - [x] Task 28 — Party window, frames and invite-by-click
-- [ ] Task 29 — Phase 6 E2E, decisions and report
+- [x] Task 29 — Phase 6 E2E, decisions and report
 - [ ] Task 30 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)

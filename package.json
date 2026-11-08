@@ -14,6 +14,7 @@
     "verify:phase4-economy": "node --import tsx scripts/verify-phase4-economy.mjs",
     "verify:phase4-e2e": "node scripts/verify-phase4-e2e.mjs",
     "verify:phase5-e2e": "node --env-file-if-exists=.env scripts/verify-phase5-e2e.mjs",
+    "verify:phase6-e2e": "node --env-file-if-exists=.env scripts/verify-phase6-e2e.mjs",
     "dev:server": "pnpm --filter @jadethrone/server dev",
     "dev:client": "pnpm --filter @jadethrone/client dev",
     "dev:admin": "pnpm --filter @jadethrone/admin dev",
