@@ -6,6 +6,11 @@ import { itemLog, items, type ItemRow, type NewItemRow } from "../db/schema";
 import { logger } from "../logger";
 import type { ItemPlan } from "./itemChanges";
 import { applyItemTransaction } from "./itemTransactions";
+import {
+  applyTradeTransaction,
+  type TradeExecutionInput,
+  type TradeExecutionResult,
+} from "./tradeTransaction";
 import { loadInventory, loadWarehouse, type LoadedInventory } from "./itemRepository";
 
 /**
@@ -20,6 +25,8 @@ export interface ItemService {
     characterId: string,
     plan: ItemPlan,
   ): Promise<{ gold: number }>;
+  /** One DB transaction swaps both sides; runtimes update only on success. */
+  trade(input: TradeExecutionInput): Promise<TradeExecutionResult>;
   /** Ground drops are inserted before they enter room state (Task 13). */
   insertGroundItem(row: NewItemRow): Promise<boolean>;
   deleteGroundItem(id: string): Promise<boolean>;
@@ -53,6 +60,7 @@ export function createItemService(db: Db): ItemService {
     loadWarehouse: (accountId) => loadWarehouse(db, accountId),
     apply: (accountId, characterId, plan) =>
       applyItemTransaction(db, { accountId, characterId }, plan),
+    trade: (input) => applyTradeTransaction(db, input),
     async insertGroundItem(row) {
       try {
         await db.transaction(async (tx) => {

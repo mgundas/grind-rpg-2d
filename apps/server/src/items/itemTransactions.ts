@@ -32,7 +32,7 @@ async function lockAccount(tx: Tx, accountId: string) {
   }
 }
 
-async function lockCharacter(
+export async function lockCharacter(
   tx: Tx,
   accountId: string,
   characterId: string,
@@ -84,7 +84,7 @@ function verifyChange(change: ItemChange, row: ItemRow | undefined): void {
   }
 }
 
-function groundClear() {
+export function groundClear() {
   return {
     mapId: null,
     roomId: null,

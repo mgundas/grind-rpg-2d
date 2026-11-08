@@ -24,6 +24,10 @@ import type { SkillStateChange } from "../../src/characters/characterSkills";
 import type { ItemPlan } from "../../src/items/itemChanges";
 import { ItemError } from "../../src/items/errors";
 import type { ItemService } from "../../src/items/service";
+import {
+  assignReceivedSlots,
+  TradeExecutionError,
+} from "../../src/items/tradeTransaction";
 import { consumeWarpTokenPayload, type WarpTokenPayload } from "../../src/rooms/warpTokens";
 
 /**
@@ -371,6 +375,90 @@ export function createFakeServices(): FakeServices {
       }
       void accountId;
       return { gold };
+    },
+    async trade(input) {
+      const [first, second] = input.participants;
+      if (
+        first.characterId === second.characterId ||
+        first.accountId === second.accountId
+      ) {
+        throw new TradeExecutionError("invalid_offer", "Invalid trade participants.");
+      }
+      const [a, b] =
+        first.characterId < second.characterId ? [first, second] : [second, first];
+      const offeredIds = new Set([...a.items, ...b.items].map((item) => item.id));
+      if (offeredIds.size !== a.items.length + b.items.length) {
+        throw new TradeExecutionError("invalid_offer", "Duplicate offered item.");
+      }
+      for (const side of [a, b]) {
+        if (side.gold < 0 || !Number.isInteger(side.gold)) {
+          throw new TradeExecutionError("invalid_offer", "Invalid gold offer.");
+        }
+        for (const stack of side.items) {
+          const row = itemRows.get(stack.id);
+          if (!row) {
+            throw new TradeExecutionError("stale", "Offered item no longer exists.");
+          }
+          if (row.ownerCharacterId !== side.characterId) {
+            throw new TradeExecutionError("not_owner", "Offered item is not yours.");
+          }
+          if (
+            row.location !== "inventory" ||
+            row.stack.slot !== stack.slot ||
+            row.stack.quantity !== stack.quantity ||
+            row.stack.upgradeLevel !== stack.upgradeLevel ||
+            JSON.stringify(row.stack.bonuses) !== JSON.stringify(stack.bonuses)
+          ) {
+            throw new TradeExecutionError("stale", "Offered item changed.");
+          }
+        }
+        if ((goldByCharacter.get(side.characterId) ?? 0) < side.gold) {
+          throw new TradeExecutionError("no_gold", "Not enough gold.");
+        }
+      }
+
+      const aBalance = goldByCharacter.get(a.characterId) ?? 0;
+      const bBalance = goldByCharacter.get(b.characterId) ?? 0;
+      const aOutgoing = new Set(a.items.map((item) => item.id));
+      const bOutgoing = new Set(b.items.map((item) => item.id));
+      const inventoryFor = (characterId: string, outgoing: Set<string>) =>
+        [...itemRows.values()]
+          .filter(
+            (row) =>
+              row.ownerCharacterId === characterId &&
+              row.location === "inventory" &&
+              !outgoing.has(row.stack.id),
+          )
+          .map((row) => ({ ...row.stack, bonuses: [...row.stack.bonuses] }));
+
+      const aReceives = assignReceivedSlots(inventoryFor(a.characterId, aOutgoing), b.items);
+      const bReceives = assignReceivedSlots(inventoryFor(b.characterId, bOutgoing), a.items);
+      if (aReceives === null || bReceives === null) {
+        throw new TradeExecutionError("inventory_full", "The receiver has no room.");
+      }
+      const assigned = new Map<string, number>();
+      for (const stack of [...aReceives, ...bReceives]) {
+        assigned.set(stack.id, stack.slot);
+      }
+      for (const giving of [
+        { giver: a, receiver: b },
+        { giver: b, receiver: a },
+      ]) {
+        for (const stack of giving.giver.items) {
+          const row = itemRows.get(stack.id)!;
+          row.ownerCharacterId = giving.receiver.characterId;
+          row.stack.slot = assigned.get(stack.id)!;
+        }
+      }
+      const newA = aBalance - a.gold + b.gold;
+      const newB = bBalance - b.gold + a.gold;
+      goldByCharacter.set(a.characterId, newA);
+      goldByCharacter.set(b.characterId, newB);
+      return {
+        tradeId: input.tradeId,
+        goldByCharacter: { [a.characterId]: newA, [b.characterId]: newB },
+        receivedByCharacter: { [a.characterId]: aReceives, [b.characterId]: bReceives },
+      };
     },
     async insertGroundItem(row) {
       itemRows.set(row.id, {

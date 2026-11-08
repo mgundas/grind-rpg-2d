@@ -276,6 +276,44 @@ export const chatLog = pgTable(
   ],
 );
 
+/** Immutable snapshot of one offered stack in a completed trade. */
+export interface TradeItemSnapshot {
+  instanceId: string;
+  itemId: string;
+  quantity: number;
+  upgradeLevel: number;
+  bonuses: ItemBonus[];
+  fromSlot: number;
+  toSlot: number;
+}
+
+/** One row per committed trade; failed swaps roll back and leave no row. */
+export const tradeLog = pgTable(
+  "trade_log",
+  {
+    id: uuid("id").primaryKey(),
+    revision: integer("revision").notNull(),
+    mapId: text("map_id").notNull(),
+    characterAId: uuid("character_a_id").notNull(),
+    accountAId: uuid("account_a_id").notNull(),
+    characterBId: uuid("character_b_id").notNull(),
+    accountBId: uuid("account_b_id").notNull(),
+    goldA: bigint("gold_a", { mode: "number" }).notNull(),
+    goldB: bigint("gold_b", { mode: "number" }).notNull(),
+    itemsA: jsonb("items_a").$type<TradeItemSnapshot[]>().notNull(),
+    itemsB: jsonb("items_b").$type<TradeItemSnapshot[]>().notNull(),
+    /** completed now; aborted rows can be added later without a migration. */
+    result: text("result").notNull().default("completed"),
+    detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("trade_log_a_idx").on(table.characterAId, table.createdAt),
+    index("trade_log_b_idx").on(table.characterBId, table.createdAt),
+    index("trade_log_created_idx").on(table.createdAt),
+  ],
+);
+
 export type AccountRow = typeof accounts.$inferSelect;
 export type CharacterRow = typeof characters.$inferSelect;
 export type SessionRow = typeof sessions.$inferSelect;
@@ -286,3 +324,4 @@ export type GoldLogRow = typeof goldLog.$inferSelect;
 export type AdminLogRow = typeof adminLog.$inferSelect;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type ChatLogRow = typeof chatLog.$inferSelect;
+export type TradeLogRow = typeof tradeLog.$inferSelect;
