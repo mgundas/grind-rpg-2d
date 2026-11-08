@@ -239,6 +239,28 @@ export const adminLog = pgTable(
   ],
 );
 
+/** Admin-editable game data overrides; base JSON always remains the fallback. */
+export const gameDataOverrides = pgTable(
+  "game_data_overrides",
+  {
+    dataset: text("dataset").notNull(),
+    entryId: text("entry_id").notNull(),
+    payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+    updatedBy: uuid("updated_by").notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.dataset, table.entryId],
+      name: "game_data_overrides_pk",
+    }),
+    check(
+      "game_data_overrides_dataset_check",
+      sql`${table.dataset} in ('items', 'monsters', 'dropTables', 'shops', 'spawnGroups', 'npcs', 'skills', 'stones', 'upgrades', 'bonuses')`,
+    ),
+  ],
+);
+
 /** Immediate, recurring and shutdown announcements. */
 export const announcements = pgTable(
   "announcements",
@@ -325,3 +347,4 @@ export type AdminLogRow = typeof adminLog.$inferSelect;
 export type AnnouncementRow = typeof announcements.$inferSelect;
 export type ChatLogRow = typeof chatLog.$inferSelect;
 export type TradeLogRow = typeof tradeLog.$inferSelect;
+export type GameDataOverrideRow = typeof gameDataOverrides.$inferSelect;

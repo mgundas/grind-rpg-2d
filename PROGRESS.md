@@ -249,7 +249,7 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 16 — Room trade integration
 - [ ] Task 17 — Client trade window and context menu
 - [x] Task 18 — Admin trade log
-- [ ] Task 19 — Override table and catalog store
+- [x] Task 19 — Override table and catalog store
 - [ ] Task 20 — Refactor server consumers to catalog
 - [ ] Task 21 — Admin data API
 - [ ] Task 22 — Admin game-data editor

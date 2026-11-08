@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./bonuses": "./src/bonuses.ts",
+    "./catalog": "./src/catalog.ts",
     "./classes": "./src/classes.ts",
     "./dropTables": "./src/dropTables.ts",
     "./items": "./src/items.ts",

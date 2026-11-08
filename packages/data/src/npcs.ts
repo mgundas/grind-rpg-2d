@@ -10,48 +10,6 @@ import raw from "../npcs.json";
 export const NPC_KINDS = ["shop", "warehouse", "blacksmith"] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
 
-const npcSchema = z
-  .object({
-    id: z.string().regex(/^[a-z][a-z0-9_]*$/),
-    name: z.string().min(1),
-    kind: z.enum(NPC_KINDS),
-    shopId: z.string().min(1).optional(),
-    greeting: z.string().min(1),
-  })
-  .strict()
-  .superRefine((npc, ctx) => {
-    if (npc.kind === "shop") {
-      if (!npc.shopId) {
-        ctx.addIssue({ code: "custom", message: `${npc.id}: shop NPC needs shopId` });
-        return;
-      }
-      if (!hasShop(npc.shopId)) {
-        ctx.addIssue({ code: "custom", message: `${npc.id}: unknown shop "${npc.shopId}"` });
-        return;
-      }
-      if (getShop(npc.shopId).npcId !== npc.id) {
-        ctx.addIssue({ code: "custom", message: `${npc.id}: shop npcId mismatch` });
-      }
-    } else if (npc.shopId) {
-      ctx.addIssue({ code: "custom", message: `${npc.id}: non-shop NPC cannot have shopId` });
-    }
-  });
-
-const npcsFileSchema = z
-  .object({
-    version: z.literal(1),
-    npcs: z.array(npcSchema).min(1),
-  })
-  .superRefine((file, ctx) => {
-    const seen = new Set<string>();
-    for (const npc of file.npcs) {
-      if (seen.has(npc.id)) {
-        ctx.addIssue({ code: "custom", message: `duplicate NPC "${npc.id}"` });
-      }
-      seen.add(npc.id);
-    }
-  });
-
 export interface NpcInfo {
   id: string;
   name: string;
@@ -60,9 +18,58 @@ export interface NpcInfo {
   greeting: string;
 }
 
-const parsed = npcsFileSchema.parse(raw);
+interface ShopRefs {
+  hasShop(id: string): boolean;
+  getShop(id: string): { npcId: string };
+}
 
-export const NPCS: readonly NpcInfo[] = parsed.npcs;
+export function buildNpcs(rawJson: unknown, refs: ShopRefs): readonly NpcInfo[] {
+  const npcSchema = z
+    .object({
+      id: z.string().regex(/^[a-z][a-z0-9_]*$/),
+      name: z.string().min(1),
+      kind: z.enum(NPC_KINDS),
+      shopId: z.string().min(1).optional(),
+      greeting: z.string().min(1),
+    })
+    .strict()
+    .superRefine((npc, ctx) => {
+      if (npc.kind === "shop") {
+        if (!npc.shopId) {
+          ctx.addIssue({ code: "custom", message: `${npc.id}: shop NPC needs shopId` });
+          return;
+        }
+        if (!refs.hasShop(npc.shopId)) {
+          ctx.addIssue({ code: "custom", message: `${npc.id}: unknown shop "${npc.shopId}"` });
+          return;
+        }
+        if (refs.getShop(npc.shopId).npcId !== npc.id) {
+          ctx.addIssue({ code: "custom", message: `${npc.id}: shop npcId mismatch` });
+        }
+      } else if (npc.shopId) {
+        ctx.addIssue({ code: "custom", message: `${npc.id}: non-shop NPC cannot have shopId` });
+      }
+    });
+
+  const fileSchema = z
+    .object({
+      version: z.literal(1),
+      npcs: z.array(npcSchema).min(1),
+    })
+    .superRefine((file, ctx) => {
+      const seen = new Set<string>();
+      for (const npc of file.npcs) {
+        if (seen.has(npc.id)) {
+          ctx.addIssue({ code: "custom", message: `duplicate NPC "${npc.id}"` });
+        }
+        seen.add(npc.id);
+      }
+    });
+
+  return fileSchema.parse(rawJson).npcs;
+}
+
+export const NPCS: readonly NpcInfo[] = buildNpcs(raw, { hasShop, getShop });
 
 const byId = new Map(NPCS.map((npc) => [npc.id, npc]));
 

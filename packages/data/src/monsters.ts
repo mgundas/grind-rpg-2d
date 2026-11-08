@@ -59,8 +59,6 @@ const monstersFileSchema = z
     }
   });
 
-const parsed = monstersFileSchema.parse(raw);
-
 export type MonsterAggroType = "passive" | "aggressive";
 export type MonsterSize = "small" | "medium" | "large";
 export type MonsterBonusCategory = "animal" | "spirit" | "humanoid";
@@ -90,7 +88,12 @@ export interface MonsterInfo {
   isBoss: boolean;
 }
 
-export const MONSTERS: readonly MonsterInfo[] = parsed.monsters;
+/** Build and validate monsters from raw JSON (base or merged). */
+export function buildMonsters(rawJson: unknown): readonly MonsterInfo[] {
+  return monstersFileSchema.parse(rawJson).monsters;
+}
+
+export const MONSTERS: readonly MonsterInfo[] = buildMonsters(raw);
 
 const byId = new Map(MONSTERS.map((monster) => [monster.id, monster]));
 

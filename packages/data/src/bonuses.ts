@@ -36,8 +36,6 @@ const bonusesFileSchema = z
     }
   });
 
-const parsed = bonusesFileSchema.parse(raw);
-
 export interface BonusDefinition {
   type: BonusType;
   label: string;
@@ -46,7 +44,12 @@ export interface BonusDefinition {
   itemTypes: ItemType[];
 }
 
-export const BONUS_POOL: readonly BonusDefinition[] = parsed.bonuses;
+/** Build and validate the bonus pool from raw JSON (base or merged). */
+export function buildBonuses(rawJson: unknown): readonly BonusDefinition[] {
+  return bonusesFileSchema.parse(rawJson).bonuses;
+}
+
+export const BONUS_POOL: readonly BonusDefinition[] = buildBonuses(raw);
 
 const byType = new Map(BONUS_POOL.map((bonus) => [bonus.type, bonus]));
 

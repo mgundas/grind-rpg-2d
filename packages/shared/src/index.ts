@@ -9,6 +9,7 @@ export * from "./constants";
 export * from "./direction";
 export * from "./drops";
 export * from "./formulas";
+export * from "./gameData";
 export * from "./health";
 export * from "./inventory";
 export * from "./items";

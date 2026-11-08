@@ -174,8 +174,6 @@ const skillsFileSchema = z
     }
   });
 
-const parsed = skillsFileSchema.parse(raw);
-
 export interface SkillDamage {
   scaling: (typeof DAMAGE_SCALINGS)[number];
   basePower: number;
@@ -226,7 +224,12 @@ export interface SkillInfo {
   animationRow: number;
 }
 
-export const SKILLS: readonly SkillInfo[] = parsed.skills;
+/** Build and validate skills from raw JSON (classes remain static). */
+export function buildSkills(rawJson: unknown): readonly SkillInfo[] {
+  return skillsFileSchema.parse(rawJson).skills;
+}
+
+export const SKILLS: readonly SkillInfo[] = buildSkills(raw);
 
 const byId = new Map(SKILLS.map((skill) => [skill.id, skill]));
 

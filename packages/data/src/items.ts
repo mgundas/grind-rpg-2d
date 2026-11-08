@@ -142,9 +142,10 @@ function buildUpgradeChain(
   return Object.keys(chain).length > 0 ? chain : undefined;
 }
 
-const parsed = itemsFileSchema.parse(raw);
-
-export const ITEMS: readonly ItemDefinition[] = parsed.items.map((item) => ({
+/** Build and validate item definitions from raw JSON (base or merged). */
+export function buildItems(rawJson: unknown): readonly ItemDefinition[] {
+  const parsed = itemsFileSchema.parse(rawJson);
+  return parsed.items.map((item) => ({
   id: item.id,
   name: item.name,
   description: item.description,
@@ -162,8 +163,11 @@ export const ITEMS: readonly ItemDefinition[] = parsed.items.map((item) => ({
   iconKey: item.iconKey,
   spriteLayerKey: item.spriteLayerKey,
   rarity: item.rarity as Rarity,
-  effect: item.effect as ItemEffect | undefined,
-}));
+    effect: item.effect as ItemEffect | undefined,
+  }));
+}
+
+export const ITEMS: readonly ItemDefinition[] = buildItems(raw);
 
 const byId = new Map(ITEMS.map((item) => [item.id, item]));
 
