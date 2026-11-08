@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { getClass } from "@jadethrone/data/classes";
-import { skillsForDoctrine } from "@jadethrone/data/skills";
+import { skillsForDoctrine } from "../data/catalog";
 import { sendChooseDoctrine, sendUpgradeSkill } from "../network/session";
 import { theme } from "./theme";
 import { useUiStore } from "./store";

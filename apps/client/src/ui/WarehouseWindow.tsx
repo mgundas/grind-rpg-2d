@@ -1,5 +1,5 @@
 import { RARITY_COLORS, WAREHOUSE_PAGES, itemNameColor } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { getItem, hasItem } from "../data/catalog";
 import { sendWarehouseDeposit, sendWarehouseWithdraw } from "../network/session";
 import { useUiStore } from "./store";
 import { theme } from "./theme";

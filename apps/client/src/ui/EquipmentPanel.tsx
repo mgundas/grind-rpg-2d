@@ -1,5 +1,5 @@
 import { EQUIP_SLOTS, RARITY_COLORS, itemNameColor, type ItemInstanceDto } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { getItem, hasItem } from "../data/catalog";
 import { theme } from "./theme";
 
 interface EquipmentPanelProps {

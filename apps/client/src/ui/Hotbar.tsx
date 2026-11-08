@@ -4,8 +4,8 @@ import {
   type CastSkillMessage,
   type ItemInstanceDto,
 } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
-import { getSkill, hasSkill } from "@jadethrone/data/skills";
+import { getItem, hasItem } from "../data/catalog";
+import { getSkill, hasSkill } from "../data/catalog";
 import { sendCastSkill, sendUseItem } from "../network/session";
 import {
   HOTBAR_SLOT_COUNT,

@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef } from "react";
 import type { ItemInstanceDto } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { getItem, hasItem } from "../data/catalog";
 import { sendRequestUpgradePreview, sendUpgradeItem } from "../network/session";
 import { useUiStore } from "./store";
 import { theme } from "./theme";

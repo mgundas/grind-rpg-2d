@@ -31,9 +31,9 @@ import {
   type Vec2,
   type WarpPayload,
 } from "@jadethrone/shared";
-import { getMonster } from "@jadethrone/data/monsters";
+import { getMonster } from "../data/catalog";
 import { getClass } from "@jadethrone/data/classes";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { getItem, hasItem } from "../data/catalog";
 import { getNpc } from "@jadethrone/data/npcs";
 import { createPlaceholder } from "../assets/placeholders";
 import {

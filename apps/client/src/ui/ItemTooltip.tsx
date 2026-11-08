@@ -3,8 +3,8 @@ import {
   itemNameColor,
   type ItemInstanceDto,
 } from "@jadethrone/shared";
-import { getItem } from "@jadethrone/data/items";
-import { getBonusDefinition } from "@jadethrone/data/bonuses";
+import { getItem } from "../data/catalog";
+import { getBonusDefinition } from "../data/catalog";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
 

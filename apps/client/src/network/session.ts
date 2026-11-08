@@ -33,6 +33,7 @@ import {
   type WarpPayload,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
+import { refreshClientCatalog } from "../data/catalog";
 import { useUiStore } from "../ui/store";
 import { ApiError, api } from "./api";
 import { tokens } from "./tokens";
@@ -121,6 +122,9 @@ export async function connect(options: ConnectOptions): Promise<Room> {
 
       room = joined;
       bindSessionEvents(joined);
+      void refreshClientCatalog().catch(() => {
+        // Base definitions stay usable if the catalog endpoint is unavailable.
+      });
       const store = useUiStore.getState();
       store.setSessionKicked(null);
       store.setSessionId(joined.sessionId);
