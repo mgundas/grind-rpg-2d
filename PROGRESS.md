@@ -266,7 +266,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 3 — Phase 8 DB migration and schema
 - [x] Task 4 — Global social directory and cross-map delivery
 - [x] Task 5 — Friends service and persistence
-- [ ] Task 6 — Guild core service and rules
+- [x] Task 6 — Guild core service and rules
 - [ ] Task 7 — Guild invites, protocol and runtime integration
 - [ ] Task 8 — Server chat channels and routing
 - [ ] Task 9 — Client chat tabs, history and whisper flow

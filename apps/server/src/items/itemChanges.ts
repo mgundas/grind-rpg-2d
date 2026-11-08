@@ -67,7 +67,8 @@ export type GoldReason =
   | "starter"
   | "upgrade"
   | "enchant"
-  | "trade";
+  | "trade"
+  | "guild_create";
 
 export interface GoldDelta {
   delta: number;
