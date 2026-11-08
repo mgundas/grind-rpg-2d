@@ -32,7 +32,7 @@ import {
 import { getMonster } from "@jadethrone/data/monsters";
 import { getStone } from "@jadethrone/data/stones";
 import type { SkillEffect, SkillInfo } from "@jadethrone/data/skills";
-import { equipmentBonusStats } from "../items/equipment";
+import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
 import { applyDamageToMonster, type CombatContext, type KilledMonster, type StoneHit } from "../rooms/combat";
 
 export interface SkillCombatContext extends CombatContext {
@@ -525,7 +525,15 @@ export function resolveSkillCast(
     }
     const base = skillDamage(ctx.rng, attack, spec.defense, power);
     const crit = rollCrit(ctx.rng, critValue);
-    const hitDamage = crit ? critDamage(base) : base;
+    const rolled = crit ? critDamage(base) : base;
+    const strong =
+      equipmentBonusValue(runtime.inventory, "strong_monsters") +
+      (spec.bonusCategory === "animal"
+        ? equipmentBonusValue(runtime.inventory, "strong_animals")
+        : spec.bonusCategory === "spirit"
+          ? equipmentBonusValue(runtime.inventory, "strong_spirits")
+          : 0);
+    const hitDamage = Math.max(1, Math.round(rolled * (1 + strong)));
     const applied = applyDamageToMonster(ctx, input.sessionId, ref.id, hitDamage, ctx.now);
     if (!applied) {
       continue;

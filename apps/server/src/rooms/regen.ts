@@ -7,6 +7,7 @@ import {
 } from "@jadethrone/shared";
 import type { PlayerRuntime } from "./playerRuntime";
 import type { PlayerState } from "./state/WorldState";
+import { equipmentBonusValue } from "../items/equipment";
 
 /**
  * Out-of-combat/in-combat HP and MP regeneration (GAME_DESIGN.md §4.4).
@@ -24,9 +25,11 @@ export function applyRegenTick(runtime: PlayerRuntime, player: PlayerState, now:
   while (runtime.regenAccumMs >= REGEN_INTERVAL_MS) {
     runtime.regenAccumMs -= REGEN_INTERVAL_MS;
     const inCombat = now - runtime.lastCombatAtMs <= COMBAT_TIMEOUT_MS;
+    const regenBonus = 1 + equipmentBonusValue(runtime.inventory, "hp_regen");
     const nextHp = Math.min(
       runtime.progression.maxHp,
-      runtime.progression.hp + hpRegenAmount(runtime.progression.maxHp, inCombat),
+      runtime.progression.hp +
+        Math.round(hpRegenAmount(runtime.progression.maxHp, inCombat) * regenBonus),
     );
     const nextMp = Math.min(
       runtime.progression.maxMp,

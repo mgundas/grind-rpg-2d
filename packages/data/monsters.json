@@ -22,7 +22,8 @@
       "spriteKey": "mob.wild_dog",
       "color": "#8a6a4a",
       "size": "small",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "animal"
     },
     {
       "id": "gray_wolf",
@@ -45,7 +46,8 @@
       "spriteKey": "mob.gray_wolf",
       "color": "#8d949c",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "animal"
     },
     {
       "id": "alpha_wolf",
@@ -68,7 +70,8 @@
       "spriteKey": "mob.alpha_wolf",
       "color": "#5b6470",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "animal"
     },
     {
       "id": "wild_boar",
@@ -91,7 +94,8 @@
       "spriteKey": "mob.wild_boar",
       "color": "#7c5a3e",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "animal"
     },
     {
       "id": "brown_bear",
@@ -114,7 +118,8 @@
       "spriteKey": "mob.brown_bear",
       "color": "#6b4a32",
       "size": "large",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "animal"
     },
     {
       "id": "corrupted_deer",
@@ -137,7 +142,8 @@
       "spriteKey": "mob.corrupted_deer",
       "color": "#7b6f8f",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "spirit"
     },
     {
       "id": "bandit_thug",
@@ -160,7 +166,8 @@
       "spriteKey": "mob.bandit_thug",
       "color": "#7a4b3a",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "humanoid"
     },
     {
       "id": "bandit_archer",
@@ -183,7 +190,8 @@
       "spriteKey": "mob.bandit_archer",
       "color": "#6b6240",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "humanoid"
     },
     {
       "id": "lesser_spirit",
@@ -206,7 +214,8 @@
       "spriteKey": "mob.lesser_spirit",
       "color": "#6f8fa8",
       "size": "medium",
-      "isBoss": false
+      "isBoss": false,
+      "bonusCategory": "spirit"
     },
     {
       "id": "wolf_king",
@@ -229,7 +238,8 @@
       "spriteKey": "mob.wolf_king",
       "color": "#4a4f5c",
       "size": "large",
-      "isBoss": true
+      "isBoss": true,
+      "bonusCategory": "animal"
     }
   ]
 }

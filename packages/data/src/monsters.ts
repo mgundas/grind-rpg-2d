@@ -28,6 +28,7 @@ const monsterSchema = z
     spriteKey: z.string().min(1),
     color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     size: z.enum(["small", "medium", "large"]),
+    bonusCategory: z.enum(["animal", "spirit", "humanoid"]),
     isBoss: z.boolean(),
   })
   .refine((monster) => monster.goldMax >= monster.goldMin, {
@@ -62,6 +63,7 @@ const parsed = monstersFileSchema.parse(raw);
 
 export type MonsterAggroType = "passive" | "aggressive";
 export type MonsterSize = "small" | "medium" | "large";
+export type MonsterBonusCategory = "animal" | "spirit" | "humanoid";
 
 export interface MonsterInfo {
   id: string;
@@ -84,6 +86,7 @@ export interface MonsterInfo {
   spriteKey: string;
   color: string;
   size: MonsterSize;
+  bonusCategory: MonsterBonusCategory;
   isBoss: boolean;
 }
 

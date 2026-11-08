@@ -31,6 +31,7 @@ import {
   STAT_POINT_CAP,
   TICK_MS,
   TILE_SIZE,
+  WALK_SPEED,
   WARP_COOLDOWN_MS,
   PARTY_XP_RADIUS_PX,
   allocStatMessageSchema,
@@ -124,7 +125,7 @@ import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { isGmRole, parseGmCommand } from "../admin/gmCommands";
 import type { AdminLiveActions, AdminRoomHandle } from "../admin/liveBus";
-import { equipmentBonusStats, equipmentVisualKeys } from "../items/equipment";
+import { equipmentBonusStats, equipmentBonusValue, equipmentVisualKeys } from "../items/equipment";
 import { toItemDto } from "../items/itemMappers";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
@@ -4123,6 +4124,10 @@ export class MapRoom extends Room {
     });
   }
 
+  private playerSpeed(runtime: PlayerRuntime): number {
+    return WALK_SPEED * (1 + equipmentBonusValue(runtime.inventory, "move_speed"));
+  }
+
   private stepPlayer(
     runtime: PlayerRuntime,
     player: PlayerState,
@@ -4150,15 +4155,15 @@ export class MapRoom extends Room {
         this.autoWalkStep(runtime, sessionId, now);
       } else if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
         // Click-to-move keeps following its path (speed-bounded by movement).
-        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
       } else if (runtime.lastIntent.kind === "dir" && runtime.graceTicksRemaining > 0) {
         // Packet loss must not stop the character mid-step: keep the last
         // direction for a few ticks. An explicit `none` clears the grace and
         // stops immediately.
         runtime.graceTicksRemaining--;
-        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
       } else {
-        runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
+        runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
       }
     }
 
@@ -4212,7 +4217,7 @@ export class MapRoom extends Room {
         runtime.lastIntent = { kind: "none" };
         break;
     }
-    runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS);
+    runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
   }
 
   private attackRangeFor(player: PlayerState): number {
@@ -4276,7 +4281,7 @@ export class MapRoom extends Room {
       runtime.noProgressSinceMs = now;
       runtime.mover.path = [];
       runtime.lastIntent = { kind: "none" };
-      runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS);
+      runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
       if (now >= runtime.attackReadyAtMs) {
         runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, monsterRuntime.mover.pos) };
       }
@@ -4308,7 +4313,7 @@ export class MapRoom extends Room {
 
     runtime.graceTicksRemaining = 0;
     runtime.lastIntent = { kind: "path" };
-    runtime.mover = stepMover(runtime.mover, { kind: "path" }, this.assets.grid, TICK_MS);
+    runtime.mover = stepMover(runtime.mover, { kind: "path" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
   }
 
   private clearAutoWalk(

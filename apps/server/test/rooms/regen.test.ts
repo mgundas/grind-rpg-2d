@@ -114,3 +114,19 @@ function setupPlayerFor(runtime: PlayerRuntime): PlayerState {
   player.dead = false;
   return player;
 }
+
+describe("regen bonuses", () => {
+  it("applies equipped HP-regen bonuses", () => {
+    const { runtime, player } = setup();
+    runtime.inventory.equipment[1] = {
+      id: "armor",
+      itemId: "armor_warrior_t1",
+      slot: 1,
+      quantity: 1,
+      upgradeLevel: 0,
+      bonuses: [{ type: "hp_regen", value: 0.5 }],
+    };
+    ticks(runtime, player, 60, 100_000);
+    expect(runtime.progression.hp).toBe(109);
+  });
+});

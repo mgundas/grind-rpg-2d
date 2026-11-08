@@ -21,7 +21,7 @@ import {
   type RandomSource,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
-import { equipmentBonusStats } from "../items/equipment";
+import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
 import { getMonster } from "@jadethrone/data/monsters";
 import { getStone } from "@jadethrone/data/stones";
 import { playerBuffModifiers } from "../skills/effects";
@@ -196,7 +196,9 @@ export function resolvePlayerSwing(
     0,
     buffModifierTotals(buffModifiers, "attackSpeed").percent,
   );
-  runtime.attackReadyAtMs = ctx.now + profile.cooldownMs / (1 + attackSpeed);
+  const gearAttackSpeed = equipmentBonusValue(runtime.inventory, "attack_speed");
+  runtime.attackReadyAtMs =
+    ctx.now + profile.cooldownMs / (1 + attackSpeed + gearAttackSpeed);
 
   const facing = dir !== null ? facing4FromDir8(dir) : facing4FromIndex(player.facing);
   if (dir !== null) {
@@ -304,7 +306,16 @@ export function resolvePlayerSwing(
 
     const base = resolveDamage(ctx.rng, attack, spec.defense);
     const crit = rollCrit(ctx.rng, critChanceValue);
-    const damage = crit ? critDamage(base) : base;
+    const rolled = crit ? critDamage(base) : base;
+    const category = spec.bonusCategory;
+    const strong =
+      equipmentBonusValue(runtime.inventory, "strong_monsters") +
+      (category === "animal"
+        ? equipmentBonusValue(runtime.inventory, "strong_animals")
+        : category === "spirit"
+          ? equipmentBonusValue(runtime.inventory, "strong_spirits")
+          : 0);
+    const damage = Math.max(1, Math.round(rolled * (1 + strong)));
     const applied = applyDamageToMonster(ctx, sessionId, monsterId, damage, ctx.now);
     if (!applied) {
       continue;

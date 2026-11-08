@@ -467,3 +467,50 @@ describe("resolvePlayerSwing against spirit stones", () => {
     expect(far.hp).toBe(12_000);
   });
 });
+
+describe("equipment bonuses in combat", () => {
+  it("reduces the basic attack cooldown from attack-speed bonuses", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const player = makePlayer(state);
+    runtimes.set("s1", player);
+    addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+    player.inventory.equipment[0] = {
+      id: "w1",
+      itemId: "sword_ember_t1",
+      slot: 0,
+      quantity: 1,
+      upgradeLevel: 0,
+      bonuses: [{ type: "attack_speed", value: 0.5 }],
+    };
+
+    resolvePlayerSwing(context(state, runtimes, monsters, [0.5, 0.9, 0.9]), "s1", 0);
+    expect(player.attackReadyAtMs).toBe(600);
+  });
+
+  it("increases damage against matching monster categories", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const player = makePlayer(state);
+    runtimes.set("s1", player);
+    const monster = addMonster(state, monsters, "m1", "wild_dog", { x: 230, y: 200 });
+    player.inventory.equipment[0] = {
+      id: "w1",
+      itemId: "sword_ember_t1",
+      slot: 0,
+      quantity: 1,
+      upgradeLevel: 0,
+      bonuses: [{ type: "strong_animals", value: 0.5 }],
+    };
+
+    const outcome = resolvePlayerSwing(
+      context(state, runtimes, monsters, [0.5, 0.9, 0.9]),
+      "s1",
+      0,
+    );
+    expect(outcome?.hits[0]?.damage).toBe(33);
+    expect(monster.hp).toBe(0);
+  });
+});
