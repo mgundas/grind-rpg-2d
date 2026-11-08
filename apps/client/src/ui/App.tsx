@@ -4,6 +4,7 @@ import { api } from "../network/api";
 import { getHealth } from "../network/http";
 import { logout } from "../network/session";
 import { AnnouncementBanner } from "./AnnouncementBanner";
+import { BlacksmithWindow } from "./BlacksmithWindow";
 import { BossTimer } from "./BossTimer";
 import { BuffBar } from "./BuffBar";
 import { CastBar } from "./CastBar";
@@ -163,6 +164,7 @@ export function App() {
           <PartyFrames />
           <InventoryWindow />
           <NpcDialog />
+          <BlacksmithWindow />
           <ShopWindow />
           <WarehouseWindow />
           <Chat />

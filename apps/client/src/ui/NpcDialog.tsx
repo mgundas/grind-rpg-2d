@@ -9,6 +9,7 @@ export function NpcDialog() {
   const setDialog = useUiStore((state) => state.setNpcDialog);
   const setShopId = useUiStore((state) => state.setShopId);
   const setWarehouseOpen = useUiStore((state) => state.setWarehouseOpen);
+  const setBlacksmithOpen = useUiStore((state) => state.setBlacksmithOpen);
 
   if (!dialog) {
     return null;
@@ -43,6 +44,18 @@ export function NpcDialog() {
             style={{ flex: 1 }}
           >
             Open storage
+          </button>
+        ) : null}
+        {dialog.kind === "blacksmith" ? (
+          <button
+            type="button"
+            onClick={() => {
+              setBlacksmithOpen(true);
+              setDialog(null);
+            }}
+            style={{ flex: 1 }}
+          >
+            Use the forge
           </button>
         ) : null}
         <button type="button" onClick={() => setDialog(null)} style={{ flex: 1 }}>

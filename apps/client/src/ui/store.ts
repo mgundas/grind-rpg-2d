@@ -16,6 +16,8 @@ import type {
   SessionKickReason,
   SkillCastStartPayload,
   SkillStatePayload,
+  UpgradePreview,
+  UpgradeResultPayload,
   WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 
@@ -159,6 +161,18 @@ interface UiState {
   /** Item definition currently being dragged (inventory → hotbar). */
   draggedItemId: string | null;
   setDraggedItemId: (itemId: string | null) => void;
+  /** Item instance currently being dragged (inventory → blacksmith). */
+  draggedInstanceId: string | null;
+  setDraggedInstanceId: (instanceId: string | null) => void;
+
+  blacksmithOpen: boolean;
+  setBlacksmithOpen: (open: boolean) => void;
+  blacksmithPreview: UpgradePreview | null;
+  setBlacksmithPreview: (preview: UpgradePreview | null) => void;
+  blacksmithResult: UpgradeResultPayload | null;
+  setBlacksmithResult: (result: UpgradeResultPayload | null) => void;
+  blacksmithError: { code: string; message?: string } | null;
+  setBlacksmithError: (error: UiState["blacksmithError"]) => void;
 
   npcDialog: NpcDialogPayload | null;
   setNpcDialog: (dialog: NpcDialogPayload | null) => void;
@@ -328,6 +342,24 @@ export const useUiStore = create<UiState>((set) => ({
   setAutoLoot: (autoLoot) => set({ autoLoot }),
   draggedItemId: null,
   setDraggedItemId: (draggedItemId) => set({ draggedItemId }),
+  draggedInstanceId: null,
+  setDraggedInstanceId: (draggedInstanceId) => set({ draggedInstanceId }),
+
+  blacksmithOpen: false,
+  setBlacksmithOpen: (blacksmithOpen) =>
+    set({
+      blacksmithOpen,
+      blacksmithPreview: null,
+      blacksmithResult: null,
+      blacksmithError: null,
+    }),
+  blacksmithPreview: null,
+  setBlacksmithPreview: (blacksmithPreview) =>
+    set({ blacksmithPreview, blacksmithError: null }),
+  blacksmithResult: null,
+  setBlacksmithResult: (blacksmithResult) => set({ blacksmithResult }),
+  blacksmithError: null,
+  setBlacksmithError: (blacksmithError) => set({ blacksmithError }),
 
   npcDialog: null,
   setNpcDialog: (npcDialog) => set({ npcDialog }),

@@ -29,6 +29,7 @@ export function InventoryWindow() {
   const autoLoot = useUiStore((state) => state.autoLoot);
   const setAutoLoot = useUiStore((state) => state.setAutoLoot);
   const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
+  const setDraggedInstanceId = useUiStore((state) => state.setDraggedInstanceId);
   const [hover, setHover] = useState<Hover | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
 
@@ -44,10 +45,11 @@ export function InventoryWindow() {
     const clear = () => {
       setDrag(null);
       setDraggedItemId(null);
+      setDraggedInstanceId(null);
     };
     window.addEventListener("pointerup", clear);
     return () => window.removeEventListener("pointerup", clear);
-  }, [setDraggedItemId]);
+  }, [setDraggedItemId, setDraggedInstanceId]);
 
   if (!open) {
     return null;
@@ -57,6 +59,7 @@ export function InventoryWindow() {
   const startDrag = (next: DragState) => {
     setDrag(next);
     setDraggedItemId(items.find((item) => item.id === next.instanceId)?.itemId ?? null);
+    setDraggedInstanceId(next.instanceId);
   };
 
   const handleDrop = (slot: number) => {
@@ -124,6 +127,10 @@ export function InventoryWindow() {
             equipment={inventory?.equipment ?? Array.from({ length: 8 }, () => null)}
             onUnequip={sendUnequipItem}
             onHover={(item, x, y) => setHover(item ? { item, x, y } : null)}
+            onDragStart={(item) => {
+              setDraggedItemId(item.itemId);
+              setDraggedInstanceId(item.id);
+            }}
           />
         </div>
 

@@ -6,10 +6,16 @@ interface EquipmentPanelProps {
   equipment: (ItemInstanceDto | null)[];
   onUnequip: (slot: number) => void;
   onHover: (item: ItemInstanceDto | null, x: number, y: number) => void;
+  onDragStart?: (item: ItemInstanceDto) => void;
 }
 
 /** Eight equipment slots; clicking a filled slot unequips it. */
-export function EquipmentPanel({ equipment, onUnequip, onHover }: EquipmentPanelProps) {
+export function EquipmentPanel({
+  equipment,
+  onUnequip,
+  onHover,
+  onDragStart,
+}: EquipmentPanelProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4, width: 132 }}>
       <div style={{ color: theme.gold, fontSize: 11, fontWeight: 700, marginBottom: 2 }}>
@@ -25,6 +31,11 @@ export function EquipmentPanel({ equipment, onUnequip, onHover }: EquipmentPanel
             onClick={() => {
               if (item) {
                 onUnequip(index);
+              }
+            }}
+            onPointerDown={() => {
+              if (item) {
+                onDragStart?.(item);
               }
             }}
             onPointerEnter={(event) => {

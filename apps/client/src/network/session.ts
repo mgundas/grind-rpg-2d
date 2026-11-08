@@ -24,6 +24,8 @@ import {
   type SkillErrorPayload,
   type SkillStatePayload,
   type StatKey,
+  type UpgradePreview,
+  type UpgradeResultPayload,
   type WarpPayload,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
@@ -179,6 +181,10 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setAnnouncement(null);
   leaving.setWarehouse(null);
   leaving.setWarehouseOpen(false);
+  leaving.setBlacksmithOpen(false);
+  leaving.setBlacksmithPreview(null);
+  leaving.setBlacksmithResult(null);
+  leaving.setBlacksmithError(null);
   if (!current) {
     return;
   }
@@ -397,6 +403,18 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.warehouse, (payload: WarehouseSnapshotPayload) => {
     useUiStore.getState().setWarehouse(payload);
+  });
+
+  current.onMessage(MSG.upgradePreview, (payload: UpgradePreview) => {
+    useUiStore.getState().setBlacksmithPreview(payload);
+  });
+
+  current.onMessage(MSG.upgradeResult, (payload: UpgradeResultPayload) => {
+    useUiStore.getState().setBlacksmithResult(payload);
+  });
+
+  current.onMessage(MSG.blacksmithError, (payload: { code: string; message?: string }) => {
+    useUiStore.getState().setBlacksmithError(payload);
   });
 
   current.onMessage(MSG.announcement, (payload: AnnouncementPayload) => {
