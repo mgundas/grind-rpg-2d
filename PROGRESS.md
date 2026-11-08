@@ -257,12 +257,39 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 24 — Phase 7 E2E, decisions and report
 - [x] Task 25 — Phase gate
 
+## Phase 8 — Social and progression depth
+
+Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
+
+- [ ] Task 1 — Map policy and environment data
+- [ ] Task 2 — Chat data and shared chat contracts
+- [ ] Task 3 — Phase 8 DB migration and schema
+- [ ] Task 4 — Global social directory and cross-map delivery
+- [ ] Task 5 — Friends service and persistence
+- [ ] Task 6 — Guild core service and rules
+- [ ] Task 7 — Guild invites, protocol and runtime integration
+- [ ] Task 8 — Server chat channels and routing
+- [ ] Task 9 — Client chat tabs, history and whisper flow
+- [ ] Task 10 — Client guild and friends windows
+- [ ] Task 11 — Skill mastery data, persistence and effective ranks
+- [ ] Task 12 — Skill-book item, drop and pure read planner
+- [ ] Task 13 — Atomic skill-book transaction and room handler
+- [ ] Task 14 — Client skill-book UX
+- [ ] Task 15 — PvP rules, modes and map enforcement
+- [ ] Task 16 — PvP combat integration
+- [ ] Task 17 — Client PvP targeting, mode and name colors
+- [ ] Task 18 — Day/night and weather
+- [ ] Task 19 — Minimap and world map
+- [ ] Task 20 — Admin chat channel visibility
+- [ ] Task 21 — Phase 8 E2E, decisions and report
+- [ ] Task 22 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
 - [x] Phase 5 — Admin panel (see the Phase 5 section above)
 - [x] Phase 6 — Spirit stones, skills, parties (see the Phase 6 section above)
-- [ ] Phase 7 — Upgrades, bonuses, trading
-- [ ] Phase 8 — Social and progression depth
+- [x] Phase 7 — Upgrades, bonuses, trading
+- [ ] Phase 8 — Social and progression depth (in progress; see section above)
 - [ ] Phase 9 — The wider world
 - [ ] Phase 10 — Polish, performance and deployment
