@@ -7,6 +7,7 @@ import {
   xpToNextLevel,
   type SelfStatsPayload,
 } from "@jadethrone/shared";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import { playerBuffModifiers } from "../skills/effects";
 import { equipmentBonusStats } from "../items/equipment";
 import type { PlayerRuntime } from "../rooms/playerRuntime";
@@ -16,10 +17,14 @@ import type { PlayerState } from "../rooms/state/WorldState";
  * Owner-only progression snapshot. XP, stat points and raw stats stay off
  * public state; HP/MP are included so the HUD can reconcile from one message.
  */
-export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): SelfStatsPayload {
+export function buildSelfStats(
+  runtime: PlayerRuntime,
+  player: PlayerState,
+  catalog: CatalogLookup = BASE_CATALOG,
+): SelfStatsPayload {
   const progression = runtime.progression;
   const classId = isClassId(player.classId) ? player.classId : "warrior";
-  const equipment = equipmentBonusStats(runtime.inventory);
+  const equipment = equipmentBonusStats(runtime.inventory, catalog);
   const mods = playerBuffModifiers(runtime.buffs, Date.now());
   return {
     level: progression.level,

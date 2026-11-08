@@ -124,6 +124,7 @@ export interface CatalogLookup {
   getSpawnGroup(id: string): SpawnGroupInfo;
   findSpawnGroup(id: string): SpawnGroupInfo | undefined;
   getUpgradeStep(level: number): UpgradeStep | undefined;
+  readonly maxUpgradeLevel: number;
   getBonusDefinition(type: string): BonusDefinition | undefined;
   bonusesForItemType(itemType: ItemType): BonusDefinition[];
   skillsForDoctrine(classId: ClassId, doctrineId: string): SkillInfo[];

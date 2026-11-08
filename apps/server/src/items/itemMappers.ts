@@ -9,7 +9,7 @@ import {
   type ItemType,
   type ItemInstanceDto,
 } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import type { ItemRow, NewItemRow } from "../db/schema";
 
 /**
@@ -32,8 +32,17 @@ const FALLBACK_DEFINITION: ItemDefinitionLike = {
 };
 
 /** Never throws on a removed/renamed definition: treats it as a size-1 material. */
-export function safeDefinition(itemId: string): ItemDefinitionLike {
-  return hasItem(itemId) ? getItem(itemId) : FALLBACK_DEFINITION;
+export function safeDefinition(
+  itemId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
+): ItemDefinitionLike {
+  return catalog.findItem(itemId) ?? FALLBACK_DEFINITION;
+}
+
+export function definitionLookup(
+  catalog: CatalogLookup = BASE_CATALOG,
+): (itemId: string) => ItemDefinitionLike {
+  return (itemId) => safeDefinition(itemId, catalog);
 }
 
 export function toItemStack(row: ItemRow): ItemStack {
@@ -107,7 +116,9 @@ function isInventoryType(type: ItemType): boolean {
  */
 export function loadRowsIntoState(
   rows: ReadonlyArray<ItemRow>,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): { inventory: InventoryState; repairs: InventoryRepair[] } {
+  const lookup = definitionLookup(catalog);
   const items: ItemStack[] = [];
   const equipment: (ItemStack | null)[] = Array.from({ length: EQUIP_SLOTS.length }, () => null);
   const repairs: InventoryRepair[] = [];
@@ -124,8 +135,8 @@ export function loadRowsIntoState(
     }
     const stack = toItemStack(row);
     if (row.location === "inventory") {
-      const known = hasItem(row.definitionId);
-      const definition = safeDefinition(row.definitionId);
+      const known = catalog.hasItem(row.definitionId);
+      const definition = safeDefinition(row.definitionId, catalog);
       const maxQuantity = definition.stackable ? Math.max(1, definition.maxStack) : 1;
       if (!known) {
         // A removed definition must not destroy the saved quantity; it is
@@ -162,8 +173,8 @@ export function loadRowsIntoState(
       continue;
     }
 
-    const known = hasItem(row.definitionId);
-    const definition = safeDefinition(row.definitionId);
+    const known = catalog.hasItem(row.definitionId);
+    const definition = safeDefinition(row.definitionId, catalog);
     const equipSlot = equipSlotForItemType(definition.type);
     const expectedIndex = equipSlot === null ? -1 : EQUIP_SLOTS.indexOf(equipSlot);
     const index = row.slot ?? -1;
@@ -192,7 +203,7 @@ export function loadRowsIntoState(
 
     // Relocate to the inventory. `findFreeSlot` sees every item collected so
     // far; if the grid is genuinely full the normalizer below will try again.
-    const destination = findFreeSlot(items, definition.size, safeDefinition) ?? 0;
+    const destination = findFreeSlot(items, definition.size, lookup) ?? 0;
     stack.slot = destination;
     items.push(stack);
     repairs.push({
@@ -208,7 +219,7 @@ export function loadRowsIntoState(
   }
 
   const beforeSlots = new Map(items.map((item) => [item.id, item.slot]));
-  const normalized = normalizeInventory(items, safeDefinition);
+  const normalized = normalizeInventory(items, lookup);
   for (const item of normalized.items) {
     const before = beforeSlots.get(item.id);
     if (before !== undefined && before !== item.slot) {

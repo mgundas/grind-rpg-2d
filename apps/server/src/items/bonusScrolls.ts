@@ -7,8 +7,8 @@ import {
   type ItemBonus,
   type RandomSource,
 } from "@jadethrone/shared";
-import { getItem } from "@jadethrone/data/items";
-import { bonusesForItemType, type BonusDefinition } from "@jadethrone/data/bonuses";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import type { BonusDefinition } from "@jadethrone/data/bonuses";
 import { ItemError } from "./errors";
 import { describeChanges, type ItemPlan } from "./itemChanges";
 import { consumeItem, findStack, setStack } from "./inventoryDraft";
@@ -71,6 +71,7 @@ export function planBonusScroll(
   scrollInstanceId: string,
   itemInstanceId: string,
   rng: RandomSource,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): BonusScrollResult {
   if (scrollInstanceId === itemInstanceId) {
     throw new ItemError("not_usable", "Choose an item to enchant.");
@@ -79,7 +80,7 @@ export function planBonusScroll(
   if (!scroll) {
     throw new ItemError("item_not_found", "Scroll not found.");
   }
-  const scrollDefinition = getItem(scroll.stack.itemId);
+  const scrollDefinition = catalog.getItem(scroll.stack.itemId);
   const kind = scrollDefinition.subtype === "scroll" ? scrollKindOf(scroll.stack.itemId) : null;
   if (kind === null) {
     throw new ItemError("not_usable", "That item is not an enchant or reinforce scroll.");
@@ -88,11 +89,11 @@ export function planBonusScroll(
   if (!target) {
     throw new ItemError("item_not_found", "Item not found.");
   }
-  const targetDefinition = getItem(target.stack.itemId);
+  const targetDefinition = catalog.getItem(target.stack.itemId);
   if (!isEquipmentType(targetDefinition.type)) {
     throw new ItemError("not_usable", "Only equipment can receive bonuses.");
   }
-  const pool = bonusesForItemType(targetDefinition.type);
+  const pool = catalog.bonusesForItemType(targetDefinition.type);
   if (pool.length === 0) {
     throw new ItemError("not_usable", "This item has no eligible bonuses.");
   }

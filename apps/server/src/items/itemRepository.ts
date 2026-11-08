@@ -9,9 +9,10 @@ import {
 import type { Db, Tx } from "../db/client";
 import { accounts, characters, itemLog, items } from "../db/schema";
 import { ItemError } from "./errors";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import {
+  definitionLookup,
   loadRowsIntoState,
-  safeDefinition,
   toItemStack,
   type InventoryRepair,
 } from "./itemMappers";
@@ -84,6 +85,7 @@ export async function loadInventory(
   db: Db,
   accountId: string,
   characterId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): Promise<LoadedInventory> {
   return db.transaction(async (tx) => {
     const [character] = await tx
@@ -107,14 +109,18 @@ export async function loadInventory(
       )
       .orderBy(items.location, items.slot);
 
-    const { inventory, repairs } = loadRowsIntoState(rows);
+    const { inventory, repairs } = loadRowsIntoState(rows, catalog);
     await persistRepairs(tx, repairs, { characterId, accountId });
     return { inventory, gold: character.gold, repairs };
   });
 }
 
 /** Account warehouse snapshot, loaded lazily when a warehouse NPC is opened. */
-export async function loadWarehouse(db: Db, accountId: string): Promise<WarehouseState> {
+export async function loadWarehouse(
+  db: Db,
+  accountId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
+): Promise<WarehouseState> {
   return db.transaction(async (tx) => {
     const [account] = await tx
       .select({ id: accounts.id })
@@ -133,7 +139,7 @@ export async function loadWarehouse(db: Db, accountId: string): Promise<Warehous
       .orderBy(items.slot);
 
     const stacks = rows.map(toItemStack);
-    const normalized = normalizeInventory(stacks, safeDefinition, WAREHOUSE_GRID);
+    const normalized = normalizeInventory(stacks, definitionLookup(catalog), WAREHOUSE_GRID);
     const byId = new Map(rows.map((row) => [row.id, row]));
     const repairs = normalized.items.filter((stack) => {
       const row = byId.get(stack.id);

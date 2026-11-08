@@ -126,12 +126,9 @@ import {
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import { getDropTable } from "@jadethrone/data/dropTables";
-import { getItem, hasItem } from "@jadethrone/data/items";
-import { getMonster, hasMonster } from "@jadethrone/data/monsters";
-import { getSkill, hasSkill } from "@jadethrone/data/skills";
-import { getNpc } from "@jadethrone/data/npcs";
-import { getShop } from "@jadethrone/data/shops";
-import { getStone, getStoneForZone } from "@jadethrone/data/stones";
+import type { SkillInfo } from "@jadethrone/data/skills";
+import type { StoneInfo } from "@jadethrone/data/stones";
+import type { CatalogLookup } from "@jadethrone/data/catalog";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { isGmRole, parseGmCommand } from "../admin/gmCommands";
@@ -330,12 +327,13 @@ export class MapRoom extends Room {
       // Deterministic per room: the room id is random, so two rooms never
       // share a layout, but a single room always reproduces its own packs.
       rngForGroup: (seed) => seededRandomSource(seedFromString(`${this.roomId}:${seed}`)),
+      getCatalog: () => this.catalog(),
     });
     spawnAllGroups(this.spawns, Date.now());
 
     this.stoneRng = seededRandomSource(seedFromString(`${this.roomId}:stones`));
     const stoneZones = this.assets.stoneZones.flatMap((zone) => {
-      const info = getStoneForZone(zoneIdOf(zone));
+      const info = this.catalog().getStoneForZone(zoneIdOf(zone));
       return info && info.mapId === this.mapId ? [{ info, zone }] : [];
     });
     this.stones = createStoneManager({
@@ -658,6 +656,7 @@ export class MapRoom extends Room {
           runtime.characterId,
           parsed.data.instanceId,
           parsed.data.toSlot,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -677,6 +676,7 @@ export class MapRoom extends Room {
           parsed.data.quantity,
           parsed.data.toSlot ?? null,
           randomUUID,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -699,6 +699,7 @@ export class MapRoom extends Room {
           player.classId,
           runtime.progression.level,
           parsed.data.instanceId,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -716,6 +717,7 @@ export class MapRoom extends Room {
           runtime.characterId,
           parsed.data.slot,
           null,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -779,6 +781,7 @@ export class MapRoom extends Room {
           parsed.data.itemId,
           parsed.data.quantity,
           randomUUID,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -797,6 +800,7 @@ export class MapRoom extends Room {
           runtime.characterId,
           parsed.data.instanceId,
           parsed.data.quantity,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
       });
@@ -829,6 +833,7 @@ export class MapRoom extends Room {
           runtime.characterId,
           runtime.accountId,
           parsed.data.instanceId,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state.inventory, result.plan);
         runtime.warehouse = result.state.warehouse;
@@ -853,6 +858,7 @@ export class MapRoom extends Room {
           runtime.accountId,
           parsed.data.instanceId,
           parsed.data.toSlot ?? null,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state.inventory, result.plan);
         runtime.warehouse = result.state.warehouse;
@@ -881,6 +887,7 @@ export class MapRoom extends Room {
             runtime.inventory,
             runtime.gold,
             parsed.data.instanceId,
+            this.catalog(),
           );
           this.safeSend(client, MSG.upgradePreview, preview);
         },
@@ -907,6 +914,7 @@ export class MapRoom extends Room {
             runtime.characterId,
             parsed.data.instanceId,
             { useBlessing: parsed.data.useBlessing, rng: this.rng },
+            this.catalog(),
           );
           await this.applyItemPlan(runtime, result.state, result.plan);
           this.safeSend(client, MSG.upgradeResult, {
@@ -941,6 +949,7 @@ export class MapRoom extends Room {
           parsed.data.scrollInstanceId,
           parsed.data.itemInstanceId,
           this.rng,
+          this.catalog(),
         );
         await this.applyItemPlan(runtime, result.state, result.plan);
         this.safeSend(client, MSG.bonusScrollApplied, {
@@ -992,10 +1001,11 @@ export class MapRoom extends Room {
     const loaded = await getServerServices().items.loadInventory(
       auth.account.id,
       auth.character.id,
+      this.catalog(),
     );
     const progression = progressionFromCharacter(
       auth.character,
-      equipmentBonusStats(loaded.inventory),
+      equipmentBonusStats(loaded.inventory, this.catalog()),
     );
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
@@ -1040,7 +1050,7 @@ export class MapRoom extends Room {
     player.mp = progression.mp;
     player.maxMp = progression.maxMp;
     player.dead = false;
-    const layers = equipmentVisualKeys(loaded.inventory);
+    const layers = equipmentVisualKeys(loaded.inventory, this.catalog());
     player.weaponLayer = layers.weaponLayer;
     player.armorLayer = layers.armorLayer;
     player.helmetLayer = layers.helmetLayer;
@@ -1089,7 +1099,7 @@ export class MapRoom extends Room {
     if (fresh && activeRuntime && activePlayer) {
       const refreshed = progressionFromCharacter(
         fresh,
-        equipmentBonusStats(activeRuntime.inventory),
+        equipmentBonusStats(activeRuntime.inventory, this.catalog()),
       );
       activeRuntime.progression = refreshed;
       activePlayer.level = refreshed.level;
@@ -1449,10 +1459,10 @@ export class MapRoom extends Room {
     return this.runAdminCommand(
       sessionId,
       async (runtime) => {
-        if (!hasItem(request.definitionId)) {
+        if (!this.catalog().hasItem(request.definitionId)) {
           throw new ServiceError("validation", "Unknown item definition.");
         }
-        const definition = getItem(request.definitionId);
+        const definition = this.catalog().getItem(request.definitionId);
         const before = runtime.inventory;
         let generatedId: string | null = null;
         const newId = (): string => {
@@ -1577,7 +1587,7 @@ export class MapRoom extends Room {
           recomputeMaxima(
             progression,
             player.classId,
-            equipmentBonusStats(runtime.inventory),
+            equipmentBonusStats(runtime.inventory, this.catalog()),
           );
           player.level = progression.level;
           player.maxHp = progression.maxHp;
@@ -1683,7 +1693,7 @@ export class MapRoom extends Room {
     return this.runAdminCommand(
       sessionId,
       async (runtime) => {
-        if (!hasMonster(typeId)) {
+        if (!this.catalog().hasMonster(typeId)) {
           throw new ServiceError("validation", "Unknown monster type.");
         }
         if (!Number.isInteger(count) || count < 1 || count > MAX_ADMIN_SPAWN) {
@@ -1961,6 +1971,7 @@ export class MapRoom extends Room {
       runtimes: this.runtimes,
       monsterRuntimes: this.monsterRuntimes,
       stoneRuntimes: this.stones.stones,
+      catalog: this.catalog(),
     };
 
     for (const [sessionId, runtime] of this.runtimes) {
@@ -2059,7 +2070,7 @@ export class MapRoom extends Room {
       if (this.state.stones.has(runtime.stoneId)) {
         continue;
       }
-      const info = getStone(runtime.infoId);
+      const info = this.catalog().getStone(runtime.infoId);
       const stone = new SpiritStoneState();
       stone.stoneId = runtime.stoneId;
       stone.infoId = runtime.infoId;
@@ -2081,7 +2092,7 @@ export class MapRoom extends Room {
       if (!runtime) {
         continue;
       }
-      const info = getStone(runtime.infoId);
+      const info = this.catalog().getStone(runtime.infoId);
       const result = this.stones.damage(hit.target.stoneId, sessionId, hit.damage, now);
       if (!result) {
         continue;
@@ -2103,7 +2114,7 @@ export class MapRoom extends Room {
 
   private spawnStoneWaves(
     runtime: StoneRuntime,
-    info: ReturnType<typeof getStone>,
+    info: StoneInfo,
     waves: number,
     attackerSessionId: string,
     now: number,
@@ -2131,7 +2142,7 @@ export class MapRoom extends Room {
 
   private handleStoneDestroyed(
     runtime: StoneRuntime,
-    info: ReturnType<typeof getStone>,
+    info: StoneInfo,
     killerSessionId: string,
     now: number,
   ): void {
@@ -2286,7 +2297,7 @@ export class MapRoom extends Room {
     killerSessionId: string,
     now: number,
   ): Promise<void> {
-    const spec = getMonster(killed.typeId);
+    const spec = this.catalog().getMonster(killed.typeId);
     if (!spec.dropTableId) {
       return;
     }
@@ -2354,7 +2365,7 @@ export class MapRoom extends Room {
 
     for (const [index, drop] of rolled.items.entries()) {
       const itemId = drop.itemId;
-      if (!hasItem(itemId)) {
+      if (!this.catalog().hasItem(itemId)) {
         logger.warn({ roomId: this.roomId, itemId }, "drop table references unknown item");
         continue;
       }
@@ -2394,7 +2405,7 @@ export class MapRoom extends Room {
         kind: "item",
         itemId,
         quantity: drop.quantity,
-        rarity: getItem(itemId).rarity,
+        rarity: this.catalog().getItem(itemId).rarity,
         x: position.x,
         y: position.y,
         ownerCharacterId: assignment.ownerCharacterId,
@@ -2490,7 +2501,7 @@ export class MapRoom extends Room {
     if (!runtime || !player || !client) {
       return;
     }
-    this.safeSend(client, MSG.selfStats, buildSelfStats(runtime, player));
+    this.safeSend(client, MSG.selfStats, buildSelfStats(runtime, player, this.catalog()));
   }
 
   private clientFor(sessionId: string): Client | undefined {
@@ -2658,13 +2669,13 @@ export class MapRoom extends Room {
     recomputeMaxima(
       runtime.progression,
       player.classId,
-      equipmentBonusStats(runtime.inventory),
+      equipmentBonusStats(runtime.inventory, this.catalog()),
     );
     player.maxHp = runtime.progression.maxHp;
     player.hp = runtime.progression.hp;
     player.maxMp = runtime.progression.maxMp;
     player.mp = runtime.progression.mp;
-    const layers = equipmentVisualKeys(runtime.inventory);
+    const layers = equipmentVisualKeys(runtime.inventory, this.catalog());
     player.weaponLayer = layers.weaponLayer;
     player.armorLayer = layers.armorLayer;
     player.helmetLayer = layers.helmetLayer;
@@ -2760,6 +2771,7 @@ export class MapRoom extends Room {
         mapId: this.mapId,
       },
       randomUUID,
+      this.catalog(),
     );
     await this.applyItemPlan(runtime, plan.state, plan.plan);
     this.removeGroundItem(dropId);
@@ -2790,7 +2802,7 @@ export class MapRoom extends Room {
     if (!stack) {
       throw new ItemError("item_not_found", "Item is not in the inventory.");
     }
-    const definition = getItem(stack.itemId);
+    const definition = this.catalog().getItem(stack.itemId);
     const effect = definition.effect;
     if (!effect) {
       throw new ItemError("not_consumable", "That item cannot be used.");
@@ -2879,7 +2891,7 @@ export class MapRoom extends Room {
     }
     let info;
     try {
-      info = getNpc(npcId);
+      info = this.catalog().getNpc(npcId);
     } catch {
       this.sendItemError(client, "unknown_npc");
       return;
@@ -2897,7 +2909,7 @@ export class MapRoom extends Room {
   private requireShopRange(runtime: PlayerRuntime, shopId: string): void {
     let shop;
     try {
-      shop = getShop(shopId);
+      shop = this.catalog().getShop(shopId);
     } catch {
       throw new ItemError("unknown_shop", `Unknown shop "${shopId}".`);
     }
@@ -2911,7 +2923,7 @@ export class MapRoom extends Room {
     for (const npc of this.assets.npcs) {
       let info;
       try {
-        info = getNpc(npc.npcId);
+        info = this.catalog().getNpc(npc.npcId);
       } catch {
         continue;
       }
@@ -2940,7 +2952,7 @@ export class MapRoom extends Room {
       runtime.inventory.items.find((item) => item.id === instanceId) ??
       runtime.inventory.equipment.find((item) => item?.id === instanceId) ??
       null;
-    const itemName = stack && hasItem(stack.itemId) ? getItem(stack.itemId).name : "an item";
+    const itemName = stack && this.catalog().hasItem(stack.itemId) ? this.catalog().getItem(stack.itemId).name : "an item";
     getServerServices().adminBus.broadcastAnnouncement({
       message: `${player.name} forged ${itemName} to +${level}!`,
       kind: "upgrade",
@@ -2952,7 +2964,7 @@ export class MapRoom extends Room {
     for (const point of this.assets.npcs) {
       let info;
       try {
-        info = getNpc(point.npcId);
+        info = this.catalog().getNpc(point.npcId);
       } catch {
         continue;
       }
@@ -2970,7 +2982,7 @@ export class MapRoom extends Room {
       }
       let info;
       try {
-        info = getNpc(point.npcId);
+        info = this.catalog().getNpc(point.npcId);
       } catch {
         continue;
       }
@@ -3030,6 +3042,7 @@ export class MapRoom extends Room {
     const loaded = await getServerServices().items.loadInventory(
       runtime.accountId,
       runtime.characterId,
+      this.catalog(),
     );
     runtime.inventory = loaded.inventory;
     runtime.gold = loaded.gold;
@@ -3163,7 +3176,7 @@ export class MapRoom extends Room {
     if (!killer || killer.dead) {
       return;
     }
-    const spec = getMonster(killed.typeId);
+    const spec = this.catalog().getMonster(killed.typeId);
     const recipients = new Set<string>([killerSessionId]);
     const party = this.parties.getByCharacter(killer.characterId);
     if (party) {
@@ -3236,7 +3249,7 @@ export class MapRoom extends Room {
       recomputeMaxima(
         runtime.progression,
         player.classId,
-        equipmentBonusStats(runtime.inventory),
+        equipmentBonusStats(runtime.inventory, this.catalog()),
       );
       runtime.progression.hp = runtime.progression.maxHp;
       runtime.progression.mp = runtime.progression.maxMp;
@@ -3520,6 +3533,10 @@ export class MapRoom extends Room {
     } catch (error) {
       this.sendPartyError(client, error);
     }
+  }
+
+  private catalog(): CatalogLookup {
+    return getServerServices().gameData.getCatalog();
   }
 
   private runtimeForCharacter(
@@ -4094,14 +4111,14 @@ export class MapRoom extends Room {
       return;
     }
     try {
-      if (!hasSkill(request.skillId)) {
+      if (!this.catalog().hasSkill(request.skillId)) {
         this.safeSend(client, MSG.skillError, {
           code: "unknown_skill",
           message: "Unknown skill.",
         });
         return;
       }
-      const skill = getSkill(request.skillId);
+      const skill = this.catalog().getSkill(request.skillId);
       const targetPos = this.skillAim(runtime, skill, request);
       const allySessionId = this.resolveAllySession(request.targetCharacterId);
       const partySessionIds = this.partySessionIdsFor(runtime);
@@ -4151,7 +4168,7 @@ export class MapRoom extends Room {
 
   private skillAim(
     runtime: PlayerRuntime,
-    skill: ReturnType<typeof getSkill>,
+    skill: SkillInfo,
     request: {
       x?: number;
       y?: number;
@@ -4248,7 +4265,7 @@ export class MapRoom extends Room {
       if (runtime.dead || runtime.warping) {
         continue;
       }
-      const skill = getSkill(pending.skillId);
+      const skill = this.catalog().getSkill(pending.skillId);
       const player = this.state.players.get(sessionId);
       if (!player || !isClassId(player.classId)) {
         continue;
@@ -4263,6 +4280,7 @@ export class MapRoom extends Room {
           stoneRuntimes: this.stones.stones,
           grid: this.assets.grid,
           casterModifiers: playerBuffModifiers(runtime.buffs, now),
+          catalog: this.catalog(),
         },
         {
           sessionId,
@@ -4284,7 +4302,7 @@ export class MapRoom extends Room {
 
   private applySkillOutcome(
     sessionId: string,
-    skill: ReturnType<typeof getSkill>,
+    skill: SkillInfo,
     outcome: SkillOutcome,
     now: number,
   ): void {
@@ -4303,7 +4321,7 @@ export class MapRoom extends Room {
         continue;
       }
       if (status.kind === "stun") {
-        applyStunAt(monster.status, status.durationMs, getMonster(monster.typeId).isBoss, now);
+        applyStunAt(monster.status, status.durationMs, this.catalog().getMonster(monster.typeId).isBoss, now);
       } else if (status.kind === "slow") {
         applySlow(monster.status, status.factor, status.durationMs, now);
       } else if (status.kind === "poison") {
@@ -4508,6 +4526,7 @@ export class MapRoom extends Room {
       runtimes: this.runtimes,
       monsterRuntimes: this.monsterRuntimes,
       stoneRuntimes: this.stones.stones,
+      catalog: this.catalog(),
     };
     for (const [monsterId, monster] of this.monsterRuntimes) {
       const tick = tickPoison(monster.status, now);
@@ -4546,7 +4565,7 @@ export class MapRoom extends Room {
       recomputeMaxima(
         runtime.progression,
         player.classId,
-        equipmentBonusStats(runtime.inventory),
+        equipmentBonusStats(runtime.inventory, this.catalog()),
       );
     }
     player.maxHp = runtime.progression.maxHp;
@@ -4619,7 +4638,7 @@ export class MapRoom extends Room {
         },
         runtime,
         monster,
-        getMonster(runtime.typeId),
+        this.catalog().getMonster(runtime.typeId),
       );
       if (!result.attackTargetId) {
         continue;
@@ -4850,7 +4869,7 @@ export class MapRoom extends Room {
   }
 
   private playerSpeed(runtime: PlayerRuntime): number {
-    return WALK_SPEED * (1 + equipmentBonusValue(runtime.inventory, "move_speed"));
+    return WALK_SPEED * (1 + equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()));
   }
 
   private stepPlayer(

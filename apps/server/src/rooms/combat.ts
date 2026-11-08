@@ -22,8 +22,7 @@ import {
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
-import { getMonster } from "@jadethrone/data/monsters";
-import { getStone } from "@jadethrone/data/stones";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import { playerBuffModifiers } from "../skills/effects";
 import type { MonsterRuntime } from "./monsterRuntime";
 import type { PlayerRuntime } from "./playerRuntime";
@@ -44,6 +43,8 @@ export interface CombatContext {
   monsterRuntimes: ReadonlyMap<string, MonsterRuntime>;
   /** Optional so monster-only tests and rooms keep working. */
   stoneRuntimes?: ReadonlyMap<string, StoneRuntime>;
+  /** Overridable definitions; defaults to the base catalog. */
+  catalog?: CatalogLookup;
 }
 
 export interface KilledMonster {
@@ -159,7 +160,10 @@ export function resolveStoneHit(
   if (!runtime || runtime.hp <= 0) {
     return null;
   }
-  const info = getStone(runtime.infoId);
+  const info = (ctx.catalog ?? BASE_CATALOG).findStone(runtime.infoId);
+  if (!info) {
+    return null;
+  }
   const base = skillDamage(ctx.rng, attack, info.defense, power);
   const crit = rollCrit(ctx.rng, critChanceValue);
   return {
@@ -196,7 +200,7 @@ export function resolvePlayerSwing(
     0,
     buffModifierTotals(buffModifiers, "attackSpeed").percent,
   );
-  const gearAttackSpeed = equipmentBonusValue(runtime.inventory, "attack_speed");
+  const gearAttackSpeed = equipmentBonusValue(runtime.inventory, "attack_speed", ctx.catalog);
   runtime.attackReadyAtMs =
     ctx.now + profile.cooldownMs / (1 + attackSpeed + gearAttackSpeed);
 
@@ -242,7 +246,7 @@ export function resolvePlayerSwing(
   });
 
   const stats = runtime.progression.stats;
-  const equipment = equipmentBonusStats(runtime.inventory);
+  const equipment = equipmentBonusStats(runtime.inventory, ctx.catalog);
   const attack = applyBuffModifiers(
     physicalAttack({
       classId: player.classId,
@@ -288,7 +292,10 @@ export function resolvePlayerSwing(
     if (!monsterRuntime || !monster || monsterRuntime.hp <= 0) {
       continue;
     }
-    const spec = getMonster(monsterRuntime.typeId);
+    const spec = (ctx.catalog ?? BASE_CATALOG).findMonster(monsterRuntime.typeId);
+    if (!spec) {
+      continue;
+    }
     const x = monsterRuntime.mover.pos.x;
     const y = monsterRuntime.mover.pos.y;
     const target = { kind: "monster" as const, monsterId };
@@ -309,11 +316,11 @@ export function resolvePlayerSwing(
     const rolled = crit ? critDamage(base) : base;
     const category = spec.bonusCategory;
     const strong =
-      equipmentBonusValue(runtime.inventory, "strong_monsters") +
+      equipmentBonusValue(runtime.inventory, "strong_monsters", ctx.catalog) +
       (category === "animal"
-        ? equipmentBonusValue(runtime.inventory, "strong_animals")
+        ? equipmentBonusValue(runtime.inventory, "strong_animals", ctx.catalog)
         : category === "spirit"
-          ? equipmentBonusValue(runtime.inventory, "strong_spirits")
+          ? equipmentBonusValue(runtime.inventory, "strong_spirits", ctx.catalog)
           : 0);
     const damage = Math.max(1, Math.round(rolled * (1 + strong)));
     const applied = applyDamageToMonster(ctx, sessionId, monsterId, damage, ctx.now);
@@ -368,7 +375,10 @@ export function resolveMonsterAttack(
     return null;
   }
 
-  const spec = getMonster(monsterRuntime.typeId);
+  const spec = (ctx.catalog ?? BASE_CATALOG).findMonster(monsterRuntime.typeId);
+  if (!spec) {
+    return null;
+  }
   const stats = runtime.progression.stats;
   const mods = playerBuffModifiers(runtime.buffs, ctx.now);
   const evasion = Math.min(
@@ -395,7 +405,7 @@ export function resolveMonsterAttack(
     };
   }
 
-  const equipment = equipmentBonusStats(runtime.inventory);
+  const equipment = equipmentBonusStats(runtime.inventory, ctx.catalog);
   const base = resolveDamage(
     ctx.rng,
     spec.attack,

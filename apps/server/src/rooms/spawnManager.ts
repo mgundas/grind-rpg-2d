@@ -8,8 +8,8 @@ import {
   type RandomSource,
   type Vec2,
 } from "@jadethrone/shared";
-import { getMonster } from "@jadethrone/data/monsters";
-import { getSpawnGroup, type SpawnGroupInfo, type SpawnMember } from "@jadethrone/data/spawnGroups";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import type { SpawnGroupInfo, SpawnMember } from "@jadethrone/data/spawnGroups";
 import { aggroMonster } from "./monsterAi";
 import { createMonsterRuntime, type MonsterRuntime } from "./monsterRuntime";
 import { MonsterState, type WorldState } from "./state/WorldState";
@@ -41,6 +41,8 @@ export interface SpawnManager {
   monsterGroup: Map<string, SpawnGroupRuntime>;
   /** Monotonic counter for admin-spawned monsters (never group members). */
   adminSeq: number;
+  /** Resolved per call so hot-reloaded definitions apply to new spawns. */
+  getCatalog: () => CatalogLookup;
 }
 
 export interface BossStatus {
@@ -60,6 +62,7 @@ export interface SpawnManagerInput {
   runtimes: Map<string, MonsterRuntime>;
   mobZones: readonly MobZone[];
   rngForGroup: (seed: string) => RandomSource;
+  getCatalog?: () => CatalogLookup;
 }
 
 export interface PlaceGroupInput {
@@ -225,7 +228,8 @@ export function placeGroup(input: PlaceGroupInput): PlacedMonster[] {
 
 export function createSpawnManager(input: SpawnManagerInput): SpawnManager {
   const groups: SpawnGroupRuntime[] = input.mobZones.map((zone, zoneIndex) => {
-    const group = getSpawnGroup(zone.spawnGroupId);
+    const catalog = input.getCatalog?.() ?? BASE_CATALOG;
+    const group = catalog.findSpawnGroup(zone.spawnGroupId) ?? BASE_CATALOG.getSpawnGroup(zone.spawnGroupId);
     return {
       id: group.id,
       zone,
@@ -246,6 +250,7 @@ export function createSpawnManager(input: SpawnManagerInput): SpawnManager {
     groups,
     monsterGroup: new Map(),
     adminSeq: 0,
+    getCatalog: input.getCatalog ?? (() => BASE_CATALOG),
   };
 }
 
@@ -275,7 +280,10 @@ export function spawnGroup(
 
   group.members.clear();
   for (const [index, spawn] of placed.entries()) {
-    const spec = getMonster(spawn.monsterId);
+    const spec = manager.getCatalog().findMonster(spawn.monsterId);
+    if (!spec) {
+      continue;
+    }
     const id = `m${group.zoneIndex}_g${generation}_${index}`;
     const monster = new MonsterState();
     monster.typeId = spec.id;
@@ -336,7 +344,10 @@ export function spawnAdminMonsters(
 ): AdminMonsterSpawnResult[] {
   const result: AdminMonsterSpawnResult[] = [];
   for (let index = 0; index < input.count; index++) {
-    const spec = getMonster(input.typeId);
+    const spec = manager.getCatalog().findMonster(input.typeId);
+    if (!spec) {
+      throw new Error(`unknown monster "${input.typeId}"`);
+    }
     const ring = 48 + 16 * Math.floor(index / 8);
     const angle = input.rng.next() * Math.PI * 2;
     const candidate = {
@@ -430,11 +441,17 @@ export function notifyMonsterDeath(manager: SpawnManager, monsterId: string, now
 export function bossStatuses(manager: SpawnManager): BossStatus[] {
   const result: BossStatus[] = [];
   for (const group of manager.groups) {
-    const bossMember = group.group.members.find((member) => getMonster(member.monsterId).isBoss);
+    const catalog = manager.getCatalog();
+    const bossMember = group.group.members.find(
+      (member) => catalog.findMonster(member.monsterId)?.isBoss === true,
+    );
     if (!bossMember) {
       continue;
     }
-    const spec = getMonster(bossMember.monsterId);
+    const spec = catalog.findMonster(bossMember.monsterId);
+    if (!spec) {
+      continue;
+    }
     const alive = [...group.members].some((id) => {
       const runtime = manager.runtimes.get(id);
       return Boolean(runtime && runtime.typeId === spec.id && runtime.hp > 0);

@@ -39,6 +39,14 @@ if (DEV_JWT_SECRETS.has(config.jwtAccessSecret) || DEV_JWT_SECRETS.has(config.jw
 // return 503 until the tables exist (see DECISIONS.md D26).
 void runMigrations()
   .then(() => logger.info("database migrations applied"))
+  .then(async () => {
+    try {
+      const result = await getServerServices().gameData.reload();
+      logger.info({ version: result.version, overrides: result.overrides }, "game data loaded");
+    } catch (error) {
+      logger.error({ error }, "game data reload failed; serving base data");
+    }
+  })
   .catch((error: unknown) => logger.error({ error }, "database migrations failed"));
 
 server

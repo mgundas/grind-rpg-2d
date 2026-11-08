@@ -29,8 +29,7 @@ import {
   type Facing4,
   type Vec2,
 } from "@jadethrone/shared";
-import { getMonster } from "@jadethrone/data/monsters";
-import { getStone } from "@jadethrone/data/stones";
+import { BASE_CATALOG } from "@jadethrone/data/catalog";
 import type { SkillEffect, SkillInfo } from "@jadethrone/data/skills";
 import { equipmentBonusStats, equipmentBonusValue } from "../items/equipment";
 import { applyDamageToMonster, type CombatContext, type KilledMonster, type StoneHit } from "../rooms/combat";
@@ -288,7 +287,7 @@ export function resolveSkillCast(
       ),
   };
 
-  const equipment = equipmentBonusStats(runtime.inventory);
+  const equipment = equipmentBonusStats(runtime.inventory, ctx.catalog);
   const stats = runtime.progression.stats;
   const modifiers = ctx.casterModifiers ?? [];
   const damage = skill.damage;
@@ -493,7 +492,10 @@ export function resolveSkillCast(
       if (!stone) {
         continue;
       }
-      const info = getStone(stone.infoId);
+      const info = (ctx.catalog ?? BASE_CATALOG).findStone(stone.infoId);
+      if (!info) {
+        continue;
+      }
       const base = skillDamage(ctx.rng, attack, info.defense, power);
       const crit = rollCrit(ctx.rng, critValue);
       const stoneDamage = crit ? critDamage(base) : base;
@@ -514,7 +516,10 @@ export function resolveSkillCast(
     if (!monsterRuntime || !monster || monsterRuntime.hp <= 0) {
       continue;
     }
-    const spec = getMonster(monsterRuntime.typeId);
+    const spec = (ctx.catalog ?? BASE_CATALOG).findMonster(monsterRuntime.typeId);
+    if (!spec) {
+      continue;
+    }
     const chance = hitChanceFor(stats.dex, spec.dex, runtime.progression.level, spec.level);
     const x = monsterRuntime.mover.pos.x;
     const y = monsterRuntime.mover.pos.y;
@@ -527,11 +532,11 @@ export function resolveSkillCast(
     const crit = rollCrit(ctx.rng, critValue);
     const rolled = crit ? critDamage(base) : base;
     const strong =
-      equipmentBonusValue(runtime.inventory, "strong_monsters") +
+      equipmentBonusValue(runtime.inventory, "strong_monsters", ctx.catalog) +
       (spec.bonusCategory === "animal"
-        ? equipmentBonusValue(runtime.inventory, "strong_animals")
+        ? equipmentBonusValue(runtime.inventory, "strong_animals", ctx.catalog)
         : spec.bonusCategory === "spirit"
-          ? equipmentBonusValue(runtime.inventory, "strong_spirits")
+          ? equipmentBonusValue(runtime.inventory, "strong_spirits", ctx.catalog)
           : 0);
     const hitDamage = Math.max(1, Math.round(rolled * (1 + strong)));
     const applied = applyDamageToMonster(ctx, input.sessionId, ref.id, hitDamage, ctx.now);

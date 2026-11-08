@@ -6,8 +6,8 @@ import {
   type UpgradePreview,
   type UpgradeMaterialView,
 } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
-import { getUpgradeStep, MAX_UPGRADE_LEVEL, type UpgradeStep } from "@jadethrone/data/upgrades";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
+import type { UpgradeStep } from "@jadethrone/data/upgrades";
 import { ItemError } from "./errors";
 import { describeChanges, type GoldDelta, type ItemPlan } from "./itemChanges";
 import { consumeItem, countItem, findStack, setStack } from "./inventoryDraft";
@@ -41,22 +41,23 @@ export function buildUpgradePreview(
   state: InventoryState,
   gold: number,
   instanceId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): UpgradePreview {
   const located = findStack(state, instanceId);
   if (!located) {
     throw new ItemError("item_not_found", "Item not found.");
   }
-  const definition = getItem(located.stack.itemId);
+  const definition = catalog.getItem(located.stack.itemId);
   if (!isEquipmentType(definition.type)) {
     throw new ItemError("not_usable", "Only equipment can be upgraded.");
   }
   const currentLevel = located.stack.upgradeLevel;
-  const step = getUpgradeStep(currentLevel);
+  const step = catalog.getUpgradeStep(currentLevel);
   if (!step) {
     return {
       instanceId,
       currentLevel,
-      maxLevel: MAX_UPGRADE_LEVEL,
+      maxLevel: catalog.maxUpgradeLevel,
       nextLevel: null,
       chance: null,
       gold: null,
@@ -73,7 +74,7 @@ export function buildUpgradePreview(
   return {
     instanceId,
     currentLevel,
-    maxLevel: MAX_UPGRADE_LEVEL,
+    maxLevel: catalog.maxUpgradeLevel,
     nextLevel: step.to,
     chance: step.chance,
     gold: step.gold,
@@ -96,17 +97,18 @@ export function planUpgrade(
   characterId: string,
   instanceId: string,
   options: { useBlessing: boolean; rng: RandomSource },
+  catalog: CatalogLookup = BASE_CATALOG,
 ): UpgradePlanResult {
   const located = findStack(state, instanceId);
   if (!located) {
     throw new ItemError("item_not_found", "Item not found.");
   }
-  const definition = getItem(located.stack.itemId);
+  const definition = catalog.getItem(located.stack.itemId);
   if (!isEquipmentType(definition.type)) {
     throw new ItemError("not_usable", "Only equipment can be upgraded.");
   }
   const previousLevel = located.stack.upgradeLevel;
-  const step = getUpgradeStep(previousLevel);
+  const step = catalog.getUpgradeStep(previousLevel);
   if (!step) {
     throw new ItemError("not_usable", "This item is already at maximum level.");
   }
@@ -189,6 +191,7 @@ export function planUpgrade(
 export const UPGRADE_BLESSING_ITEM = BLESSING_SCROLL;
 
 // Keep the imported item lookup meaningful for callers that validate definitions.
-export function isUpgradeableItem(itemId: string): boolean {
-  return hasItem(itemId) && isEquipmentType(getItem(itemId).type);
+export function isUpgradeableItem(itemId: string, catalog: CatalogLookup = BASE_CATALOG): boolean {
+  const definition = catalog.findItem(itemId);
+  return definition !== undefined && isEquipmentType(definition.type);
 }

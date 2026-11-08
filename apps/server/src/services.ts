@@ -10,6 +10,7 @@ import type { CharacterRecord } from "./characters/characterMappers";
 import type { SkillStateChange } from "./characters/characterSkills";
 import type { Db } from "./db/client";
 import type { ItemService } from "./items/service";
+import type { GameDataStore } from "./gameData/store";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
 export interface CombatTuning {
@@ -44,6 +45,8 @@ export interface ServerServices {
   saveSkillState: (characterId: string, change: SkillStateChange) => Promise<boolean>;
   /** Inventory/economy persistence; room tests inject an in-memory fake. */
   items: ItemService;
+  /** Merged base+override definitions served to game systems. */
+  gameData: GameDataStore;
   /** In-process registry of live players/rooms for the admin panel. */
   adminBus: AdminBus;
   /** Process-level admin policy: rates, metrics, announcements, shutdown. */

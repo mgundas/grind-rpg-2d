@@ -16,8 +16,7 @@ import {
   type ItemStack,
   type WarehouseState,
 } from "@jadethrone/shared";
-import { getItem, hasItem } from "@jadethrone/data/items";
-import { getShop } from "@jadethrone/data/shops";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import { ItemError } from "./errors";
 import {
   describeChanges,
@@ -30,7 +29,7 @@ import {
   type ItemPlan,
   type UpdateChange,
 } from "./itemChanges";
-import { safeDefinition } from "./itemMappers";
+import { definitionLookup, safeDefinition } from "./itemMappers";
 
 /** A plan plus the next in-memory state. The room applies the plan first. */
 export interface ItemPlanResult<S> {
@@ -152,8 +151,9 @@ export function planMove(
   characterId: string,
   instanceId: string,
   toSlot: number,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
-  const result = moveItem(state, instanceId, toSlot, safeDefinition);
+  const result = moveItem(state, instanceId, toSlot, definitionLookup(catalog));
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot move item: ${result.code}`);
   }
@@ -167,8 +167,16 @@ export function planSplit(
   quantity: number,
   toSlot: number | null,
   newId: () => string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
-  const result = splitStack(state, instanceId, quantity, newId(), toSlot, safeDefinition);
+  const result = splitStack(
+    state,
+    instanceId,
+    quantity,
+    newId(),
+    toSlot,
+    definitionLookup(catalog),
+  );
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot split stack: ${result.code}`);
   }
@@ -181,8 +189,9 @@ export function planEquip(
   classId: ClassId,
   level: number,
   instanceId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
-  const result = equipItem(state, instanceId, classId, level, safeDefinition);
+  const result = equipItem(state, instanceId, classId, level, definitionLookup(catalog));
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot equip item: ${result.code}`);
   }
@@ -194,8 +203,9 @@ export function planUnequip(
   characterId: string,
   equipmentIndex: number,
   toSlot: number | null,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
-  const result = unequipItem(state, equipmentIndex, toSlot, safeDefinition);
+  const result = unequipItem(state, equipmentIndex, toSlot, definitionLookup(catalog));
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot unequip item: ${result.code}`);
   }
@@ -243,11 +253,12 @@ export function planPickup(
   characterId: string,
   ground: GroundRowInput,
   newId: () => string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
-  if (!hasItem(ground.itemId)) {
+  if (!catalog.hasItem(ground.itemId)) {
     throw new ItemError("unknown_item", `Unknown item "${ground.itemId}".`);
   }
-  const definition = getItem(ground.itemId);
+  const definition = catalog.getItem(ground.itemId);
   const result = addItem(
     state,
     definition,
@@ -260,7 +271,7 @@ export function planPickup(
       bonuses: ground.bonuses,
     },
     newId,
-    safeDefinition,
+    definitionLookup(catalog),
   );
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot pick up item: ${result.code}`);
@@ -433,23 +444,22 @@ export function planBuy(
   itemId: string,
   quantity: number,
   newId: () => string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
   if (!Number.isInteger(quantity) || quantity < 1) {
     throw new ItemError("invalid_quantity", "Quantity must be positive.");
   }
-  let shop;
-  try {
-    shop = getShop(shopId);
-  } catch {
+  const shop = catalog.findShop(shopId);
+  if (!shop) {
     throw new ItemError("unknown_shop", `Unknown shop "${shopId}".`);
   }
   if (!shop.items.some((entry) => entry.itemId === itemId)) {
     throw new ItemError("not_for_sale", "That item is not sold here.");
   }
-  if (!hasItem(itemId)) {
+  const definition = catalog.findItem(itemId);
+  if (!definition) {
     throw new ItemError("unknown_item", `Unknown item "${itemId}".`);
   }
-  const definition = getItem(itemId);
   if (definition.buyPrice <= 0) {
     throw new ItemError("not_for_sale", "That item has no buy price.");
   }
@@ -473,7 +483,7 @@ export function planBuy(
       bonuses: [],
     },
     newId,
-    safeDefinition,
+    definitionLookup(catalog),
   );
   if (!result.ok) {
     throw new ItemError(result.code, `Cannot buy item: ${result.code}`);
@@ -505,6 +515,7 @@ export function planSell(
   characterId: string,
   instanceId: string,
   quantity: number,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<InventoryState> {
   const stack = state.items.find((item) => item.id === instanceId);
   if (!stack) {
@@ -513,7 +524,10 @@ export function planSell(
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > stack.quantity) {
     throw new ItemError("invalid_quantity", "Invalid sell quantity.");
   }
-  const definition = getItem(stack.itemId);
+  const definition = catalog.findItem(stack.itemId);
+  if (!definition) {
+    throw new ItemError("unknown_item", `Unknown item "${stack.itemId}".`);
+  }
   if (definition.sellPrice <= 0) {
     throw new ItemError("not_for_sale", "That item cannot be sold.");
   }
@@ -540,13 +554,15 @@ export function planDeposit(
   characterId: string,
   accountId: string,
   instanceId: string,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<{ inventory: InventoryState; warehouse: WarehouseState }> {
   const stack = inventory.items.find((item) => item.id === instanceId);
   if (!stack) {
     throw new ItemError("item_not_found", "Item is not in the inventory.");
   }
-  const definition = safeDefinition(stack.itemId);
-  const slot = findFreeSlot(warehouse.items, definition.size, safeDefinition, WAREHOUSE_GRID);
+  const lookup = definitionLookup(catalog);
+  const definition = safeDefinition(stack.itemId, catalog);
+  const slot = findFreeSlot(warehouse.items, definition.size, lookup, WAREHOUSE_GRID);
   if (slot === null) {
     throw new ItemError("warehouse_full", "The warehouse is full.");
   }
@@ -592,17 +608,19 @@ export function planWithdraw(
   accountId: string,
   instanceId: string,
   toSlot: number | null,
+  catalog: CatalogLookup = BASE_CATALOG,
 ): ItemPlanResult<{ inventory: InventoryState; warehouse: WarehouseState }> {
   const stack = warehouse.items.find((item) => item.id === instanceId);
   if (!stack) {
     throw new ItemError("item_not_found", "Item is not in the warehouse.");
   }
-  const definition = safeDefinition(stack.itemId);
+  const lookup = definitionLookup(catalog);
+  const definition = safeDefinition(stack.itemId, catalog);
   let slot: number | null;
   if (toSlot === null) {
-    slot = findFreeSlot(inventory.items, definition.size, safeDefinition, INVENTORY_GRID);
+    slot = findFreeSlot(inventory.items, definition.size, lookup, INVENTORY_GRID);
   } else {
-    slot = canPlaceAt(inventory.items, toSlot, definition.size, safeDefinition, INVENTORY_GRID)
+    slot = canPlaceAt(inventory.items, toSlot, definition.size, lookup, INVENTORY_GRID)
       ? toSlot
       : null;
   }

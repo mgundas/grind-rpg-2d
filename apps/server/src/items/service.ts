@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, lt } from "drizzle-orm";
 import type { WarehouseState } from "@jadethrone/shared";
+import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
 import type { Db } from "../db/client";
 import { itemLog, items, type ItemRow, type NewItemRow } from "../db/schema";
 import { logger } from "../logger";
@@ -18,8 +19,12 @@ import { loadInventory, loadWarehouse, type LoadedInventory } from "./itemReposi
  * this service just loads snapshots and applies plans.
  */
 export interface ItemService {
-  loadInventory(accountId: string, characterId: string): Promise<LoadedInventory>;
-  loadWarehouse(accountId: string): Promise<WarehouseState>;
+  loadInventory(
+    accountId: string,
+    characterId: string,
+    catalog?: CatalogLookup,
+  ): Promise<LoadedInventory>;
+  loadWarehouse(accountId: string, catalog?: CatalogLookup): Promise<WarehouseState>;
   apply(
     accountId: string,
     characterId: string,
@@ -56,8 +61,9 @@ function despawnLog(row: ItemRow, reason: string) {
 
 export function createItemService(db: Db): ItemService {
   return {
-    loadInventory: (accountId, characterId) => loadInventory(db, accountId, characterId),
-    loadWarehouse: (accountId) => loadWarehouse(db, accountId),
+    loadInventory: (accountId, characterId, catalog = BASE_CATALOG) =>
+      loadInventory(db, accountId, characterId, catalog),
+    loadWarehouse: (accountId, catalog = BASE_CATALOG) => loadWarehouse(db, accountId, catalog),
     apply: (accountId, characterId, plan) =>
       applyItemTransaction(db, { accountId, characterId }, plan),
     trade: (input) => applyTradeTransaction(db, input),
