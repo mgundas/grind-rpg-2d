@@ -4,6 +4,12 @@ import type {
   AnnouncementPayload,
   BonusScrollAppliedPayload,
   BossTimerPayload,
+  FriendErrorPayload,
+  FriendView,
+  FriendsStatePayload,
+  GuildErrorPayload,
+  GuildInvitePayload,
+  GuildStatePayload,
   BuffStatePayload,
   BuffView,
   CharacterSummary,
@@ -181,6 +187,26 @@ interface UiState {
   /** Item instance currently being dragged (inventory → blacksmith). */
   draggedInstanceId: string | null;
   setDraggedInstanceId: (instanceId: string | null) => void;
+
+  friendError: FriendErrorPayload | null;
+  setFriendError: (error: UiState["friendError"]) => void;
+  friends: FriendView[];
+  setFriends: (state: FriendsStatePayload) => void;
+  friendsOpen: boolean;
+  setFriendsOpen: (open: boolean) => void;
+
+  guild: GuildStatePayload["guild"];
+  setGuild: (state: GuildStatePayload) => void;
+  guildInvite: GuildInvitePayload | null;
+  setGuildInvite: (invite: GuildInvitePayload | null) => void;
+  guildError: GuildErrorPayload | null;
+  setGuildError: (error: UiState["guildError"]) => void;
+  guildOpen: boolean;
+  setGuildOpen: (open: boolean) => void;
+
+  /** Increment to ask the chat input to focus itself. */
+  chatFocusRequest: number;
+  requestChatFocus: () => void;
 
   blacksmithOpen: boolean;
   setBlacksmithOpen: (open: boolean) => void;
@@ -377,6 +403,25 @@ export const useUiStore = create<UiState>((set) => ({
   setDraggedItemId: (draggedItemId) => set({ draggedItemId }),
   draggedInstanceId: null,
   setDraggedInstanceId: (draggedInstanceId) => set({ draggedInstanceId }),
+
+  friendError: null,
+  setFriendError: (friendError) => set({ friendError }),
+  friends: [],
+  setFriends: (state) => set({ friends: state.friends, friendError: null }),
+  friendsOpen: false,
+  setFriendsOpen: (friendsOpen) => set({ friendsOpen }),
+
+  guild: null,
+  setGuild: (state) => set({ guild: state.guild, guildError: null }),
+  guildInvite: null,
+  setGuildInvite: (guildInvite) => set({ guildInvite }),
+  guildError: null,
+  setGuildError: (guildError) => set({ guildError }),
+  guildOpen: false,
+  setGuildOpen: (guildOpen) => set({ guildOpen }),
+
+  chatFocusRequest: 0,
+  requestChatFocus: () => set((state) => ({ chatFocusRequest: state.chatFocusRequest + 1 })),
 
   blacksmithOpen: false,
   setBlacksmithOpen: (blacksmithOpen) =>

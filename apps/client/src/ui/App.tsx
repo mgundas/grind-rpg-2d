@@ -22,6 +22,8 @@ import { PartyFrames } from "./PartyFrames";
 import { PartyWindow } from "./PartyWindow";
 import { NpcDialog } from "./NpcDialog";
 import { PlayerContextMenu } from "./PlayerContextMenu";
+import { FriendsWindow } from "./FriendsWindow";
+import { GuildInvitePrompt, GuildWindow } from "./GuildWindow";
 import { TradeWindow } from "./TradeWindow";
 import { ShopWindow } from "./ShopWindow";
 import { TargetFrame } from "./TargetFrame";
@@ -168,6 +170,9 @@ export function App() {
           <NpcDialog />
           <BlacksmithWindow />
           <TradeWindow />
+          <GuildWindow />
+          <FriendsWindow />
+          <GuildInvitePrompt />
           <PlayerContextMenu />
           <ShopWindow />
           <WarehouseWindow />

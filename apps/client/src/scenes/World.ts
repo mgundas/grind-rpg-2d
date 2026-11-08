@@ -69,6 +69,7 @@ interface RemotePlayerState {
   characterId: string;
   name: string;
   kingdom: string;
+  guildName?: string;
   classId: string;
   gender: string;
   hairStyle: number;
@@ -965,6 +966,7 @@ export class WorldScene extends Phaser.Scene {
         characterId: player.characterId,
         name: player.name,
         kingdom: player.kingdom,
+        guildName: player.guildName,
         classId: player.classId,
         gender: player.gender,
         hairStyle: player.hairStyle,
@@ -1003,7 +1005,7 @@ export class WorldScene extends Phaser.Scene {
       .sprite(pos.x, pos.y, ensureCharacterTexture(this, lookFromPlayer(entity)))
       .setOrigin(0.5, 0.85);
     const label = this.add
-      .text(pos.x, pos.y - 52, entity.name, {
+      .text(pos.x, pos.y - 52, this.remoteLabel(entity), {
         fontFamily: "monospace",
         fontSize: "10px",
         color,
@@ -1033,9 +1035,17 @@ export class WorldScene extends Phaser.Scene {
       visual.sprite.setDepth(pos.y);
       visual.shadow.setPosition(pos.x, pos.y + 6);
       visual.shadow.setDepth(pos.y - 1);
+      const label = this.remoteLabel(entity);
+      if (visual.label.text !== label) {
+        visual.label.setText(label);
+      }
       visual.label.setPosition(pos.x, pos.y - 52);
       visual.label.setDepth(pos.y + 2);
     }
+  }
+
+  private remoteLabel(entity: RemoteEntity): string {
+    return entity.guildName ? `[${entity.guildName}] ${entity.name}` : entity.name;
   }
 
   private buildNpcVisuals(): void {

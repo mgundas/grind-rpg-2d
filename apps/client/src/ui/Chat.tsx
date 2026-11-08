@@ -57,6 +57,7 @@ export function Chat() {
   const phase = useUiStore((state) => state.connectionPhase);
   const chat = useUiStore((state) => state.chat);
   const chatDispatch = useUiStore((state) => state.chatDispatch);
+  const chatFocusRequest = useUiStore((state) => state.chatFocusRequest);
   const [text, setText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,6 +80,12 @@ export function Chat() {
       useUiStore.getState().setChatFocused(false);
     }
   }, [phase]);
+
+  useEffect(() => {
+    if (chatFocusRequest > 0) {
+      inputRef.current?.focus();
+    }
+  }, [chatFocusRequest]);
   useEffect(
     () => () => {
       useUiStore.getState().setChatFocused(false);

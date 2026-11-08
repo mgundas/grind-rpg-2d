@@ -7,6 +7,11 @@ import {
   type AnnouncementPayload,
   type BonusScrollAppliedPayload,
   type BossTimerPayload,
+  type FriendErrorPayload,
+  type FriendsStatePayload,
+  type GuildErrorPayload,
+  type GuildInvitePayload,
+  type GuildStatePayload,
   type BuffView,
   type CastSkillMessage,
   type InputMessage,
@@ -198,6 +203,13 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.tradeDispatch({ type: "close" });
   leaving.chatDispatch({ type: "reset" });
   leaving.setPlayerContext(null);
+  leaving.setFriendError(null);
+  leaving.setFriends({ friends: [] });
+  leaving.setFriendsOpen(false);
+  leaving.setGuild({ guild: null });
+  leaving.setGuildInvite(null);
+  leaving.setGuildError(null);
+  leaving.setGuildOpen(false);
   if (!current) {
     return;
   }
@@ -230,6 +242,42 @@ export function sendInput(message: InputMessage): void {
 
 export function sendChat(text: string): void {
   room?.send(MSG.chat, { text });
+}
+
+export function sendFriendAdd(target: { characterId?: string; name?: string }): void {
+  room?.send(MSG.friendAdd, target);
+}
+
+export function sendFriendRemove(characterId: string): void {
+  room?.send(MSG.friendRemove, { characterId });
+}
+
+export function sendGuildCreate(name: string): void {
+  room?.send(MSG.guildCreate, { name });
+}
+
+export function sendGuildInvite(target: { characterId?: string; name?: string }): void {
+  room?.send(MSG.guildInvite, target);
+}
+
+export function sendGuildRespond(inviteId: string, accept: boolean): void {
+  room?.send(MSG.guildRespond, { inviteId, accept });
+}
+
+export function sendGuildLeave(): void {
+  room?.send(MSG.guildLeave, {});
+}
+
+export function sendGuildKick(characterId: string): void {
+  room?.send(MSG.guildKick, { characterId });
+}
+
+export function sendGuildSetRank(characterId: string, rank: "officer" | "member"): void {
+  room?.send(MSG.guildSetRank, { characterId, rank });
+}
+
+export function sendGuildDisband(): void {
+  room?.send(MSG.guildDisband, {});
 }
 
 export function sendAttack(dir?: number): void {
@@ -480,6 +528,26 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.tradeError, (payload: TradeErrorPayload) => {
     useUiStore.getState().tradeDispatch({ type: "error", error: payload });
+  });
+
+  current.onMessage(MSG.friendError, (payload: FriendErrorPayload) => {
+    useUiStore.getState().setFriendError(payload);
+  });
+
+  current.onMessage(MSG.friendsState, (payload: FriendsStatePayload) => {
+    useUiStore.getState().setFriends(payload);
+  });
+
+  current.onMessage(MSG.guildError, (payload: GuildErrorPayload) => {
+    useUiStore.getState().setGuildError(payload);
+  });
+
+  current.onMessage(MSG.guildState, (payload: GuildStatePayload) => {
+    useUiStore.getState().setGuild(payload);
+  });
+
+  current.onMessage(MSG.guildInvite, (payload: GuildInvitePayload) => {
+    useUiStore.getState().setGuildInvite(payload);
   });
 
   current.onMessage(MSG.announcement, (payload: AnnouncementPayload) => {

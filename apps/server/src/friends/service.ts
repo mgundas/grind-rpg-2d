@@ -98,3 +98,21 @@ export function toFriendsState(
   }));
   return { friends };
 }
+
+/** Room-facing friend seam; room tests can inject an in-memory fake. */
+export interface FriendsService {
+  list(characterId: string): Promise<FriendRecord[]>;
+  add(characterId: string, targetCharacterId: string): Promise<void>;
+  remove(characterId: string, targetCharacterId: string): Promise<void>;
+  findByName(name: string): Promise<{ id: string } | null>;
+}
+
+export function createFriendsService(db: Db): FriendsService {
+  return {
+    list: (characterId) => listFriends(db, characterId),
+    add: (characterId, targetCharacterId) => addFriend(db, characterId, targetCharacterId),
+    remove: (characterId, targetCharacterId) =>
+      removeFriend(db, characterId, targetCharacterId),
+    findByName: (name) => findCharacterByName(db, name),
+  };
+}

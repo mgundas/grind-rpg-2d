@@ -84,6 +84,7 @@ export interface RemotePlayerData {
   characterId: string;
   name: string;
   kingdom: string;
+  guildName?: string;
   classId: string;
   gender: string;
   hairStyle: number;
@@ -102,6 +103,7 @@ export interface RemoteEntity {
   characterId: string;
   name: string;
   kingdom: string;
+  guildName?: string;
   classId: string;
   gender: string;
   hairStyle: number;
@@ -137,6 +139,7 @@ export class RemoteRegistry {
           characterId: player.characterId,
           name: player.name,
           kingdom: player.kingdom,
+          guildName: player.guildName,
           classId: player.classId,
           gender: player.gender,
           hairStyle: player.hairStyle,
@@ -153,6 +156,7 @@ export class RemoteRegistry {
       entity.name = player.name;
       entity.characterId = player.characterId;
       entity.kingdom = player.kingdom;
+      entity.guildName = player.guildName;
       entity.classId = player.classId;
       entity.gender = player.gender;
       entity.hairStyle = player.hairStyle;

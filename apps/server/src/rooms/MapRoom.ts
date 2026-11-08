@@ -54,6 +54,8 @@ import {
   facing4FromIndex,
   facing4Index,
   findPath,
+  friendAddMessageSchema,
+  friendRemoveMessageSchema,
   guildCreateMessageSchema,
   guildDisbandMessageSchema,
   guildInviteMessageSchema,
@@ -111,6 +113,7 @@ import {
   type CombatHit,
   type DeathPayload,
   type Dir8,
+  type FriendErrorPayload,
   type GuildErrorPayload,
   type GuildInvitePayload,
   type GuildStatePayload,
@@ -258,6 +261,11 @@ import {
   GuildInviteError,
 } from "../social/guildInvites";
 import { GuildRuleError, canInvite } from "../guilds/rules";
+import {
+  FriendRuleError,
+  toFriendsState,
+  type FriendsService,
+} from "../friends/service";
 import { toGuildView, type GuildRecord, type GuildService } from "../guilds/service";
 
 /** Converts a runtime buff to the wire shape used by skill/buff messages. */
@@ -771,6 +779,24 @@ export class MapRoom extends Room {
       this.handleTradeCancel(client, parsed.data.tradeId);
     });
 
+
+    this.onMessage(MSG.friendAdd, (client, raw) => {
+      const parsed = friendAddMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid friendAdd message");
+        return;
+      }
+      this.handleFriendAdd(client, parsed.data.characterId, parsed.data.name);
+    });
+
+    this.onMessage(MSG.friendRemove, (client, raw) => {
+      const parsed = friendRemoveMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid friendRemove message");
+        return;
+      }
+      this.handleFriendRemove(client, parsed.data.characterId);
+    });
 
     this.onMessage(MSG.guildCreate, (client, raw) => {
       const parsed = guildCreateMessageSchema.safeParse(raw);
@@ -1372,6 +1398,16 @@ export class MapRoom extends Room {
       );
     }
 
+    try {
+      await this.sendFriendsState(runtime.characterId);
+      await this.refreshFriendViews(runtime.characterId);
+    } catch (error) {
+      logger.error(
+        { roomId: this.roomId, characterId: runtime.characterId, error },
+        "friend state load failed on join",
+      );
+    }
+
     logger.info(
       {
         roomId: this.roomId,
@@ -1395,6 +1431,7 @@ export class MapRoom extends Room {
       getServerServices().social.unregister(runtime.characterId, client.sessionId);
       this.guildInvites.cancelForCharacter(runtime.characterId);
       await this.refreshGuildRoster(runtime.characterId);
+      await this.refreshFriendViews(runtime.characterId);
       this.cancelTradeForCharacter(runtime.characterId, "disconnect");
     }
     this.state.players.delete(client.sessionId);
@@ -3787,6 +3824,114 @@ export class MapRoom extends Room {
     } catch (error) {
       this.sendPartyError(client, error);
     }
+  }
+
+  private friendsService(): FriendsService {
+    const friends = getServerServices().friends;
+    if (!friends) {
+      throw new FriendRuleError("not_found", "Friends are unavailable.");
+    }
+    return friends;
+  }
+
+  private sendFriendError(client: Client, error: unknown): void {
+    if (error instanceof FriendRuleError) {
+      this.safeSend(client, MSG.friendError, {
+        code: error.code,
+        message: error.message,
+      } satisfies FriendErrorPayload);
+      return;
+    }
+    logger.error(
+      { roomId: this.roomId, session: client.sessionId, error },
+      "friend command failed",
+    );
+    this.safeSend(client, MSG.friendError, {
+      code: "internal",
+      message: "The friend action failed.",
+    } satisfies FriendErrorPayload);
+  }
+
+  private runFriendCommand(
+    client: Client,
+    handler: (runtime: PlayerRuntime) => Promise<void>,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime || runtime.inventoryClosed) {
+      return;
+    }
+    const run = async (): Promise<void> => {
+      const current = this.runtimes.get(client.sessionId);
+      if (!current || current.inventoryClosed) {
+        return;
+      }
+      try {
+        await handler(current);
+      } catch (error) {
+        this.sendFriendError(client, error);
+      }
+    };
+    const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
+    runtime.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
+  }
+
+  private async sendFriendsState(characterId: string): Promise<void> {
+    const state = toFriendsState(
+      await this.friendsService().list(characterId),
+      getServerServices().social,
+    );
+    getServerServices().social.send(characterId, MSG.friendsState, state);
+  }
+
+  private async refreshFriendViews(characterId: string): Promise<void> {
+    try {
+      const friends = getServerServices().friends;
+      if (!friends) {
+        return;
+      }
+      const records = await friends.list(characterId);
+      for (const record of records) {
+        if (!getServerServices().social.isOnline(record.characterId)) {
+          continue;
+        }
+        const state = toFriendsState(
+          await friends.list(record.characterId),
+          getServerServices().social,
+        );
+        getServerServices().social.send(record.characterId, MSG.friendsState, state);
+      }
+    } catch (error) {
+      logger.error({ roomId: this.roomId, characterId, error }, "friend view refresh failed");
+    }
+  }
+
+  private handleFriendAdd(
+    client: Client,
+    characterId: string | undefined,
+    name: string | undefined,
+  ): void {
+    this.runFriendCommand(client, async (runtime) => {
+      const friends = this.friendsService();
+      const targetId =
+        characterId ?? (name ? (await friends.findByName(name))?.id : undefined);
+      if (!targetId) {
+        throw new FriendRuleError("not_found", "Character not found.");
+      }
+      await friends.add(runtime.characterId, targetId);
+      await this.sendFriendsState(runtime.characterId);
+      await this.refreshFriendViews(runtime.characterId);
+    });
+  }
+
+  private handleFriendRemove(client: Client, targetCharacterId: string): void {
+    this.runFriendCommand(client, async (runtime) => {
+      await this.friendsService().remove(runtime.characterId, targetCharacterId);
+      await this.sendFriendsState(runtime.characterId);
+      await this.refreshFriendViews(runtime.characterId);
+    });
   }
 
   private guildService(): GuildService {
