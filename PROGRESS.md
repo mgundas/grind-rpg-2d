@@ -254,7 +254,7 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 21 — Admin data API
 - [x] Task 22 — Admin game-data editor
 - [x] Task 23 — Client catalog refresh
-- [ ] Task 24 — Phase 7 E2E, decisions and report
+- [x] Task 24 — Phase 7 E2E, decisions and report
 - [ ] Task 25 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)

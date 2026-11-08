@@ -23,7 +23,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "verify:phase7-e2e": "node --env-file-if-exists=.env scripts/verify-phase7-e2e.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
