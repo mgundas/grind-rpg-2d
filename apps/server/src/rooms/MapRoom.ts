@@ -3102,6 +3102,9 @@ export class MapRoom extends Room {
     if (effect.kind === "heal_mp" && runtime.progression.mp >= runtime.progression.maxMp) {
       throw new ItemError("at_full_mana", "MP is already full.");
     }
+    if (effect.kind === "skill_book") {
+      throw new ItemError("not_usable", "Read mastery books from the Skill window.");
+    }
 
     const before = runtime.inventory;
     const consumed = planConsume(runtime.inventory, runtime.characterId, instanceId);
@@ -3123,7 +3126,7 @@ export class MapRoom extends Room {
         runtime.progression.maxHp,
         runtime.progression.hp + effect.amount,
       );
-    } else {
+    } else if (effect.kind === "heal_mp") {
       runtime.progression.mp = Math.min(
         runtime.progression.maxMp,
         runtime.progression.mp + effect.amount,

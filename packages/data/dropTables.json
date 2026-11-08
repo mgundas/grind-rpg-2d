@@ -100,6 +100,7 @@
         { "itemId": "potion_hp_m", "chance": 0.5, "minQty": 1, "maxQty": 2 },
         { "itemId": "potion_mp_m", "chance": 0.4, "minQty": 1, "maxQty": 1 },
         { "itemId": "scroll_enchant", "chance": 0.04, "minQty": 1, "maxQty": 1 },
+        { "itemId": "skillbook_mastery", "chance": 0.02, "minQty": 1, "maxQty": 1 },
         { "itemId": "sword_hex_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 },
         { "itemId": "bell_ember_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 }
       ]

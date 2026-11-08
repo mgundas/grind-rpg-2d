@@ -60,8 +60,11 @@ describe("items.json", () => {
       if (!item.stackable) {
         expect(item.maxStack).toBe(1);
       }
-      if (item.type !== "consumable") {
+      if (item.type !== "consumable" && item.type !== "skillbook") {
         expect(item.effect).toBeUndefined();
+      }
+      if (item.type === "skillbook") {
+        expect(item.effect).toEqual({ kind: "skill_book" });
       }
       if (item.buyPrice > 0) {
         expect(item.sellPrice).toBeLessThanOrEqual(item.buyPrice);

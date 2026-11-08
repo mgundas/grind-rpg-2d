@@ -32,6 +32,7 @@ const effectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("heal_hp"), amount: z.number().int().positive() }),
   z.object({ kind: z.literal("heal_mp"), amount: z.number().int().positive() }),
   z.object({ kind: z.literal("warp_town") }),
+  z.object({ kind: z.literal("skill_book") }),
 ]);
 
 const itemSchema = z
@@ -88,8 +89,11 @@ const itemSchema = z
     ) {
       ctx.addIssue({ code: "custom", message: "visible equipment needs spriteLayerKey" });
     }
-    if (item.effect && item.type !== "consumable") {
-      ctx.addIssue({ code: "custom", message: "only consumables can have an effect" });
+    if (item.effect && item.type !== "consumable" && item.type !== "skillbook") {
+      ctx.addIssue({ code: "custom", message: "only consumables and skill books can have an effect" });
+    }
+    if (item.effect?.kind === "skill_book" && item.type !== "skillbook") {
+      ctx.addIssue({ code: "custom", message: "skill_book effects need a skillbook item" });
     }
   });
 
