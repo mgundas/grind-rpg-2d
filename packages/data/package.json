@@ -9,6 +9,7 @@
     "./classes": "./src/classes.ts",
     "./dropTables": "./src/dropTables.ts",
     "./items": "./src/items.ts",
+    "./mapPolicies": "./src/mapPolicies.ts",
     "./monsters": "./src/monsters.ts",
     "./npcs": "./src/npcs.ts",
     "./shops": "./src/shops.ts",

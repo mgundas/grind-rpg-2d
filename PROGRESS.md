@@ -261,7 +261,7 @@ Plan: `docs/plans/phase-7.md`.
 
 Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 
-- [ ] Task 1 — Map policy and environment data
+- [x] Task 1 — Map policy and environment data
 - [ ] Task 2 — Chat data and shared chat contracts
 - [ ] Task 3 — Phase 8 DB migration and schema
 - [ ] Task 4 — Global social directory and cross-map delivery

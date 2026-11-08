@@ -8,6 +8,7 @@ export * from "./combat";
 export * from "./constants";
 export * from "./direction";
 export * from "./drops";
+export * from "./environment";
 export * from "./formulas";
 export * from "./gameData";
 export * from "./health";

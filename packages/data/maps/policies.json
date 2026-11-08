@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "maps": [
+    {
+      "mapId": "map_ember_village",
+      "label": "Ember Village",
+      "pvpAllowed": false,
+      "neutral": false,
+      "safe": true,
+      "weather": "none",
+      "connections": ["map_ember_fields"],
+      "minimapScale": 2
+    },
+    {
+      "mapId": "map_ember_fields",
+      "label": "Ember Fields",
+      "pvpAllowed": true,
+      "neutral": false,
+      "safe": false,
+      "weather": "leaves",
+      "connections": ["map_ember_village"],
+      "minimapScale": 1.5
+    }
+  ]
+}
