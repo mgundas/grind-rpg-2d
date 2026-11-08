@@ -420,9 +420,12 @@ export class MapRoom extends Room {
       });
       const payload: ChatMsgPayload = {
         from: client.sessionId,
+        fromCharacterId: runtime.characterId,
         name: player.name,
         kingdom: player.kingdom,
+        channel: "local",
         text: parsed.data.text,
+        sentAt: now,
       };
       for (const otherClient of this.clients) {
         if (recipients.includes(otherClient.sessionId)) {
@@ -1249,7 +1252,9 @@ export class MapRoom extends Room {
       from: "system",
       name: "System",
       kingdom: "system",
+      channel: "system",
       text,
+      sentAt: Date.now(),
     };
     this.safeSend(client, MSG.chatMsg, payload);
   }

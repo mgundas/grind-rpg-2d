@@ -522,7 +522,9 @@ function bindSessionEvents(current: Room): void {
       from: "system",
       name: "Party",
       kingdom: "system",
+      channel: "system",
       text: payload.message,
+      sentAt: Date.now(),
     });
   });
 
@@ -531,7 +533,9 @@ function bindSessionEvents(current: Room): void {
       from: "system",
       name: "System",
       kingdom: "system",
+      channel: "system",
       text: payload.message,
+      sentAt: Date.now(),
     });
   });
 

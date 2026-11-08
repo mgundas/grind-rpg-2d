@@ -1,4 +1,5 @@
 import { CHAT_MAX_LEN, MAX_GOLD, TRADE_MAX_OFFER_ITEMS, type MapId, type Stats } from "./constants";
+import { CHAT_CHANNELS, type ChatChannel } from "./chat";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
 import { PARTY_LOOT_RULES } from "./party";
@@ -113,18 +114,42 @@ export const inputMessageSchema = z.discriminatedUnion("kind", [
 
 export type InputMessage = z.infer<typeof inputMessageSchema>;
 
-export const chatMessageSchema = z.object({
-  text: z.string().trim().min(1).max(CHAT_MAX_LEN),
-});
+export const chatMessageSchema = z
+  .object({
+    text: z.string().trim().min(1).max(CHAT_MAX_LEN),
+    channel: z.enum(CHAT_CHANNELS).default("local"),
+    targetName: z.string().trim().min(1).max(16).optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.channel === "whisper" && !value.targetName) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["targetName"],
+        message: "whisper requires a target name",
+      });
+    }
+    if (value.channel !== "whisper" && value.targetName !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["targetName"],
+        message: "only whispers have a target name",
+      });
+    }
+  });
 
 export type ChatMessage = z.infer<typeof chatMessageSchema>;
 
-/** Server → client local chat line (also used for bubbles above heads). */
+/** Server → client chat line (also used for local bubbles above heads). */
 export interface ChatMsgPayload {
   from: string;
+  fromCharacterId?: string;
   name: string;
   kingdom: string;
+  channel: ChatChannel;
+  targetName?: string;
   text: string;
+  sentAt: number;
 }
 
 /** Shape of a Colyseus seat reservation, as passed through the warp message. */

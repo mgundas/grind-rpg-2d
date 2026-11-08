@@ -234,6 +234,23 @@ describe("chatMessageSchema", () => {
     expect(chatMessageSchema.safeParse({ text: 42 }).success).toBe(false);
     expect(chatMessageSchema.safeParse(null).success).toBe(false);
   });
+
+  it("validates channel and whisper target rules", () => {
+    const local = chatMessageSchema.safeParse({ text: "hi" });
+    expect(local.success).toBe(true);
+    if (local.success) {
+      expect(local.data.channel).toBe("local");
+    }
+    expect(chatMessageSchema.safeParse({ text: "hi", channel: "shout" }).success).toBe(true);
+    expect(
+      chatMessageSchema.safeParse({ text: "hi", channel: "whisper", targetName: "Bob" }).success,
+    ).toBe(true);
+    expect(chatMessageSchema.safeParse({ text: "hi", channel: "whisper" }).success).toBe(false);
+    expect(
+      chatMessageSchema.safeParse({ text: "hi", channel: "local", targetName: "Bob" }).success,
+    ).toBe(false);
+    expect(chatMessageSchema.safeParse({ text: "hi", channel: "trade" }).success).toBe(false);
+  });
 });
 
 describe("trade message schemas", () => {
