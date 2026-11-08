@@ -46,6 +46,11 @@ export const MSG = {
   warehouse: "warehouse",
   warehouseDeposit: "warehouseDeposit",
   warehouseWithdraw: "warehouseWithdraw",
+  requestUpgradePreview: "requestUpgradePreview",
+  upgradePreview: "upgradePreview",
+  upgradeItem: "upgradeItem",
+  upgradeResult: "upgradeResult",
+  blacksmithError: "blacksmithError",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -291,6 +296,23 @@ export const warehouseWithdrawMessageSchema = z
   .object({ instanceId: instanceIdSchema, toSlot: inventorySlotSchema.nullable().optional() })
   .strict();
 export type WarehouseWithdrawMessage = z.infer<typeof warehouseWithdrawMessageSchema>;
+
+/** Client → server: preview an upgrade at the blacksmith, including costs. */
+export const requestUpgradePreviewMessageSchema = z
+  .object({ instanceId: instanceIdSchema })
+  .strict();
+export type RequestUpgradePreviewMessage = z.infer<typeof requestUpgradePreviewMessageSchema>;
+
+/** Client → server: execute one upgrade roll at the blacksmith. */
+export const upgradeItemMessageSchema = z
+  .object({ instanceId: instanceIdSchema, useBlessing: z.boolean() })
+  .strict();
+export type UpgradeItemMessage = z.infer<typeof upgradeItemMessageSchema>;
+
+export interface BlacksmithErrorPayload {
+  code: ItemActionErrorCode;
+  message?: string;
+}
 
 /** One owner-visible item instance (inventory, equipment or warehouse). */
 export interface ItemInstanceDto {

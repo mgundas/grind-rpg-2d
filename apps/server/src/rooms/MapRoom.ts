@@ -72,6 +72,7 @@ import {
   requestBossTimerMessageSchema,
   requestSkillStateMessageSchema,
   requestStatsMessageSchema,
+  requestUpgradePreviewMessageSchema,
   respawnMessageSchema,
   seededRandomSource,
   seedFromString,
@@ -130,6 +131,7 @@ import { toItemDto } from "../items/itemMappers";
 import { ItemError } from "../items/errors";
 import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
+import { buildUpgradePreview } from "../items/upgrade";
 import {
   diffInventory,
   planAdminGive,
@@ -769,6 +771,33 @@ export class MapRoom extends Room {
         runtime.warehouseRevision++;
         this.sendWarehouse(client);
       });
+    });
+
+    this.onMessage(MSG.requestUpgradePreview, (client, raw) => {
+      const parsed = requestUpgradePreviewMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn(
+          { session: client.sessionId },
+          "dropped invalid requestUpgradePreview message",
+        );
+        return;
+      }
+      this.runItemCommand(
+        client,
+        async (runtime) => {
+          this.requireBlacksmithRange(runtime);
+          if (runtime.warping) {
+            throw new ItemError("warping", "You cannot upgrade while warping.");
+          }
+          const preview = buildUpgradePreview(
+            runtime.inventory,
+            runtime.gold,
+            parsed.data.instanceId,
+          );
+          this.safeSend(client, MSG.upgradePreview, preview);
+        },
+        "blacksmith",
+      );
     });
 
     this.setSimulationInterval(() => this.tick(), TICK_MS);
@@ -2320,6 +2349,27 @@ export class MapRoom extends Room {
     this.safeSend(client, MSG.inventoryError, { code });
   }
 
+  private sendBlacksmithError(
+    client: Client,
+    code: ItemActionErrorCode,
+    message?: string,
+  ): void {
+    this.safeSend(client, MSG.blacksmithError, { code, message });
+  }
+
+  private sendErrorFor(
+    channel: "item" | "blacksmith",
+    client: Client,
+    code: ItemActionErrorCode,
+    message?: string,
+  ): void {
+    if (channel === "blacksmith") {
+      this.sendBlacksmithError(client, code, message);
+      return;
+    }
+    this.sendItemError(client, code);
+  }
+
   /**
    * Item commands are validated only when they reach the head of the queue, so
    * two clicks in the same tick cannot both see the pre-mutation state.
@@ -2327,6 +2377,7 @@ export class MapRoom extends Room {
   private runItemCommand(
     client: Client,
     handler: (runtime: PlayerRuntime) => Promise<void>,
+    channel: "item" | "blacksmith" = "item",
   ): void {
     const runtime = this.runtimes.get(client.sessionId);
     if (!runtime || runtime.inventoryClosed) {
@@ -2338,13 +2389,13 @@ export class MapRoom extends Room {
         return;
       }
       if (current.dead) {
-        this.sendItemError(client, "dead");
+        this.sendErrorFor(channel, client, "dead");
         return;
       }
       try {
         await handler(current);
       } catch (error) {
-        await this.handleItemFailure(client, current, error);
+        await this.handleItemFailure(client, current, error, channel);
       }
     };
     const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
@@ -2717,6 +2768,21 @@ export class MapRoom extends Room {
     this.safeSend(client, MSG.warehouse, buildWarehouseSnapshot(runtime));
   }
 
+  private requireBlacksmithRange(runtime: PlayerRuntime): void {
+    for (const point of this.assets.npcs) {
+      let info;
+      try {
+        info = getNpc(point.npcId);
+      } catch {
+        continue;
+      }
+      if (info.kind === "blacksmith" && this.isNearNpc(runtime, point)) {
+        return;
+      }
+    }
+    throw new ItemError("out_of_range", "Walk closer to the blacksmith.");
+  }
+
   private requireWarehouseRange(runtime: PlayerRuntime, npcId?: string): void {
     for (const point of this.assets.npcs) {
       if (npcId && point.npcId !== npcId) {
@@ -2794,6 +2860,7 @@ export class MapRoom extends Room {
     client: Client,
     runtime: PlayerRuntime,
     error: unknown,
+    channel: "item" | "blacksmith" = "item",
   ): Promise<void> {
     if (error instanceof ItemError) {
       if (error.code === "stale") {
@@ -2815,11 +2882,11 @@ export class MapRoom extends Room {
             "inventory reload failed",
           );
         }
-        this.sendItemError(client, "stale");
+        this.sendErrorFor(channel, client, "stale");
         return;
       }
       if (error.code !== "internal") {
-        this.sendItemError(client, error.code);
+        this.sendErrorFor(channel, client, error.code, error.message);
         return;
       }
     }
@@ -2827,7 +2894,7 @@ export class MapRoom extends Room {
       { roomId: this.roomId, session: client.sessionId, error },
       "item command failed",
     );
-    this.sendItemError(client, "internal");
+    this.sendErrorFor(channel, client, "internal");
   }
 
   private applyRegen(now: number): void {

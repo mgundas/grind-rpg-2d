@@ -7,6 +7,7 @@ import {
   type InventorySnapshotPayload,
   type NpcDialogPayload,
   type SelfStatsPayload,
+  type UpgradePreview,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
@@ -564,5 +565,69 @@ describe("MapRoom inventory snapshots", () => {
     send(client, MSG.moveItem, { instanceId: itemId, toSlot: 8 });
     await waitUntil(() => snapshots.length >= 2);
     expect(snapshots.at(-1)?.items[0]?.slot).toBe(8);
+  });
+
+  it("previews an upgrade only near the blacksmith", async () => {
+    const swordId = randomUUID();
+    const { room, client } = await joinWithInventory("Smith", (id) => {
+      fake.setGold(id.character.id, 9_000);
+      fake.giveItem({
+        id: swordId,
+        itemId: "sword_ember_t1",
+        location: "inventory",
+        slot: 0,
+        upgradeLevel: 3,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "material_wolf_fang",
+        location: "inventory",
+        slot: 1,
+        quantity: 2,
+        ownerCharacterId: id.character.id,
+      });
+      fake.giveItem({
+        id: randomUUID(),
+        itemId: "scroll_blessing",
+        location: "inventory",
+        slot: 2,
+        quantity: 1,
+        ownerCharacterId: id.character.id,
+      });
+    });
+    const internals = room as unknown as {
+      runtimes: Map<string, { mover: { pos: { x: number; y: number } } }>;
+    };
+    const runtime = internals.runtimes.get(client.sessionId)!;
+    const player = room.state.players.get(client.sessionId)!;
+
+    const rejected = client.waitForMessage(MSG.blacksmithError, 2000);
+    send(client, MSG.requestUpgradePreview, { instanceId: swordId });
+    expect(((await rejected) as { code: string }).code).toBe("out_of_range");
+
+    const npcX = 36 * 32 + 16;
+    const npcY = 40 * 32 + 12;
+    runtime.mover.pos.x = npcX + 8;
+    runtime.mover.pos.y = npcY + 8;
+    player.x = npcX + 8;
+    player.y = npcY + 8;
+
+    const previewPromise = client.waitForMessage(MSG.upgradePreview, 2000);
+    send(client, MSG.requestUpgradePreview, { instanceId: swordId });
+    const preview = (await previewPromise) as UpgradePreview;
+    expect(preview.currentLevel).toBe(3);
+    expect(preview.nextLevel).toBe(4);
+    expect(preview.chance).toBeCloseTo(0.7);
+    expect(preview.gold).toBe(8_000);
+    expect(preview.materials).toEqual([
+      { itemId: "material_wolf_fang", required: 1, owned: 2 },
+    ]);
+    expect(preview.blessingAvailable).toBe(true);
+    expect(preview.canUpgrade).toBe(true);
+
+    const unknown = client.waitForMessage(MSG.blacksmithError, 2000);
+    send(client, MSG.requestUpgradePreview, { instanceId: randomUUID() });
+    expect(((await unknown) as { code: string }).code).toBe("item_not_found");
   });
 });

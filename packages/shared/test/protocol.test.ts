@@ -10,12 +10,14 @@ import {
   moveItemMessageSchema,
   pickupMessageSchema,
   requestInventoryMessageSchema,
+  requestUpgradePreviewMessageSchema,
   respawnMessageSchema,
   setTargetMessageSchema,
   shopBuyMessageSchema,
   shopSellMessageSchema,
   splitStackMessageSchema,
   unequipItemMessageSchema,
+  upgradeItemMessageSchema,
   useItemMessageSchema,
   warehouseDepositMessageSchema,
   warehouseOpenMessageSchema,
@@ -156,6 +158,24 @@ describe("Phase 4 item/economy message schemas", () => {
     expect(warehouseWithdrawMessageSchema.safeParse({ instanceId: id, toSlot: 90 }).success).toBe(
       false,
     );
+  });
+
+  it("validates blacksmith preview and upgrade messages", () => {
+    expect(requestUpgradePreviewMessageSchema.safeParse({ instanceId: id }).success).toBe(true);
+    expect(requestUpgradePreviewMessageSchema.safeParse({ instanceId: "nope" }).success).toBe(false);
+    expect(requestUpgradePreviewMessageSchema.safeParse({ instanceId: id, extra: 1 }).success).toBe(
+      false,
+    );
+    expect(
+      upgradeItemMessageSchema.safeParse({ instanceId: id, useBlessing: true }).success,
+    ).toBe(true);
+    expect(
+      upgradeItemMessageSchema.safeParse({ instanceId: id, useBlessing: false }).success,
+    ).toBe(true);
+    expect(upgradeItemMessageSchema.safeParse({ instanceId: id }).success).toBe(false);
+    expect(
+      upgradeItemMessageSchema.safeParse({ instanceId: id, useBlessing: "yes" }).success,
+    ).toBe(false);
   });
 });
 

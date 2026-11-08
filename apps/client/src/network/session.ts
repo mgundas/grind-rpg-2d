@@ -318,6 +318,16 @@ export function sendWarehouseWithdraw(instanceId: string, toSlot?: number | null
   room?.send(MSG.warehouseWithdraw, { instanceId, toSlot: toSlot ?? null });
 }
 
+/** Ask the server for upgrade odds, costs and material ownership. */
+export function sendRequestUpgradePreview(instanceId: string): void {
+  room?.send(MSG.requestUpgradePreview, { instanceId });
+}
+
+/** Ask the blacksmith to roll one upgrade. */
+export function sendUpgradeItem(instanceId: string, useBlessing: boolean): void {
+  room?.send(MSG.upgradeItem, { instanceId, useBlessing });
+}
+
 function bindSessionEvents(current: Room): void {
   current.onError((code, message) => {
     if (room !== current) {

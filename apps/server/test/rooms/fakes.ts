@@ -8,6 +8,7 @@ import {
   type ClassId,
   type Gender,
   type InventoryState,
+  type ItemBonus,
   type ItemStack,
   type KingdomId,
   type MapId,
@@ -74,6 +75,8 @@ export interface FakeServices {
     ownerCharacterId?: string;
     ownerAccountId?: string;
     mapId?: string;
+    upgradeLevel?: number;
+    bonuses?: ItemBonus[];
   }) => void;
   setGold: (characterId: string, gold: number) => void;
   identities: Map<string, JoinIdentity>;
@@ -415,6 +418,8 @@ export function createFakeServices(): FakeServices {
     ownerCharacterId?: string;
     ownerAccountId?: string;
     mapId?: string;
+    upgradeLevel?: number;
+    bonuses?: ItemBonus[];
   }): void {
     itemRows.set(row.id, {
       stack: {
@@ -422,8 +427,8 @@ export function createFakeServices(): FakeServices {
         itemId: row.itemId,
         slot: row.slot ?? 0,
         quantity: row.quantity ?? 1,
-        upgradeLevel: 0,
-        bonuses: [],
+        upgradeLevel: row.upgradeLevel ?? 0,
+        bonuses: row.bonuses ?? [],
       },
       location: row.location,
       ownerCharacterId: row.ownerCharacterId ?? null,
