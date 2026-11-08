@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import {
-  KINGDOMS,
   MSG,
   PICKUP_RADIUS_PX,
   RARITY_COLORS,
@@ -46,6 +45,7 @@ import {
   sendInteractNpc,
   sendPickup,
   sendSetTarget,
+  sendSetPlayerTarget,
 } from "../network/session";
 import { LocalPredictor, type DesiredInput } from "../state/predictor";
 import {
@@ -56,6 +56,7 @@ import {
 } from "../state/remotes";
 import { MonsterRegistry, type MonsterData, type MonsterEntity } from "../state/monsterRegistry";
 import { useUiStore } from "../ui/store";
+import { playerNameColor } from "../ui/pvp";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
 import { monsterNameColor } from "../world/levelColors";
 import { ensureCharacterTexture } from "../assets/characterTextures";
@@ -70,6 +71,7 @@ interface RemotePlayerState {
   name: string;
   kingdom: string;
   guildName?: string;
+  pvpMode?: string;
   classId: string;
   gender: string;
   hairStyle: number;
@@ -491,6 +493,7 @@ export class WorldScene extends Phaser.Scene {
         this.predictor?.reconcile(me.x, me.y, me.lastSeq);
       }
       this.syncRemotes(snapshot, sessionId);
+      this.syncPlayerTarget(snapshot);
       this.syncMonsters(snapshot);
       this.syncStones(snapshot);
       this.syncGroundItems(snapshot);
@@ -958,6 +961,37 @@ export class WorldScene extends Phaser.Scene {
     });
   }
 
+  private syncPlayerTarget(snapshot: RoomStateLike): void {
+    const store = useUiStore.getState();
+    const characterId = store.targetCharacterId;
+    if (!characterId) {
+      return;
+    }
+    let found: RemotePlayerState | null = null;
+    snapshot.players?.forEach((player) => {
+      if (player.characterId === characterId) {
+        found = player;
+      }
+    });
+    if (!found) {
+      store.setTargetPlayer(null);
+      return;
+    }
+    const target = found as RemotePlayerState;
+    store.setTargetInfo({
+      id: target.characterId,
+      name: target.name,
+      level: target.level,
+      hp: target.hp,
+      maxHp: target.maxHp,
+      isBoss: false,
+      kind: "player",
+      kingdom: target.kingdom,
+      guildName: target.guildName,
+      pvpMode: target.pvpMode,
+    });
+  }
+
   /** Create/destroy remote sprites for the currently visible players. */
   private syncRemotes(snapshot: RoomStateLike, ownSessionId: string): void {
     const visible: Record<string, RemotePlayerData> = {};
@@ -967,6 +1001,7 @@ export class WorldScene extends Phaser.Scene {
         name: player.name,
         kingdom: player.kingdom,
         guildName: player.guildName,
+        pvpMode: player.pvpMode,
         classId: player.classId,
         gender: player.gender,
         hairStyle: player.hairStyle,
@@ -999,7 +1034,7 @@ export class WorldScene extends Phaser.Scene {
 
   private createRemoteVisual(entity: RemoteEntity): void {
     const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
-    const color = KINGDOMS.find((kingdom) => kingdom.id === entity.kingdom)?.color ?? "#cfd8d3";
+    const color = playerNameColor(entity.pvpMode, entity.kingdom);
     const shadow = this.add.ellipse(pos.x, pos.y + 6, 24, 9, 0x000000, 0.3);
     const sprite = this.add
       .sprite(pos.x, pos.y, ensureCharacterTexture(this, lookFromPlayer(entity)))
@@ -1763,7 +1798,10 @@ export class WorldScene extends Phaser.Scene {
         this.input.setDefaultCursor("pointer");
       } else if (this.stoneAtPointer(pointer.worldX, pointer.worldY)) {
         this.input.setDefaultCursor("crosshair");
-      } else if (this.monsterAtPointer(pointer.worldX, pointer.worldY)) {
+      } else if (
+        this.monsterAtPointer(pointer.worldX, pointer.worldY) ||
+        this.remoteAtPointer(pointer.worldX, pointer.worldY)
+      ) {
         this.input.setDefaultCursor("crosshair");
       } else if (this.groundItemAtPointer(pointer.worldX, pointer.worldY)) {
         this.input.setDefaultCursor("pointer");
@@ -1829,6 +1867,14 @@ export class WorldScene extends Phaser.Scene {
               }
             }
           }
+          this.pointerHeld = false;
+          return;
+        }
+        const remote = this.remoteAtPointer(pointer.worldX, pointer.worldY);
+        if (remote) {
+          this.pathTarget = null;
+          sendSetPlayerTarget(remote.characterId);
+          useUiStore.getState().setTargetPlayer(remote.characterId);
           this.pointerHeld = false;
           return;
         }

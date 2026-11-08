@@ -2,8 +2,10 @@ import {
   sendFriendAdd,
   sendGuildInvite,
   sendPartyInvite,
+  sendSetPlayerTarget,
   sendTradeInvite,
 } from "../network/session";
+import { getMapPolicy } from "@jadethrone/data/mapPolicies";
 import { canInviteGuild } from "./social";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
@@ -16,6 +18,9 @@ export function PlayerContextMenu() {
   const characterId = useUiStore((state) => state.selectedCharacterId);
   const chatDispatch = useUiStore((state) => state.chatDispatch);
   const requestChatFocus = useUiStore((state) => state.requestChatFocus);
+  const mapId = useUiStore((state) => state.mapId);
+  const pvpMode = useUiStore((state) => state.selfStats?.pvpMode ?? "peaceful");
+  const setTargetPlayer = useUiStore((state) => state.setTargetPlayer);
 
   if (!context) {
     return null;
@@ -48,6 +53,19 @@ export function PlayerContextMenu() {
       <div style={{ color: theme.gold, fontSize: 11, fontWeight: 700, padding: "2px 5px" }}>
         {context.name}
       </div>
+      {mapId && getMapPolicy(mapId).pvpAllowed && pvpMode !== "peaceful" ? (
+        <button
+          type="button"
+          style={{ fontSize: 11, padding: "5px 7px", color: theme.danger }}
+          onClick={() => {
+            setTargetPlayer(context.characterId);
+            sendSetPlayerTarget(context.characterId);
+            close();
+          }}
+        >
+          Attack
+        </button>
+      ) : null}
       <button
         type="button"
         style={{ fontSize: 11, padding: "5px 7px" }}

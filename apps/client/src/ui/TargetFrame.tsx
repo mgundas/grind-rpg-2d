@@ -1,3 +1,4 @@
+import { playerNameColor, pvpModeLabel } from "./pvp";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 import { monsterNameColor } from "../world/levelColors";
@@ -10,7 +11,10 @@ export function TargetFrame() {
     return null;
   }
   const ratio = target.maxHp > 0 ? Math.max(0, Math.min(1, target.hp / target.maxHp)) : 0;
-  const nameColor = monsterNameColor(target.level, playerLevel);
+  const nameColor =
+    target.kind === "player"
+      ? playerNameColor(target.pvpMode, target.kingdom)
+      : monsterNameColor(target.level, playerLevel);
 
   return (
     <div
@@ -41,6 +45,12 @@ export function TargetFrame() {
           {target.name}
           {target.isBoss ? " · BOSS" : ""}
           {target.kind === "stone" ? " · SPIRIT STONE" : ""}
+          {target.kind === "player" && target.guildName
+            ? ` · [${target.guildName}]`
+            : ""}
+          {target.kind === "player" && target.pvpMode
+            ? ` · ${pvpModeLabel(target.pvpMode).toUpperCase()}`
+            : ""}
         </span>
         <span style={{ color: theme.muted }}>Lv {target.level}</span>
       </div>

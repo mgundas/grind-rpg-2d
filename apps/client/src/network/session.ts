@@ -23,6 +23,7 @@ import {
   type PartyErrorPayload,
   type PartyInvitePayload,
   type PartyStatePayload,
+  type PlayerTargetPayload,
   type RespawnOption,
   type SelfStatsPayload,
   type SessionKickedPayload,
@@ -287,6 +288,14 @@ export function sendReadSkillBook(bookInstanceId: string, skillId: string): void
   room?.send(MSG.readSkillBook, { bookInstanceId, skillId });
 }
 
+export function sendSetPvpMode(mode: "peaceful" | "kingdom" | "free"): void {
+  room?.send(MSG.setPvpMode, { mode });
+}
+
+export function sendSetPlayerTarget(characterId: string | null): void {
+  room?.send(MSG.setPlayerTarget, { characterId });
+}
+
 export function sendAttack(dir?: number): void {
   room?.send(MSG.attack, dir === undefined ? {} : { dir });
 }
@@ -482,6 +491,10 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.targetCleared, () => {
     useUiStore.getState().setTargetMonster(null);
+  });
+
+  current.onMessage(MSG.playerTarget, (payload: PlayerTargetPayload) => {
+    useUiStore.getState().setTargetPlayer(payload.characterId);
   });
 
   current.onMessage(MSG.monsterDied, (payload: MonsterDiedPayload) => {

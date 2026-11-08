@@ -792,6 +792,7 @@ export interface SelfStatsPayload {
   /** Filled from Phase 6 onward; optional during the increment. */
   doctrine?: string | null;
   skillPoints?: number;
+  pvpMode?: PvpMode;
 }
 
 /** One learned skill and its absolute cooldown timestamp. */

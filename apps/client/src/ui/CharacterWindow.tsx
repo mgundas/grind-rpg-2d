@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { sendAllocStat } from "../network/session";
+import { sendAllocStat, sendSetPvpMode } from "../network/session";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 import { Window } from "./Window";
@@ -52,6 +52,38 @@ export function CharacterWindow() {
         <Row label="Defense" value={self.defense.toFixed(1)} />
         <Row label="Crit" value={`${(self.critChance * 100).toFixed(1)}%`} />
       </div>
+
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          marginBottom: 10,
+          fontSize: 11,
+          color: theme.muted,
+        }}
+      >
+        PvP mode
+        <select
+          value={self.pvpMode ?? "peaceful"}
+          onChange={(event) =>
+            sendSetPvpMode(event.target.value as "peaceful" | "kingdom" | "free")
+          }
+          style={{
+            padding: "3px 6px",
+            borderRadius: 4,
+            border: "1px solid rgba(93,168,143,0.4)",
+            background: "#0e1311",
+            color: theme.text,
+            fontSize: 11,
+          }}
+        >
+          <option value="peaceful">Peaceful</option>
+          <option value="kingdom">Kingdom</option>
+          <option value="free">Free (red name)</option>
+        </select>
+      </label>
 
       <div
         style={{

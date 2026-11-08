@@ -121,7 +121,9 @@ interface UiState {
   /** Selected spirit stone (click/Tab). Stones are not auto-attack targets yet. */
   targetStoneId: string | null;
   setTargetStone: (stoneId: string | null) => void;
-  targetKind: "monster" | "stone" | null;
+  targetCharacterId: string | null;
+  setTargetPlayer: (characterId: string | null) => void;
+  targetKind: "monster" | "stone" | "player" | null;
   targetInfo: {
     id: string;
     name: string;
@@ -129,7 +131,10 @@ interface UiState {
     hp: number;
     maxHp: number;
     isBoss: boolean;
-    kind?: "monster" | "stone";
+    kind?: "monster" | "stone" | "player";
+    kingdom?: string;
+    guildName?: string;
+    pvpMode?: string;
   } | null;
   setTargetInfo: (target: UiState["targetInfo"]) => void;
   autoWalk: boolean;
@@ -341,18 +346,35 @@ export const useUiStore = create<UiState>((set) => ({
     set((state) => ({
       targetMonsterId,
       targetStoneId: targetMonsterId ? null : state.targetStoneId,
-      targetKind: targetMonsterId ? "monster" : state.targetKind === "monster" ? null : state.targetKind,
+      targetCharacterId: targetMonsterId ? null : state.targetCharacterId,
+      targetKind:
+        targetMonsterId ? "monster" : state.targetKind === "monster" ? null : state.targetKind,
       targetInfo:
-        targetMonsterId || state.targetKind === "stone" ? state.targetInfo : null,
+        targetMonsterId || state.targetKind !== "monster" ? state.targetInfo : null,
     })),
   targetStoneId: null,
   setTargetStone: (targetStoneId) =>
     set((state) => ({
       targetStoneId,
       targetMonsterId: targetStoneId ? null : state.targetMonsterId,
+      targetCharacterId: targetStoneId ? null : state.targetCharacterId,
       targetKind: targetStoneId ? "stone" : state.targetKind === "stone" ? null : state.targetKind,
       targetInfo:
-        targetStoneId || state.targetKind === "monster" ? state.targetInfo : null,
+        targetStoneId || state.targetKind === "monster" || state.targetKind === "player"
+          ? state.targetInfo
+          : null,
+    })),
+  targetCharacterId: null,
+  setTargetPlayer: (targetCharacterId) =>
+    set((state) => ({
+      targetCharacterId,
+      targetMonsterId: targetCharacterId ? null : state.targetMonsterId,
+      targetStoneId: targetCharacterId ? null : state.targetStoneId,
+      targetKind: targetCharacterId ? "player" : state.targetKind === "player" ? null : state.targetKind,
+      targetInfo:
+        targetCharacterId || state.targetKind === "monster" || state.targetKind === "stone"
+          ? state.targetInfo
+          : null,
     })),
   targetKind: null,
   targetInfo: null,
