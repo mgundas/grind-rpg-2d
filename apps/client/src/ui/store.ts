@@ -219,6 +219,11 @@ interface UiState {
   chatFocusRequest: number;
   requestChatFocus: () => void;
 
+  dayNightEnabled: boolean;
+  setDayNightEnabled: (enabled: boolean) => void;
+  weatherEnabled: boolean;
+  setWeatherEnabled: (enabled: boolean) => void;
+
   skillBookTarget: SkillBookTarget;
   beginSkillBook: (bookInstanceId: string) => void;
   cancelSkillBook: () => void;
@@ -456,6 +461,10 @@ export const useUiStore = create<UiState>((set) => ({
 
   chatFocusRequest: 0,
   requestChatFocus: () => set((state) => ({ chatFocusRequest: state.chatFocusRequest + 1 })),
+  dayNightEnabled: true,
+  setDayNightEnabled: (dayNightEnabled) => set({ dayNightEnabled }),
+  weatherEnabled: true,
+  setWeatherEnabled: (weatherEnabled) => set({ weatherEnabled }),
 
   skillBookTarget: IDLE_SKILL_BOOK_TARGET,
   beginSkillBook: (bookInstanceId) =>

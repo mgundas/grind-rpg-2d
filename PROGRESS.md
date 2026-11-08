@@ -278,7 +278,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 15 — PvP rules, modes and map enforcement
 - [x] Task 16 — PvP combat integration
 - [x] Task 17 — Client PvP targeting, mode and name colors
-- [ ] Task 18 — Day/night and weather
+- [x] Task 18 — Day/night and weather
 - [ ] Task 19 — Minimap and world map
 - [ ] Task 20 — Admin chat channel visibility
 - [ ] Task 21 — Phase 8 E2E, decisions and report

@@ -57,6 +57,8 @@ import {
 import { MonsterRegistry, type MonsterData, type MonsterEntity } from "../state/monsterRegistry";
 import { useUiStore } from "../ui/store";
 import { playerNameColor } from "../ui/pvp";
+import { EnvironmentController } from "../world/environment";
+import { getMapPolicy } from "@jadethrone/data/mapPolicies";
 import { DEFAULT_MAP, tilemapKeyFor, tilesetNameFor, tilesetTextureKeyFor } from "../world/mapKeys";
 import { monsterNameColor } from "../world/levelColors";
 import { ensureCharacterTexture } from "../assets/characterTextures";
@@ -187,6 +189,7 @@ export class WorldScene extends Phaser.Scene {
 
   private predictor: LocalPredictor | null = null;
   private initializedFor: string | null = null;
+  private environment: EnvironmentController | null = null;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
   private wasd: Record<string, Phaser.Input.Keyboard.Key> | null = null;
   private pointerHeld = false;
@@ -341,6 +344,7 @@ export class WorldScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const ui = useUiStore.getState();
+    this.environment?.update(this.time.now);
     const room = getRoom();
     if (ui.connectionPhase !== "connected" || !room) {
       this.setOwnVisible(false);
@@ -1925,6 +1929,12 @@ export class WorldScene extends Phaser.Scene {
     // against players by its base row instead of always drawing underneath.
     this.buildSortedDecor(tiled, tilesetTextureKeyFor(this.mapId));
     map.createLayer("above", tileset, 0, 0)?.setDepth(100000);
+    this.environment?.destroy();
+    this.environment = new EnvironmentController(
+      this,
+      getMapPolicy(this.mapId).weather,
+      { width: this.scale.width, height: this.scale.height },
+    );
   }
 
   private buildSortedDecor(tiled: TiledMapJson, textureKey: string): void {

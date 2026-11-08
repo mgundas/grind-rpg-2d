@@ -15,6 +15,10 @@ export function CharacterWindow() {
   const open = useUiStore((state) => state.characterOpen);
   const self = useUiStore((state) => state.selfStats);
   const vitals = useUiStore((state) => state.vitals);
+  const dayNightEnabled = useUiStore((state) => state.dayNightEnabled);
+  const setDayNightEnabled = useUiStore((state) => state.setDayNightEnabled);
+  const weatherEnabled = useUiStore((state) => state.weatherEnabled);
+  const setWeatherEnabled = useUiStore((state) => state.setWeatherEnabled);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -84,6 +88,25 @@ export function CharacterWindow() {
           <option value="free">Free (red name)</option>
         </select>
       </label>
+
+      <div style={{ display: "flex", gap: 12, marginBottom: 10, fontSize: 10, color: theme.muted }}>
+        <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={dayNightEnabled}
+            onChange={(event) => setDayNightEnabled(event.target.checked)}
+          />
+          Day/night
+        </label>
+        <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={weatherEnabled}
+            onChange={(event) => setWeatherEnabled(event.target.checked)}
+          />
+          Weather
+        </label>
+      </div>
 
       <div
         style={{
