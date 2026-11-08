@@ -3,6 +3,8 @@ import { matchMaker, type AuthContext, type Client, Room } from "@colyseus/core"
 import { StateView } from "@colyseus/schema";
 import {
   CHAT_COOLDOWN_MS,
+  SHOUT_COOLDOWN_MS,
+  SHOUT_LEVEL,
   COMBAT_EVENT_RADIUS_PX,
   DIR8_VECTORS,
   AUTO_WALK_GIVE_UP_MS,
@@ -41,6 +43,8 @@ import {
   castSkillMessageSchema,
   chatMessageSchema,
   chatRecipients,
+  parseChatInput,
+  scrambleChatText,
   canPickupDrop,
   chooseDoctrineMessageSchema,
   deathXpLoss,
@@ -138,6 +142,8 @@ import { getClass } from "@jadethrone/data/classes";
 import type { SkillInfo } from "@jadethrone/data/skills";
 import type { StoneInfo } from "@jadethrone/data/stones";
 import type { CatalogLookup } from "@jadethrone/data/catalog";
+import { filterProfanity } from "@jadethrone/data/chatFilter";
+import { getMapPolicy } from "@jadethrone/data/mapPolicies";
 import { logger } from "../logger";
 import { isMapId, loadMapAssets, type MapAssets } from "../maps/mapRegistry";
 import { isGmRole, parseGmCommand } from "../admin/gmCommands";
@@ -395,7 +401,7 @@ export class MapRoom extends Room {
       runtime.pending.push(parsed.data);
     });
 
-    this.onMessage(MSG.chat, (client, raw) => {
+    this.onMessage(MSG.chat, async (client, raw) => {
       const parsed = chatMessageSchema.safeParse(raw);
       if (!parsed.success) {
         logger.warn({ session: client.sessionId }, "dropped invalid chat message");
@@ -406,58 +412,174 @@ export class MapRoom extends Room {
       if (!runtime || !player) {
         return;
       }
-      const text = parsed.data.text.trim();
-      if (text === "/leave") {
+      const rawText = parsed.data.text.trim();
+      if (rawText === "/leave") {
         this.leavePartyCommand(client);
         return;
       }
-      if (/^\/invite\s+/i.test(text)) {
-        this.handlePartyInvite(client, undefined, text.replace(/^\/invite\s+/i, ""));
+      if (/^\/invite\s+/i.test(rawText)) {
+        this.handlePartyInvite(client, undefined, rawText.replace(/^\/invite\s+/i, ""));
         return;
       }
-      if (text.startsWith("/") && isGmRole(runtime.role)) {
+      if (rawText.startsWith("/") && isGmRole(runtime.role)) {
         this.handleGmCommand(client, runtime, parsed.data.text);
         return;
       }
+
+      const slash = parseChatInput(rawText);
+      const channel =
+        parsed.data.channel !== "local" ? parsed.data.channel : slash.channel;
+      const targetName = parsed.data.targetName ?? slash.targetName;
+      const bodyText = filterProfanity(
+        (parsed.data.channel !== "local" ? rawText : slash.body).trim(),
+      );
+      if (channel === "system") {
+        this.sendSystemMessage(client, "System chat is server-only.");
+        return;
+      }
+      if (bodyText === "") {
+        return;
+      }
+      if (channel === "shout" && runtime.progression.level < SHOUT_LEVEL) {
+        this.sendSystemMessage(client, `Shout unlocks at level ${SHOUT_LEVEL}.`);
+        return;
+      }
+
       const now = Date.now();
       if (now < runtime.chatReadyAtMs) {
         return;
       }
+      if (channel === "shout" && now < runtime.shoutReadyAtMs) {
+        return;
+      }
       runtime.chatReadyAtMs = now + CHAT_COOLDOWN_MS;
+      if (channel === "shout") {
+        runtime.shoutReadyAtMs = now + SHOUT_COOLDOWN_MS;
+      }
 
-      const participants = [...this.state.players.entries()].map(([sessionId, other]) => ({
-        sessionId,
-        x: other.x,
-        y: other.y,
-      }));
-      const recipients = chatRecipients(participants, {
-        sessionId: client.sessionId,
-        x: player.x,
-        y: player.y,
-      });
-      const payload: ChatMsgPayload = {
+      const payload = (overrideTarget?: string): ChatMsgPayload => ({
         from: client.sessionId,
         fromCharacterId: runtime.characterId,
         name: player.name,
         kingdom: player.kingdom,
-        channel: "local",
-        text: parsed.data.text,
+        channel,
+        targetName: overrideTarget,
+        text: bodyText,
         sentAt: now,
+      });
+
+      const log = () => {
+        void getServerServices()
+          .logChat({
+            characterId: runtime.characterId,
+            name: player.name,
+            kingdom: player.kingdom,
+            mapId: this.mapId,
+            channel,
+            targetName,
+            text: bodyText,
+          })
+          .catch(() => undefined);
       };
-      for (const otherClient of this.clients) {
-        if (recipients.includes(otherClient.sessionId)) {
-          otherClient.send(MSG.chatMsg, payload);
+
+      if (channel === "local") {
+        const participants = [...this.state.players.entries()].map(([sessionId, other]) => ({
+          sessionId,
+          x: other.x,
+          y: other.y,
+        }));
+        const recipients = chatRecipients(participants, {
+          sessionId: client.sessionId,
+          x: player.x,
+          y: player.y,
+        });
+        const neutral = getMapPolicy(this.mapId).neutral;
+        for (const otherClient of this.clients) {
+          if (!recipients.includes(otherClient.sessionId)) {
+            continue;
+          }
+          const other = this.state.players.get(otherClient.sessionId);
+          const scrambled =
+            other !== undefined &&
+            other.kingdom !== player.kingdom &&
+            !neutral;
+          this.safeSend(
+            otherClient,
+            MSG.chatMsg,
+            scrambled
+              ? {
+                  ...payload(),
+                  text: scrambleChatText(
+                    bodyText,
+                    seedFromString(
+                      `${runtime.characterId}:${now}:${bodyText}:${otherClient.sessionId}`,
+                    ),
+                  ),
+                }
+              : payload(),
+          );
         }
+        log();
+        return;
       }
-      void getServerServices()
-        .logChat({
-          characterId: runtime.characterId,
-          name: player.name,
-          kingdom: player.kingdom,
-          mapId: this.mapId,
-          text: parsed.data.text,
-        })
-        .catch(() => undefined);
+
+      if (channel === "shout") {
+        for (const otherClient of this.clients) {
+          const other = this.state.players.get(otherClient.sessionId);
+          if (other && other.kingdom === player.kingdom) {
+            this.safeSend(otherClient, MSG.chatMsg, payload());
+          }
+        }
+        log();
+        return;
+      }
+
+      if (channel === "whisper") {
+        if (!targetName) {
+          this.sendSystemMessage(client, "Whisper needs a player name.");
+          return;
+        }
+        const directory = getServerServices().social;
+        const target = directory.findByName(targetName);
+        if (!target || target.characterId === runtime.characterId) {
+          this.sendSystemMessage(client, "That player is not online.");
+          return;
+        }
+        this.safeSend(client, MSG.chatMsg, payload(target.name));
+        directory.send(target.characterId, MSG.chatMsg, payload(player.name));
+        log();
+        return;
+      }
+
+      if (channel === "party") {
+        if (!this.parties.getByCharacter(runtime.characterId)) {
+          this.sendSystemMessage(client, "You are not in a party.");
+          return;
+        }
+        for (const sessionId of this.partySessionIdsFor(runtime)) {
+          const otherClient = this.clientFor(sessionId);
+          if (otherClient) {
+            this.safeSend(otherClient, MSG.chatMsg, payload());
+          }
+        }
+        log();
+        return;
+      }
+
+      if (channel === "guild") {
+        const guilds = getServerServices().guilds;
+        const guild = guilds ? await guilds.loadByCharacter(runtime.characterId) : null;
+        if (!guild) {
+          this.sendSystemMessage(client, "You are not in a guild.");
+          return;
+        }
+        getServerServices().social.sendMany(
+          guild.members.map((member) => member.characterId),
+          MSG.chatMsg,
+          payload(),
+        );
+        log();
+      }
     });
 
     this.onMessage(MSG.castSkill, (client, raw) => {

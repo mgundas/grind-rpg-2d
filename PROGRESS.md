@@ -268,7 +268,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 5 — Friends service and persistence
 - [x] Task 6 — Guild core service and rules
 - [x] Task 7 — Guild invites, protocol and runtime integration
-- [ ] Task 8 — Server chat channels and routing
+- [x] Task 8 — Server chat channels and routing
 - [ ] Task 9 — Client chat tabs, history and whisper flow
 - [ ] Task 10 — Client guild and friends windows
 - [ ] Task 11 — Skill mastery data, persistence and effective ranks

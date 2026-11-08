@@ -3,6 +3,7 @@ import { ColyseusTestServer } from "@colyseus/testing";
 import {
   MSG,
   ROOM_NAME_VILLAGE,
+  type ChatMsgPayload,
   type GuildInvitePayload,
   type GuildStatePayload,
 } from "@jadethrone/shared";
@@ -186,6 +187,17 @@ describe("room guild integration", () => {
     expect(room.state.players.get(second.client.sessionId)?.guildName).toBe(
       "Jade Guard",
     );
+
+    const founderChat = first.client.waitForMessage(MSG.chatMsg, 2000);
+    const recruitChat = second.client.waitForMessage(MSG.chatMsg, 2000);
+    send(first.client, MSG.chat, { text: "welcome to the guard", channel: "guild" });
+    const [chatA, chatB] = (await Promise.all([founderChat, recruitChat])) as [
+      ChatMsgPayload,
+      ChatMsgPayload,
+    ];
+    expect(chatA.channel).toBe("guild");
+    expect(chatA.text).toBe("welcome to the guard");
+    expect(chatB.channel).toBe("guild");
   });
 
   it("rejects guild invites from someone without a guild", async () => {

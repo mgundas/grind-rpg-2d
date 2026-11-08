@@ -31,6 +31,8 @@ export interface ChatLogInput {
   name: string;
   kingdom: string;
   mapId: string;
+  channel: string;
+  targetName?: string;
   text: string;
 }
 

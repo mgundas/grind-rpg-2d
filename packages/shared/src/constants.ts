@@ -110,6 +110,8 @@ export const TELEPORT_THRESHOLD_PX = 200;
 /** Local chat (GAME_DESIGN.md §9). */
 export const CHAT_RANGE_PX = 900;
 export const CHAT_COOLDOWN_MS = 1000;
+export const SHOUT_COOLDOWN_MS = 15_000;
+export const SHOUT_LEVEL = 15;
 export const CHAT_MAX_LEN = 120;
 
 /** Prediction bookkeeping. */

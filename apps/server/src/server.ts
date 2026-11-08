@@ -139,6 +139,7 @@ export function createGameServer(deps: ServerDeps = {}) {
         name: entry.name,
         kingdom: entry.kingdom,
         mapId: entry.mapId,
+        channel: entry.channel,
         chatText: entry.text,
       });
     } catch {

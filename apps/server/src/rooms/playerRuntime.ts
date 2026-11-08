@@ -45,6 +45,8 @@ export interface PlayerRuntime {
   lastIntent: MoveIntent;
   /** Epoch ms before which chat is rate-limited. */
   chatReadyAtMs: number;
+  /** Shout has a separate 15 s cooldown. */
+  shoutReadyAtMs: number;
   /** A warp is in flight; skip movement/warp checks. */
   warping: boolean;
   /** Arrival guard so a warp cannot immediately bounce back. */
@@ -157,6 +159,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     lastSeq: 0,
     lastIntent: { kind: "none" },
     chatReadyAtMs: 0,
+    shoutReadyAtMs: 0,
     warping: false,
     warpCooldownUntilMs: 0,
     graceTicksRemaining: 0,
