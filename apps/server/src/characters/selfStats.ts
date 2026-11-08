@@ -58,5 +58,6 @@ export function buildSelfStats(
     ),
     doctrine: progression.doctrine,
     skillPoints: progression.skillPoints,
+    pvpMode: runtime.pvpMode,
   };
 }
