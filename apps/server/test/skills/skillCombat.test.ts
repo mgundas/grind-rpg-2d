@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClassId, RandomSource, Vec2 } from "@jadethrone/shared";
+import { isWalkableAt } from "@jadethrone/shared";
 import { getMonster } from "@jadethrone/data/monsters";
 import { getSkill } from "@jadethrone/data/skills";
 import { MonsterState, PlayerState, WorldState } from "../../src/rooms/state/WorldState";
@@ -158,6 +159,33 @@ describe("resolveSkillCast", () => {
     expect(outcome?.hits).toHaveLength(1);
     expect(outcome?.hits[0]?.target).toEqual({ kind: "monster", monsterId: "front" });
     expect(monsters.get("behind")?.hp).toBe(getMonster("wild_dog").hp);
+  });
+
+  it("clamps a dash to a walkable tile instead of crossing a wall", () => {
+    const state = new WorldState();
+    const runtimes = new Map<string, PlayerRuntime>();
+    const monsters = new Map<string, MonsterRuntime>();
+    const stones = new Map<string, StoneRuntime>();
+    runtimes.set("s1", makePlayer(state, "s1"));
+    const ctx = context(state, runtimes, monsters, stones, [0.5, 0.5, 0.9]);
+    // A solid column at tile x = 8 (px 256..288) blocks the charge east.
+    for (let y = 0; y < 40; y++) {
+      ctx.grid.solid[y * 40 + 8] = 1;
+    }
+    const skill = getSkill("warrior_blade_charge");
+    runtimes.get("s1")!.progression.skills[skill.id] = 1;
+
+    const outcome = resolveSkillCast(ctx, {
+      sessionId: "s1",
+      skill,
+      rank: 1,
+      targetPos: { x: 700, y: 200 },
+    });
+
+    expect(outcome?.dash).not.toBeNull();
+    const destination = outcome!.dash!.destination;
+    expect(isWalkableAt(ctx.grid, destination.x, destination.y)).toBe(true);
+    expect(destination.x).toBeLessThan(256);
   });
 
   it("creates buff intents without consuming RNG", () => {

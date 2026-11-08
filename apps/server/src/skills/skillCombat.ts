@@ -487,15 +487,28 @@ export function resolveSkillCast(
     const dy = aim.y - origin.y;
     const direction =
       dx * dx + dy * dy > 1 ? (dir8Towards(origin, aim) ?? 0) : null;
-    const destination = direction === null
-      ? origin
-      : stepMover(
-          { pos: origin, path: [] },
+    // Sweep in small steps: one long `stepMover` call only tests the endpoint,
+    // so a 220 px dash would tunnel through a 32 px wall that has walkable
+    // ground behind it. Marching keeps the dash inside the collision grid.
+    const dashStepPx = 8;
+    let dashed = { pos: origin, path: [] as Vec2[] };
+    if (direction !== null) {
+      const steps = Math.ceil(skill.rangePx / dashStepPx);
+      for (let i = 0; i < steps; i++) {
+        const next = stepMover(
+          dashed,
           { kind: "dir", dir: direction },
           ctx.grid,
           1000,
-          skill.rangePx,
-        ).pos;
+          dashStepPx,
+        );
+        if (next.pos.x === dashed.pos.x && next.pos.y === dashed.pos.y) {
+          break;
+        }
+        dashed = next;
+      }
+    }
+    const destination = dashed.pos;
     const safe =
       isWalkableAt(ctx.grid, destination.x, destination.y)
         ? destination
