@@ -43,6 +43,8 @@ import { createItemService, type ItemService } from "./items/service";
 import { setServerServices, type ChatLogInput, type CombatTuning } from "./services";
 import { createDbGameDataStore } from "./gameData/dbStore";
 import type { GameDataStore } from "./gameData/store";
+import { createSocialDirectory } from "./social/bus";
+import type { SocialDirectory } from "./social/bus";
 import { createCryptoRandomSource } from "./util/random";
 
 /**
@@ -64,6 +66,7 @@ export interface ServerDeps {
   saveSkillState?: (characterId: string, change: SkillStateChange) => Promise<boolean>;
   items?: ItemService;
   gameData?: GameDataStore;
+  social?: SocialDirectory;
   adminBus?: AdminBus;
   adminRuntime?: AdminRuntime;
   logChat?: (entry: ChatLogInput) => Promise<void>;
@@ -117,6 +120,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     deps.saveSkillState ?? ((characterId, change) => saveSkillStateDb(db, characterId, change));
   const itemService = deps.items ?? createItemService(db);
   const gameData = deps.gameData ?? createDbGameDataStore(db);
+  const social = deps.social ?? createSocialDirectory();
   const adminBus = deps.adminBus ?? createAdminBus();
   const adminRuntime =
     deps.adminRuntime ?? createAdminRuntime({ db, bus: adminBus });
@@ -149,6 +153,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     saveSkillState,
     items: itemService,
     gameData,
+    social,
     adminBus,
     adminRuntime,
     logChat: deps.logChat ?? logChat,

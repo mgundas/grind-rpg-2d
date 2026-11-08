@@ -11,6 +11,7 @@ import type { SkillStateChange } from "./characters/characterSkills";
 import type { Db } from "./db/client";
 import type { ItemService } from "./items/service";
 import type { GameDataStore } from "./gameData/store";
+import type { SocialDirectory } from "./social/bus";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
 export interface CombatTuning {
@@ -47,6 +48,8 @@ export interface ServerServices {
   items: ItemService;
   /** Merged base+override definitions served to game systems. */
   gameData: GameDataStore;
+  /** Process-wide online directory for cross-map social delivery. */
+  social: SocialDirectory;
   /** In-process registry of live players/rooms for the admin panel. */
   adminBus: AdminBus;
   /** Process-level admin policy: rates, metrics, announcements, shutdown. */

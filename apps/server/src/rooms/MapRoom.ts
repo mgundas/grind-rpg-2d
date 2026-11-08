@@ -1136,6 +1136,20 @@ export class MapRoom extends Room {
     const actions = this.createAdminActions(client.sessionId, runtime);
     this.adminActions.set(client.sessionId, actions);
     getServerServices().adminBus.register(actions);
+    getServerServices().social.register({
+      accountId: runtime.accountId,
+      characterId: runtime.characterId,
+      sessionId: client.sessionId,
+      name: player.name,
+      kingdom: player.kingdom,
+      mapId: this.mapId,
+      roomId: this.roomId,
+      send: (type, payload) => {
+        if (this.clientFor(client.sessionId)) {
+          this.safeSend(client, type, payload);
+        }
+      },
+    });
 
     logger.info(
       {
@@ -1157,6 +1171,7 @@ export class MapRoom extends Room {
     }
     const runtime = this.runtimes.get(client.sessionId);
     if (runtime) {
+      getServerServices().social.unregister(runtime.characterId, client.sessionId);
       this.cancelTradeForCharacter(runtime.characterId, "disconnect");
     }
     this.state.players.delete(client.sessionId);
@@ -1183,6 +1198,9 @@ export class MapRoom extends Room {
 
   onDispose(): void {
     try {
+      for (const [sessionId, runtime] of this.runtimes) {
+        getServerServices().social.unregister(runtime.characterId, sessionId);
+      }
       getServerServices().adminBus.unregisterRoom(this.roomId);
     } catch {
       // Services may already be reset by a test teardown.
@@ -4800,6 +4818,7 @@ export class MapRoom extends Room {
       return false;
     }
 
+    getServerServices().social.unregister(runtime.characterId, client.sessionId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
