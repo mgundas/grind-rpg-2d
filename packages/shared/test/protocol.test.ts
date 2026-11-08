@@ -23,6 +23,8 @@ import {
   tradeLockMessageSchema,
   tradeOfferMessageSchema,
   tradeRespondMessageSchema,
+  friendAddMessageSchema,
+  friendRemoveMessageSchema,
   unequipItemMessageSchema,
   upgradeItemMessageSchema,
   useItemMessageSchema,
@@ -250,6 +252,22 @@ describe("chatMessageSchema", () => {
       chatMessageSchema.safeParse({ text: "hi", channel: "local", targetName: "Bob" }).success,
     ).toBe(false);
     expect(chatMessageSchema.safeParse({ text: "hi", channel: "trade" }).success).toBe(false);
+  });
+});
+
+describe("friend message schemas", () => {
+  const id = "55555555-5555-4555-8555-555555555555";
+
+  it("accepts id or name adds and rejects empty payloads", () => {
+    expect(friendAddMessageSchema.safeParse({ characterId: id }).success).toBe(true);
+    expect(friendAddMessageSchema.safeParse({ name: "Alice" }).success).toBe(true);
+    expect(friendAddMessageSchema.safeParse({}).success).toBe(false);
+    expect(friendAddMessageSchema.safeParse({ name: "" }).success).toBe(false);
+  });
+
+  it("validates remove/state payloads", () => {
+    expect(friendRemoveMessageSchema.safeParse({ characterId: id }).success).toBe(true);
+    expect(friendRemoveMessageSchema.safeParse({ characterId: "nope" }).success).toBe(false);
   });
 });
 

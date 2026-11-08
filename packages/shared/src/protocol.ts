@@ -62,6 +62,10 @@ export const MSG = {
   tradeCancel: "tradeCancel",
   tradeState: "tradeState",
   tradeError: "tradeError",
+  friendAdd: "friendAdd",
+  friendRemove: "friendRemove",
+  friendsState: "friendsState",
+  friendError: "friendError",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -468,6 +472,52 @@ export interface TradeInvitePayload {
   fromName: string;
   expiresAtMs: number;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 8: friends and guilds
+// ---------------------------------------------------------------------------
+
+export const FRIEND_ERROR_CODES = [
+  "not_found",
+  "self",
+  "target_offline",
+  "internal",
+] as const;
+export type FriendErrorCode = (typeof FRIEND_ERROR_CODES)[number];
+
+export interface FriendView {
+  characterId: string;
+  name: string;
+  level: number;
+  mapId: string;
+  kingdom: string;
+  online: boolean;
+}
+
+export interface FriendsStatePayload {
+  friends: FriendView[];
+}
+
+export interface FriendErrorPayload {
+  code: FriendErrorCode;
+  message?: string;
+}
+
+export const friendAddMessageSchema = z
+  .object({
+    characterId: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(16).optional(),
+  })
+  .strict()
+  .refine((value) => value.characterId !== undefined || value.name !== undefined, {
+    message: "characterId or name is required",
+  });
+export type FriendAddMessage = z.infer<typeof friendAddMessageSchema>;
+
+export const friendRemoveMessageSchema = z
+  .object({ characterId: z.string().uuid() })
+  .strict();
+export type FriendRemoveMessage = z.infer<typeof friendRemoveMessageSchema>;
 
 export interface BlacksmithErrorPayload {
   code: ItemActionErrorCode;
