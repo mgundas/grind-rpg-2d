@@ -1,4 +1,4 @@
-import { CHAT_MAX_LEN, type MapId, type Stats } from "./constants";
+import { CHAT_MAX_LEN, MAX_GOLD, type MapId, type Stats } from "./constants";
 import { EQUIP_SLOT_COUNT, INVENTORY_CELLS, type InventoryErrorCode } from "./inventory";
 import type { ItemBonus } from "./items";
 import { PARTY_LOOT_RULES } from "./party";
@@ -53,6 +53,14 @@ export const MSG = {
   blacksmithError: "blacksmithError",
   applyBonusScroll: "applyBonusScroll",
   bonusScrollApplied: "bonusScrollApplied",
+  tradeInvite: "tradeInvite",
+  tradeRespond: "tradeRespond",
+  tradeOffer: "tradeOffer",
+  tradeLock: "tradeLock",
+  tradeAccept: "tradeAccept",
+  tradeCancel: "tradeCancel",
+  tradeState: "tradeState",
+  tradeError: "tradeError",
   announcement: "announcement",
   castSkill: "castSkill",
   skillCastStart: "skillCastStart",
@@ -324,6 +332,116 @@ export interface BonusScrollAppliedPayload {
   itemInstanceId: string;
   kind: BonusScrollKindWire;
   bonuses: ItemBonus[];
+}
+
+// ---------------------------------------------------------------------------
+// Phase 7: trading
+// ---------------------------------------------------------------------------
+
+export const TRADE_PHASES = [
+  "invited",
+  "open",
+  "locked",
+  "completed",
+  "cancelled",
+] as const;
+export type TradePhase = (typeof TRADE_PHASES)[number];
+
+const tradeIdSchema = z.string().uuid();
+const tradeRevisionSchema = z.number().int().min(0).max(2_147_483_647);
+
+/**
+ * Client → server: invite one character in the same room. Offers, locks and
+ * accepts all carry the last revision the client saw so stale clicks are dropped.
+ */
+export const tradeInviteMessageSchema = z
+  .object({ characterId: z.string().uuid() })
+  .strict();
+export type TradeInviteMessage = z.infer<typeof tradeInviteMessageSchema>;
+
+export const tradeRespondMessageSchema = z
+  .object({ tradeId: tradeIdSchema, accept: z.boolean() })
+  .strict();
+export type TradeRespondMessage = z.infer<typeof tradeRespondMessageSchema>;
+
+export const tradeOfferMessageSchema = z
+  .object({
+    tradeId: tradeIdSchema,
+    revision: tradeRevisionSchema,
+    instanceIds: z.array(z.string().uuid()).max(90),
+    gold: z.number().int().min(0).max(MAX_GOLD),
+  })
+  .strict()
+  .refine((value) => new Set(value.instanceIds).size === value.instanceIds.length, {
+    message: "duplicate offered instance",
+  });
+export type TradeOfferMessage = z.infer<typeof tradeOfferMessageSchema>;
+
+export const tradeLockMessageSchema = z
+  .object({ tradeId: tradeIdSchema, revision: tradeRevisionSchema, locked: z.boolean() })
+  .strict();
+export type TradeLockMessage = z.infer<typeof tradeLockMessageSchema>;
+
+export const tradeAcceptMessageSchema = z
+  .object({ tradeId: tradeIdSchema, revision: tradeRevisionSchema })
+  .strict();
+export type TradeAcceptMessage = z.infer<typeof tradeAcceptMessageSchema>;
+
+export const tradeCancelMessageSchema = z.object({ tradeId: tradeIdSchema }).strict();
+export type TradeCancelMessage = z.infer<typeof tradeCancelMessageSchema>;
+
+export type TradeErrorCode =
+  | "self_trade"
+  | "same_account"
+  | "not_found"
+  | "offline"
+  | "out_of_range"
+  | "busy"
+  | "revision"
+  | "invalid_offer"
+  | "not_owner"
+  | "inventory_full"
+  | "no_gold"
+  | "stale"
+  | "not_locked"
+  | "expired"
+  | "cancelled"
+  | "dead"
+  | "warping"
+  | "inventory_closed"
+  | "internal";
+
+export interface TradeErrorPayload {
+  tradeId?: string;
+  code: TradeErrorCode;
+  message?: string;
+}
+
+/** One participant's visible side of an open trade. */
+export interface TradeSidePayload {
+  characterId: string;
+  name: string;
+  /** Total gold the character owns, so the UI can cap the offer. */
+  gold: number;
+  offeredGold: number;
+  items: ItemInstanceDto[];
+  locked: boolean;
+  accepted: boolean;
+}
+
+export interface TradeStatePayload {
+  tradeId: string;
+  revision: number;
+  phase: TradePhase;
+  you: TradeSidePayload;
+  other: TradeSidePayload;
+}
+
+export interface TradeInvitePayload {
+  tradeId: string;
+  fromCharacterId: string;
+  fromName: string;
+  expiresAtMs: number;
 }
 
 export interface BlacksmithErrorPayload {

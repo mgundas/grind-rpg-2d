@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAT_MAX_LEN } from "../src/constants";
+import { CHAT_MAX_LEN, MAX_GOLD } from "../src/constants";
 import {
   allocStatMessageSchema,
   applyBonusScrollMessageSchema,
@@ -17,6 +17,12 @@ import {
   shopBuyMessageSchema,
   shopSellMessageSchema,
   splitStackMessageSchema,
+  tradeAcceptMessageSchema,
+  tradeCancelMessageSchema,
+  tradeInviteMessageSchema,
+  tradeLockMessageSchema,
+  tradeOfferMessageSchema,
+  tradeRespondMessageSchema,
   unequipItemMessageSchema,
   upgradeItemMessageSchema,
   useItemMessageSchema,
@@ -227,5 +233,78 @@ describe("chatMessageSchema", () => {
   it("rejects non-string payloads", () => {
     expect(chatMessageSchema.safeParse({ text: 42 }).success).toBe(false);
     expect(chatMessageSchema.safeParse(null).success).toBe(false);
+  });
+});
+
+describe("trade message schemas", () => {
+  const tradeId = "33333333-3333-4333-8333-333333333333";
+  const itemId = "44444444-4444-4444-8444-444444444444";
+
+  it("validates invites and responses", () => {
+    expect(tradeInviteMessageSchema.safeParse({ characterId: itemId }).success).toBe(true);
+    expect(tradeInviteMessageSchema.safeParse({ characterId: "nope" }).success).toBe(false);
+    expect(tradeInviteMessageSchema.safeParse({ characterId: itemId, extra: 1 }).success).toBe(
+      false,
+    );
+    expect(tradeRespondMessageSchema.safeParse({ tradeId, accept: true }).success).toBe(true);
+    expect(tradeRespondMessageSchema.safeParse({ tradeId, accept: "yes" }).success).toBe(false);
+  });
+
+  it("validates offers, duplicates, gold and revision", () => {
+    expect(
+      tradeOfferMessageSchema.safeParse({
+        tradeId,
+        revision: 0,
+        instanceIds: [itemId],
+        gold: 500,
+      }).success,
+    ).toBe(true);
+    expect(
+      tradeOfferMessageSchema.safeParse({
+        tradeId,
+        revision: 0,
+        instanceIds: [itemId, itemId],
+        gold: 0,
+      }).success,
+    ).toBe(false);
+    for (const gold of [-1, 1.5, MAX_GOLD + 1]) {
+      expect(
+        tradeOfferMessageSchema.safeParse({
+          tradeId,
+          revision: 0,
+          instanceIds: [],
+          gold,
+        }).success,
+      ).toBe(false);
+    }
+    expect(
+      tradeOfferMessageSchema.safeParse({
+        tradeId,
+        revision: -1,
+        instanceIds: [],
+        gold: 0,
+      }).success,
+    ).toBe(false);
+    expect(
+      tradeOfferMessageSchema.safeParse({
+        tradeId,
+        revision: 0,
+        instanceIds: Array.from({ length: 91 }, () => itemId),
+        gold: 0,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("validates lock, accept and cancel messages", () => {
+    expect(
+      tradeLockMessageSchema.safeParse({ tradeId, revision: 3, locked: true }).success,
+    ).toBe(true);
+    expect(
+      tradeLockMessageSchema.safeParse({ tradeId, revision: 3, locked: "yes" }).success,
+    ).toBe(false);
+    expect(tradeAcceptMessageSchema.safeParse({ tradeId, revision: 3 }).success).toBe(true);
+    expect(tradeAcceptMessageSchema.safeParse({ tradeId }).success).toBe(false);
+    expect(tradeCancelMessageSchema.safeParse({ tradeId }).success).toBe(true);
+    expect(tradeCancelMessageSchema.safeParse({}).success).toBe(false);
   });
 });
