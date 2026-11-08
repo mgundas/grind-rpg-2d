@@ -44,7 +44,6 @@ import {
   sendAttack,
   sendInput,
   sendInteractNpc,
-  sendPartyInvite,
   sendPickup,
   sendSetTarget,
 } from "../network/session";
@@ -810,9 +809,12 @@ export class WorldScene extends Phaser.Scene {
   }
 
   /** Which remote player (if any) the pointer is over. */
-  private remoteAtPointer(worldX: number, worldY: number): string | null {
+  private remoteAtPointer(
+    worldX: number,
+    worldY: number,
+  ): { characterId: string; name: string } | null {
     const now = this.time.now;
-    let bestId: string | null = null;
+    let best: { characterId: string; name: string } | null = null;
     let bestDistance = 28 * 28;
     for (const entity of this.remoteRegistry.entities.values()) {
       const pos = this.remoteRegistry.renderPosition(entity, now);
@@ -824,10 +826,10 @@ export class WorldScene extends Phaser.Scene {
       const distance = dx * dx + dy * dy;
       if (distance < bestDistance) {
         bestDistance = distance;
-        bestId = entity.characterId;
+        best = { characterId: entity.characterId, name: entity.name };
       }
     }
-    return bestId;
+    return best;
   }
 
   private clearRemoteVisuals(): void {
@@ -1714,7 +1716,12 @@ export class WorldScene extends Phaser.Scene {
       if (pointer.rightButtonDown()) {
         const target = this.remoteAtPointer(pointer.worldX, pointer.worldY);
         if (target) {
-          sendPartyInvite({ characterId: target });
+          useUiStore.getState().setPlayerContext({
+            characterId: target.characterId,
+            name: target.name,
+            x: pointer.x,
+            y: pointer.y,
+          });
         }
         return;
       }

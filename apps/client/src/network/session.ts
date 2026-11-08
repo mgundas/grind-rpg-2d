@@ -27,6 +27,9 @@ import {
   type StatKey,
   type UpgradePreview,
   type UpgradeResultPayload,
+  type TradeErrorPayload,
+  type TradeInvitePayload,
+  type TradeStatePayload,
   type WarpPayload,
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
@@ -188,6 +191,8 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setBlacksmithError(null);
   leaving.cancelScrollTarget();
   leaving.setBonusScrollResult(null);
+  leaving.tradeDispatch({ type: "close" });
+  leaving.setPlayerContext(null);
   if (!current) {
     return;
   }
@@ -342,6 +347,35 @@ export function sendApplyBonusScroll(scrollInstanceId: string, itemInstanceId: s
   room?.send(MSG.applyBonusScroll, { scrollInstanceId, itemInstanceId });
 }
 
+export function sendTradeInvite(characterId: string): void {
+  room?.send(MSG.tradeInvite, { characterId });
+}
+
+export function sendTradeRespond(tradeId: string, accept: boolean): void {
+  room?.send(MSG.tradeRespond, { tradeId, accept });
+}
+
+export function sendTradeOffer(
+  tradeId: string,
+  revision: number,
+  instanceIds: string[],
+  gold: number,
+): void {
+  room?.send(MSG.tradeOffer, { tradeId, revision, instanceIds, gold });
+}
+
+export function sendTradeLock(tradeId: string, revision: number, locked: boolean): void {
+  room?.send(MSG.tradeLock, { tradeId, revision, locked });
+}
+
+export function sendTradeAccept(tradeId: string, revision: number): void {
+  room?.send(MSG.tradeAccept, { tradeId, revision });
+}
+
+export function sendTradeCancel(tradeId: string): void {
+  room?.send(MSG.tradeCancel, { tradeId });
+}
+
 function bindSessionEvents(current: Room): void {
   current.onError((code, message) => {
     if (room !== current) {
@@ -429,6 +463,18 @@ function bindSessionEvents(current: Room): void {
     const store = useUiStore.getState();
     store.setBonusScrollResult(payload);
     store.cancelScrollTarget();
+  });
+
+  current.onMessage(MSG.tradeInvite, (payload: TradeInvitePayload) => {
+    useUiStore.getState().tradeDispatch({ type: "invite", invite: payload });
+  });
+
+  current.onMessage(MSG.tradeState, (payload: TradeStatePayload) => {
+    useUiStore.getState().tradeDispatch({ type: "state", state: payload });
+  });
+
+  current.onMessage(MSG.tradeError, (payload: TradeErrorPayload) => {
+    useUiStore.getState().tradeDispatch({ type: "error", error: payload });
   });
 
   current.onMessage(MSG.announcement, (payload: AnnouncementPayload) => {

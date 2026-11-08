@@ -21,6 +21,8 @@ import { InventoryWindow, useInventoryHotkey } from "./InventoryWindow";
 import { PartyFrames } from "./PartyFrames";
 import { PartyWindow } from "./PartyWindow";
 import { NpcDialog } from "./NpcDialog";
+import { PlayerContextMenu } from "./PlayerContextMenu";
+import { TradeWindow } from "./TradeWindow";
 import { ShopWindow } from "./ShopWindow";
 import { TargetFrame } from "./TargetFrame";
 import { WarehouseWindow } from "./WarehouseWindow";
@@ -165,6 +167,8 @@ export function App() {
           <InventoryWindow />
           <NpcDialog />
           <BlacksmithWindow />
+          <TradeWindow />
+          <PlayerContextMenu />
           <ShopWindow />
           <WarehouseWindow />
           <Chat />

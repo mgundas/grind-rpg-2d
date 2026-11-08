@@ -26,6 +26,12 @@ import {
   scrollTargetReducer,
   type ScrollTargetMode,
 } from "./scrollTarget";
+import {
+  initialTradeUiState,
+  tradeUiReducer,
+  type TradeUiState,
+  type TradeUiAction,
+} from "./trade";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -186,6 +192,14 @@ interface UiState {
   cancelScrollTarget: () => void;
   bonusScrollResult: BonusScrollAppliedPayload | null;
   setBonusScrollResult: (result: BonusScrollAppliedPayload | null) => void;
+
+  /** Trade invites, state and transient errors share one reducer. */
+  trade: TradeUiState;
+  tradeDispatch: (action: TradeUiAction) => void;
+
+  /** Right-clicked remote player menu position and identity. */
+  playerContext: { characterId: string; name: string; x: number; y: number } | null;
+  setPlayerContext: (context: UiState["playerContext"]) => void;
 
   npcDialog: NpcDialogPayload | null;
   setNpcDialog: (dialog: NpcDialogPayload | null) => void;
@@ -389,6 +403,13 @@ export const useUiStore = create<UiState>((set) => ({
     })),
   bonusScrollResult: null,
   setBonusScrollResult: (bonusScrollResult) => set({ bonusScrollResult }),
+
+  trade: initialTradeUiState,
+  tradeDispatch: (action) =>
+    set((state) => ({ trade: tradeUiReducer(state.trade, action) })),
+
+  playerContext: null,
+  setPlayerContext: (playerContext) => set({ playerContext }),
 
   npcDialog: null,
   setNpcDialog: (npcDialog) => set({ npcDialog }),
