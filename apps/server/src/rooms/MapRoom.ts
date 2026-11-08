@@ -80,6 +80,12 @@ import {
   setTargetMessageSchema,
   splitStackMessageSchema,
   stepMover,
+  tradeAcceptMessageSchema,
+  tradeCancelMessageSchema,
+  tradeInviteMessageSchema,
+  tradeLockMessageSchema,
+  tradeOfferMessageSchema,
+  tradeRespondMessageSchema,
   unequipItemMessageSchema,
   upgradeItemMessageSchema,
   upgradeSkillMessageSchema,
@@ -110,6 +116,8 @@ import {
   type SkillCastPayload,
   type SkillCastStartPayload,
   type StatKey,
+  type TradeSidePayload,
+  type TradeStatePayload,
   type StoneDestroyedPayload,
   type TargetClearedReason,
   type Vec2,
@@ -135,6 +143,15 @@ import type { ItemPlan } from "../items/itemChanges";
 import { describeChanges } from "../items/itemChanges";
 import { buildUpgradePreview, planUpgrade } from "../items/upgrade";
 import { planBonusScroll } from "../items/bonusScrolls";
+import {
+  TRADE_RANGE_PX,
+  TradeRuleError,
+  createTradeRegistry,
+  toTradeInvitePayload,
+  type TradeCloseReason,
+  type TradeRecord,
+  type TradeSide,
+} from "./trade";
 import {
   diffInventory,
   planAdminGive,
@@ -270,6 +287,9 @@ export class MapRoom extends Room {
   private adminActions = new Map<string, AdminLiveActions>();
   private adminRoom: AdminRoomHandle | null = null;
   private readonly parties = createPartyRegistry();
+  private readonly trades = createTradeRegistry({
+    isOnline: (characterId) => this.runtimeForCharacter(characterId) !== undefined,
+  });
   private partyBroadcastAtMs = 0;
   private shuttingDown = false;
   private spawns!: SpawnManager;
@@ -545,6 +565,71 @@ export class MapRoom extends Room {
         return;
       }
       this.setPartyLoot(client, parsed.data.rule);
+    });
+
+    this.onMessage(MSG.tradeInvite, (client, raw) => {
+      const parsed = tradeInviteMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeInvite message");
+        return;
+      }
+      this.handleTradeInvite(client, parsed.data.characterId);
+    });
+
+    this.onMessage(MSG.tradeRespond, (client, raw) => {
+      const parsed = tradeRespondMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeRespond message");
+        return;
+      }
+      this.handleTradeRespond(client, parsed.data.tradeId, parsed.data.accept);
+    });
+
+    this.onMessage(MSG.tradeOffer, (client, raw) => {
+      const parsed = tradeOfferMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeOffer message");
+        return;
+      }
+      this.handleTradeOffer(
+        client,
+        parsed.data.tradeId,
+        parsed.data.revision,
+        parsed.data.instanceIds,
+        parsed.data.gold,
+      );
+    });
+
+    this.onMessage(MSG.tradeLock, (client, raw) => {
+      const parsed = tradeLockMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeLock message");
+        return;
+      }
+      this.handleTradeLock(
+        client,
+        parsed.data.tradeId,
+        parsed.data.revision,
+        parsed.data.locked,
+      );
+    });
+
+    this.onMessage(MSG.tradeAccept, (client, raw) => {
+      const parsed = tradeAcceptMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeAccept message");
+        return;
+      }
+      this.handleTradeAccept(client, parsed.data.tradeId, parsed.data.revision);
+    });
+
+    this.onMessage(MSG.tradeCancel, (client, raw) => {
+      const parsed = tradeCancelMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid tradeCancel message");
+        return;
+      }
+      this.handleTradeCancel(client, parsed.data.tradeId);
     });
 
     this.onMessage(MSG.requestStats, (client, raw) => {
@@ -1059,6 +1144,9 @@ export class MapRoom extends Room {
       getServerServices().adminBus.unregister(adminEntry.characterId, client.sessionId);
     }
     const runtime = this.runtimes.get(client.sessionId);
+    if (runtime) {
+      this.cancelTradeForCharacter(runtime.characterId, "disconnect");
+    }
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
@@ -1090,6 +1178,7 @@ export class MapRoom extends Room {
     this.adminActions.clear();
     this.adminRoom = null;
     this.parties.clear();
+    this.trades.clear();
   }
 
   /**
@@ -1856,6 +1945,10 @@ export class MapRoom extends Room {
       this.refreshPartyVitals();
       this.partyBroadcastAtMs = now + 500;
     }
+    const expiredTrades = this.trades.prune(now);
+    for (const trade of [...expiredTrades.expiredInvites, ...expiredTrades.expiredTrades]) {
+      this.sendTradeState(trade);
+    }
     this.checkWarps();
   }
 
@@ -2349,6 +2442,7 @@ export class MapRoom extends Room {
 
     this.clearAutoWalk(runtime, sessionId, "target_lost");
     runtime.dead = true;
+    this.cancelTradeForCharacter(runtime.characterId, "death");
     runtime.diedAtMs = now;
     runtime.pending.length = 0;
     runtime.pendingAttack = null;
@@ -2516,6 +2610,7 @@ export class MapRoom extends Room {
     state: InventoryState,
     plan: ItemPlan,
   ): Promise<{ gold: number }> {
+    this.cancelTradeForCharacter(runtime.characterId, "inventory");
     const { gold } = await getServerServices().items.apply(
       runtime.accountId,
       runtime.characterId,
@@ -3427,6 +3522,483 @@ export class MapRoom extends Room {
     }
   }
 
+  private runtimeForCharacter(
+    characterId: string,
+  ): { sessionId: string; runtime: PlayerRuntime; player: PlayerState } | undefined {
+    for (const [sessionId, runtime] of this.runtimes) {
+      if (runtime.characterId !== characterId) {
+        continue;
+      }
+      const player = this.state.players.get(sessionId);
+      if (player) {
+        return { sessionId, runtime, player };
+      }
+    }
+    return undefined;
+  }
+
+  private sendTradeError(
+    sessionId: string,
+    error: unknown,
+    tradeId?: string,
+  ): void {
+    const client = this.clientFor(sessionId);
+    if (!client) {
+      return;
+    }
+    if (error instanceof TradeRuleError) {
+      this.safeSend(client, MSG.tradeError, {
+        tradeId,
+        code: error.code,
+        message: error.message,
+      });
+      return;
+    }
+    this.safeSend(client, MSG.tradeError, {
+      tradeId,
+      code: "internal",
+      message: "The trade could not be completed.",
+    });
+  }
+
+  private sendTradeErrorToCharacter(characterId: string, error: unknown, tradeId?: string): void {
+    const target = this.runtimeForCharacter(characterId);
+    if (target) {
+      this.sendTradeError(target.sessionId, error, tradeId);
+    }
+  }
+
+  private requireTradeable(runtime: PlayerRuntime): void {
+    if (runtime.dead) {
+      throw new TradeRuleError("dead", "The dead cannot trade.");
+    }
+    if (runtime.warping) {
+      throw new TradeRuleError("warping", "You cannot trade while warping.");
+    }
+    if (runtime.inventoryClosed) {
+      throw new TradeRuleError("inventory_closed", "Your inventory is not available.");
+    }
+  }
+
+  private requireTradeRange(one: PlayerRuntime, two: PlayerRuntime): void {
+    const dx = one.mover.pos.x - two.mover.pos.x;
+    const dy = one.mover.pos.y - two.mover.pos.y;
+    if (dx * dx + dy * dy > TRADE_RANGE_PX * TRADE_RANGE_PX) {
+      throw new TradeRuleError("out_of_range", "Walk closer to trade.");
+    }
+  }
+
+  private validateTradeOffer(runtime: PlayerRuntime, side: TradeSide, code: "invalid_offer" | "stale"): void {
+    for (const instanceId of side.offer.instanceIds) {
+      if (!runtime.inventory.items.some((item) => item.id === instanceId)) {
+        throw new TradeRuleError(code, "An offered item is no longer in your inventory.");
+      }
+    }
+    if (side.offer.gold > runtime.gold) {
+      throw new TradeRuleError(code === "stale" ? "no_gold" : code, "Not enough gold.");
+    }
+  }
+
+  private handleTradeInvite(client: Client, targetCharacterId: string): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    const player = this.state.players.get(client.sessionId);
+    if (!runtime || !player) {
+      return;
+    }
+    try {
+      this.requireTradeable(runtime);
+      const target = this.runtimeForCharacter(targetCharacterId);
+      if (!target) {
+        throw new TradeRuleError("offline", "That player is not in this room.");
+      }
+      this.requireTradeable(target.runtime);
+      this.requireTradeRange(runtime, target.runtime);
+      const trade = this.trades.invite(
+        {
+          characterId: runtime.characterId,
+          accountId: runtime.accountId,
+          name: player.name,
+        },
+        {
+          characterId: target.runtime.characterId,
+          accountId: target.runtime.accountId,
+          name: target.player.name,
+        },
+      );
+      const targetClient = this.clientFor(target.sessionId);
+      if (targetClient) {
+        this.safeSend(targetClient, MSG.tradeInvite, toTradeInvitePayload(trade));
+      }
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error);
+    }
+  }
+
+  private handleTradeRespond(client: Client, tradeId: string, accept: boolean): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    try {
+      this.requireTradeable(runtime);
+      if (!accept) {
+        this.trades.declineInvite(tradeId, runtime.characterId);
+        return;
+      }
+      const trade = this.trades.acceptInvite(tradeId, runtime.characterId);
+      this.sendTradeState(trade);
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error, tradeId);
+    }
+  }
+
+  private handleTradeOffer(
+    client: Client,
+    tradeId: string,
+    revision: number,
+    instanceIds: string[],
+    gold: number,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    const trade = this.trades.get(tradeId);
+    if (!trade) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      return;
+    }
+    let otherSide: TradeSide;
+    try {
+      otherSide = this.trades.other(trade, runtime.characterId);
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error, tradeId);
+      return;
+    }
+    const other = this.runtimeForCharacter(otherSide.characterId);
+    if (!other) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      return;
+    }
+    this.runTradeCommand(runtime, other.runtime, async (one, two) => {
+      const me = one.characterId === runtime.characterId ? one : two;
+      const them = me === one ? two : one;
+      try {
+        this.requireTradeable(me);
+        this.requireTradeable(them);
+        this.requireTradeRange(me, them);
+        for (const instanceId of instanceIds) {
+          if (!me.inventory.items.some((item) => item.id === instanceId)) {
+            throw new TradeRuleError("invalid_offer", "You do not own that item.");
+          }
+        }
+        if (gold > me.gold) {
+          throw new TradeRuleError("no_gold", "You cannot offer more gold than you have.");
+        }
+        const updated = this.trades.setOffer(tradeId, me.characterId, revision, {
+          instanceIds,
+          gold,
+        });
+        this.sendTradeState(updated);
+      } catch (error) {
+        this.sendTradeErrorToCharacter(me.characterId, error, tradeId);
+      }
+    });
+  }
+
+  private handleTradeLock(
+    client: Client,
+    tradeId: string,
+    revision: number,
+    locked: boolean,
+  ): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    const trade = this.trades.get(tradeId);
+    if (!trade) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      return;
+    }
+    let otherSide: TradeSide;
+    try {
+      otherSide = this.trades.other(trade, runtime.characterId);
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error, tradeId);
+      return;
+    }
+    const other = this.runtimeForCharacter(otherSide.characterId);
+    if (!other) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      return;
+    }
+    this.runTradeCommand(runtime, other.runtime, async (one, two) => {
+      const me = one.characterId === runtime.characterId ? one : two;
+      const them = me === one ? two : one;
+      try {
+        this.requireTradeable(me);
+        this.requireTradeable(them);
+        this.requireTradeRange(me, them);
+        this.validateTradeOffer(me, this.trades.side(trade, me.characterId), "stale");
+        this.validateTradeOffer(them, this.trades.side(trade, them.characterId), "stale");
+        const updated = this.trades.setLocked(tradeId, me.characterId, revision, locked);
+        this.sendTradeState(updated);
+      } catch (error) {
+        this.failTrade(tradeId, error);
+      }
+    });
+  }
+
+  private handleTradeAccept(client: Client, tradeId: string, revision: number): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    const trade = this.trades.get(tradeId);
+    if (!trade) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      return;
+    }
+    let otherSide: TradeSide;
+    try {
+      otherSide = this.trades.other(trade, runtime.characterId);
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error, tradeId);
+      return;
+    }
+    const other = this.runtimeForCharacter(otherSide.characterId);
+    if (!other) {
+      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      return;
+    }
+    this.runTradeCommand(runtime, other.runtime, async (one, two) => {
+      const me = one.characterId === runtime.characterId ? one : two;
+      const them = me === one ? two : one;
+      try {
+        this.requireTradeable(me);
+        this.requireTradeable(them);
+        this.requireTradeRange(me, them);
+        this.validateTradeOffer(me, this.trades.side(trade, me.characterId), "stale");
+        this.validateTradeOffer(them, this.trades.side(trade, them.characterId), "stale");
+        const accepted = this.trades.accept(tradeId, me.characterId, revision);
+        if (!accepted.readyToCommit) {
+          this.sendTradeState(accepted.trade);
+          return;
+        }
+        await this.settleTrade(accepted.trade, me, them);
+      } catch (error) {
+        this.failTrade(tradeId, error);
+      }
+    });
+  }
+
+  private handleTradeCancel(client: Client, tradeId: string): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    try {
+      const trade = this.trades.get(tradeId);
+      if (!trade) {
+        throw new TradeRuleError("not_found", "Trade not found.");
+      }
+      this.trades.side(trade, runtime.characterId);
+      const cancelled = this.trades.cancel(tradeId, "cancelled");
+      this.sendTradeState(cancelled);
+    } catch (error) {
+      this.sendTradeError(client.sessionId, error, tradeId);
+    }
+  }
+
+  private failTrade(tradeId: string, error: unknown): void {
+    const trade = this.trades.get(tradeId);
+    if (!trade) {
+      return;
+    }
+    const cancelled = this.trades.cancel(tradeId, "error");
+    for (const side of [cancelled.a, cancelled.b]) {
+      this.sendTradeErrorToCharacter(side.characterId, error, tradeId);
+    }
+    this.sendTradeState(cancelled);
+  }
+
+  private async settleTrade(
+    trade: TradeRecord,
+    one: PlayerRuntime,
+    two: PlayerRuntime,
+  ): Promise<void> {
+    const aSide = this.trades.side(trade, one.characterId);
+    const bSide = this.trades.side(trade, two.characterId);
+    const participant = (runtime: PlayerRuntime, side: TradeSide) => ({
+      accountId: runtime.accountId,
+      characterId: runtime.characterId,
+      gold: side.offer.gold,
+      items: runtime.inventory.items.filter((item) =>
+        side.offer.instanceIds.includes(item.id),
+      ),
+    });
+    try {
+      const result = await getServerServices().items.trade({
+        tradeId: trade.id,
+        revision: trade.revision,
+        mapId: this.mapId,
+        participants: [participant(one, aSide), participant(two, bSide)],
+      });
+      this.trades.complete(trade.id);
+      for (const runtime of [one, two]) {
+        const side = this.trades.side(trade, runtime.characterId);
+        const offered = new Set(side.offer.instanceIds);
+        const fresh = this.runtimeForCharacter(runtime.characterId);
+        if (!fresh) {
+          continue;
+        }
+        fresh.runtime.inventory = {
+          equipment: fresh.runtime.inventory.equipment,
+          items: [
+            ...fresh.runtime.inventory.items.filter((item) => !offered.has(item.id)),
+            ...(result.receivedByCharacter[runtime.characterId] ?? []),
+          ],
+        };
+        fresh.runtime.gold = result.goldByCharacter[runtime.characterId] ?? fresh.runtime.gold;
+        fresh.runtime.inventoryRevision += 1;
+        this.sendInventory(fresh.sessionId);
+      }
+      this.sendTradeState(trade);
+    } catch (error) {
+      this.trades.cancel(trade.id, "error");
+      for (const side of [trade.a, trade.b]) {
+        this.sendTradeErrorToCharacter(side.characterId, error, trade.id);
+        if (
+          error instanceof Error &&
+          "code" in error &&
+          (error as { code?: string }).code === "stale"
+        ) {
+          const fresh = this.runtimeForCharacter(side.characterId);
+          if (fresh) {
+            try {
+              await this.reloadRuntimeInventory(fresh.runtime);
+              this.sendInventory(fresh.sessionId);
+            } catch (reloadError) {
+              logger.error(
+                { roomId: this.roomId, characterId: side.characterId, error: reloadError },
+                "trade inventory reload failed",
+              );
+            }
+          }
+        }
+      }
+      this.sendTradeState(trade);
+    }
+  }
+
+  private tradeSidePayload(
+    trade: TradeRecord,
+    runtime: PlayerRuntime,
+  ): TradeSidePayload {
+    const side = this.trades.side(trade, runtime.characterId);
+    const items = side.offer.instanceIds
+      .map((instanceId) => runtime.inventory.items.find((item) => item.id === instanceId))
+      .filter((item): item is NonNullable<typeof item> => item !== undefined)
+      .map((item) => toItemDto(item));
+    return {
+      characterId: runtime.characterId,
+      name: side.name,
+      gold: runtime.gold,
+      offeredGold: side.offer.gold,
+      items,
+      locked: side.locked,
+      accepted: side.accepted,
+    };
+  }
+
+  private buildTradeState(trade: TradeRecord, viewer: PlayerRuntime): TradeStatePayload {
+    const otherSide = this.trades.other(trade, viewer.characterId);
+    const other = this.runtimeForCharacter(otherSide.characterId);
+    if (!other) {
+      throw new TradeRuleError("offline", "The other trader left.");
+    }
+    return {
+      tradeId: trade.id,
+      revision: trade.revision,
+      phase: trade.phase,
+      you: this.tradeSidePayload(trade, viewer),
+      other: this.tradeSidePayload(trade, other.runtime),
+    };
+  }
+
+  private sendTradeState(trade: TradeRecord): void {
+    for (const side of [trade.a, trade.b]) {
+      const target = this.runtimeForCharacter(side.characterId);
+      if (!target) {
+        continue;
+      }
+      const client = this.clientFor(target.sessionId);
+      if (!client) {
+        continue;
+      }
+      try {
+        this.safeSend(client, MSG.tradeState, this.buildTradeState(trade, target.runtime));
+      } catch (error) {
+        this.sendTradeError(target.sessionId, error, trade.id);
+      }
+    }
+  }
+
+  private runTradeCommand(
+    one: PlayerRuntime,
+    two: PlayerRuntime,
+    handler: (one: PlayerRuntime, two: PlayerRuntime) => Promise<void>,
+  ): void {
+    const first = one.characterId < two.characterId ? one : two;
+    const second = first === one ? two : one;
+    const run = async (): Promise<void> => {
+      const a = this.runtimeForCharacter(first.characterId)?.runtime;
+      const b = this.runtimeForCharacter(second.characterId)?.runtime;
+      if (!a || !b) {
+        return;
+      }
+      try {
+        await handler(a, b);
+      } catch (error) {
+        logger.error(
+          { roomId: this.roomId, error },
+          "trade command failed",
+        );
+      }
+    };
+    const gate = Promise.all([
+      one.inventoryChain?.catch(() => undefined) ?? Promise.resolve(),
+      two.inventoryChain?.catch(() => undefined) ?? Promise.resolve(),
+    ]).then(run, run);
+    one.inventoryChain = gate.then(
+      () => undefined,
+      () => undefined,
+    );
+    two.inventoryChain = one.inventoryChain;
+  }
+
+  private cancelTradeForCharacter(characterId: string, reason: TradeCloseReason): void {
+    const trade = this.trades.cancelForCharacter(characterId, reason);
+    if (trade) {
+      if (trade.phase === "invited") {
+        const inviter = this.runtimeForCharacter(trade.inviterCharacterId);
+        if (inviter) {
+          const client = this.clientFor(inviter.sessionId);
+          if (client) {
+            this.safeSend(client, MSG.tradeError, {
+              tradeId: trade.id,
+              code: "cancelled",
+              message: "The trade invite was cancelled.",
+            });
+          }
+        }
+        return;
+      }
+      this.sendTradeState(trade);
+    }
+  }
+
   /** Downgrade or clear locks held by a character or a disbanded party. */
   private releaseOwnershipFor(characterId: string): void {
     for (const drop of this.groundItems.values()) {
@@ -4138,6 +4710,7 @@ export class MapRoom extends Room {
     }
     runtime.warping = true;
     runtime.inventoryClosed = true;
+    this.cancelTradeForCharacter(runtime.characterId, "warp");
     if (runtime.pendingCast) {
       this.cancelPendingCast(runtime, client.sessionId, "warped");
     }
