@@ -1,6 +1,6 @@
 import { useUiStore } from "./store";
 
-/** F3 debug panel: FPS, ping, position, ack, prediction and interest stats. */
+/** F9 debug panel: FPS, ping, position, ack, prediction and interest stats. */
 export function DebugOverlay() {
   const visible = useUiStore((state) => state.debugVisible);
   const stats = useUiStore((state) => state.debugStats);
@@ -38,7 +38,7 @@ export function DebugOverlay() {
         whiteSpace: "pre",
       }}
     >
-      <div style={{ color: "#5da88f", marginBottom: 4 }}>debug (F3)</div>
+      <div style={{ color: "#5da88f", marginBottom: 4 }}>debug (F9)</div>
       {rows.map(([label, value]) => (
         <div key={label}>
           <span style={{ color: "#7d8a84" }}>{label.padEnd(15, " ")}</span>

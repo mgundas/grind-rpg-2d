@@ -223,13 +223,15 @@ Plan: `docs/plans/phase-6.md`.
 - [x] Task 27 — Skill FX, cast bar and buff bar
 - [x] Task 28 — Party window, frames and invite-by-click
 - [x] Task 29 — Phase 6 E2E, decisions and report
-- [ ] Task 30 — Phase gate
+- [x] Task 30 — Phase gate
+
+**Gate verification (2026-11-08):** `pnpm typecheck`, `pnpm lint` and `pnpm build` pass. Full suite against `jade_throne_test`: **86 files / 713 tests pass**, including 48-skill data completeness, party registry/XP/loot, skill cast/combat/status, stone manager/room, boss timer and the float32 co-location combat regression. `pnpm verify:phase6-e2e` against the live server passes **11 checks**, including a two-player party breaking a spirit stone and both members gaining XP. `@reviewer` findings were fixed before this gate (ally target resolution, stealth break on swings, buff stat application, stone XP grouping, autosave/skill-state race, client stale state, hotbar guards, FX presets). Report: `docs/reports/phase-6.md`.
 
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
 - [x] Phase 5 — Admin panel (see the Phase 5 section above)
-- [ ] Phase 6 — Spirit stones, skills, parties
+- [x] Phase 6 — Spirit stones, skills, parties (see the Phase 6 section above)
 - [ ] Phase 7 — Upgrades, bonuses, trading
 - [ ] Phase 8 — Social and progression depth
 - [ ] Phase 9 — The wider world

@@ -15,6 +15,10 @@ export function SkillWindow() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) {
+        return;
+      }
       const store = useUiStore.getState();
       if (event.key === "Escape" && store.skillWindowOpen) {
         store.setSkillWindowOpen(false);
@@ -33,7 +37,7 @@ export function SkillWindow() {
   }
   const character = characters.find((candidate) => candidate.id === selectedId);
   const classInfo = character ? getClass(character.classId) : null;
-  const doctrine = state?.doctrine ?? null;
+  const doctrine = state?.doctrine ?? self.doctrine ?? null;
   const doctrineInfo = classInfo?.doctrines.find((entry) => entry.id === doctrine);
 
   return (

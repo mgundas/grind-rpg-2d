@@ -1,4 +1,6 @@
 import {
+  applyBuffModifiers,
+  buffModifierTotals,
   critChance,
   critDamage,
   defenseOf,
@@ -22,6 +24,7 @@ import { getClass } from "@jadethrone/data/classes";
 import { equipmentBonusStats } from "../items/equipment";
 import { getMonster } from "@jadethrone/data/monsters";
 import { getStone } from "@jadethrone/data/stones";
+import { playerBuffModifiers } from "../skills/effects";
 import type { MonsterRuntime } from "./monsterRuntime";
 import type { PlayerRuntime } from "./playerRuntime";
 import type { WorldState } from "./state/WorldState";
@@ -188,7 +191,12 @@ export function resolvePlayerSwing(
   }
 
   const profile = getClass(player.classId).attack;
-  runtime.attackReadyAtMs = ctx.now + profile.cooldownMs;
+  const buffModifiers = playerBuffModifiers(runtime.buffs, ctx.now);
+  const attackSpeed = Math.max(
+    0,
+    buffModifierTotals(buffModifiers, "attackSpeed").percent,
+  );
+  runtime.attackReadyAtMs = ctx.now + profile.cooldownMs / (1 + attackSpeed);
 
   const facing = dir !== null ? facing4FromDir8(dir) : facing4FromIndex(player.facing);
   if (dir !== null) {
@@ -233,13 +241,21 @@ export function resolvePlayerSwing(
 
   const stats = runtime.progression.stats;
   const equipment = equipmentBonusStats(runtime.inventory);
-  const attack = physicalAttack({
-    classId: player.classId,
-    stats,
-    level: runtime.progression.level,
-    weaponAttack: equipment.attack,
-  });
-  const critChanceValue = critChance(stats.dex, equipment.critChance);
+  const attack = applyBuffModifiers(
+    physicalAttack({
+      classId: player.classId,
+      stats,
+      level: runtime.progression.level,
+      weaponAttack: equipment.attack,
+    }),
+    buffModifiers,
+    "attack",
+  );
+  const critChanceValue = applyBuffModifiers(
+    critChance(stats.dex, equipment.critChance),
+    buffModifiers,
+    "critChance",
+  );
 
   const hits: CombatHit[] = [];
   const killed: KilledMonster[] = [];
@@ -343,16 +359,24 @@ export function resolveMonsterAttack(
 
   const spec = getMonster(monsterRuntime.typeId);
   const stats = runtime.progression.stats;
+  const mods = playerBuffModifiers(runtime.buffs, ctx.now);
+  const evasion = Math.min(
+    0.5,
+    Math.max(0, buffModifierTotals(mods, "evasion").flat),
+  );
   const victim = { kind: "player" as const, sessionId: targetSessionId };
   const x = runtime.mover.pos.x;
   const y = runtime.mover.pos.y;
 
-  const chance = hitChance({
-    attackerDex: spec.dex,
-    defenderDex: stats.dex,
-    attackerLevel: spec.level,
-    defenderLevel: runtime.progression.level,
-  });
+  const chance = Math.max(
+    0.2,
+    hitChance({
+      attackerDex: spec.dex,
+      defenderDex: stats.dex,
+      attackerLevel: spec.level,
+      defenderLevel: runtime.progression.level,
+    }) - evasion,
+  );
   if (!rollHit(ctx.rng, chance)) {
     return {
       hit: { target: victim, x, y, miss: true, crit: false, damage: 0 },
@@ -364,7 +388,11 @@ export function resolveMonsterAttack(
   const base = resolveDamage(
     ctx.rng,
     spec.attack,
-    defenseOf(stats.vit) + equipment.defense,
+    applyBuffModifiers(
+      defenseOf(stats.vit) + equipment.defense,
+      mods,
+      "defense",
+    ),
   );
   const crit = rollCrit(ctx.rng, critChance(spec.dex));
   const damage = crit ? critDamage(base) : base;

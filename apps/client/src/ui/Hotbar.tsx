@@ -5,7 +5,7 @@ import {
   type ItemInstanceDto,
 } from "@jadethrone/shared";
 import { getItem, hasItem } from "@jadethrone/data/items";
-import { getSkill } from "@jadethrone/data/skills";
+import { getSkill, hasSkill } from "@jadethrone/data/skills";
 import { sendCastSkill, sendUseItem } from "../network/session";
 import {
   HOTBAR_SLOT_COUNT,
@@ -24,15 +24,25 @@ function keyForSlot(index: number): string {
 }
 
 function castRequest(binding: HotbarBinding): CastSkillMessage | null {
-  if (binding.kind !== "skill") {
+  if (binding.kind !== "skill" || !hasSkill(binding.id)) {
     return null;
   }
   const skill = getSkill(binding.id);
   const store = useUiStore.getState();
+  if (store.autoWalk) {
+    return null;
+  }
   const request: CastSkillMessage = { skillId: skill.id };
-  if (skill.target === "ground" && store.cursorWorld) {
-    request.x = store.cursorWorld.x;
-    request.y = store.cursorWorld.y;
+  const aim = store.cursorWorld;
+  if (store.selfPosition && aim) {
+    const angle = Math.atan2(aim.y - store.selfPosition.y, aim.x - store.selfPosition.x);
+    let dir = Math.round(angle / (Math.PI / 4));
+    if (dir < 0) dir += 8;
+    request.dir = dir % 8;
+  }
+  if (skill.target === "ground" && aim) {
+    request.x = aim.x;
+    request.y = aim.y;
   } else if (skill.target === "enemy") {
     if (store.targetMonsterId) {
       request.targetMonsterId = store.targetMonsterId;
@@ -117,6 +127,10 @@ export function Hotbar() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) {
+        return;
+      }
       const store = useUiStore.getState();
       if (store.chatFocused || store.dead) {
         return;
@@ -160,7 +174,8 @@ export function Hotbar() {
         const binding = bindings[index] ?? null;
         const itemDefinition =
           binding?.kind === "item" && hasItem(binding.id) ? getItem(binding.id) : null;
-        const skill = binding?.kind === "skill" ? getSkill(binding.id) : null;
+        const skill =
+          binding?.kind === "skill" && hasSkill(binding.id) ? getSkill(binding.id) : null;
         const count =
           binding?.kind === "item" ? (counts.get(binding.id) ?? 0) : 0;
         const item: ItemInstanceDto | undefined =

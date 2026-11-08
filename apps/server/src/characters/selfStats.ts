@@ -1,4 +1,5 @@
 import {
+  applyBuffModifiers,
   critChance,
   defenseOf,
   isClassId,
@@ -6,6 +7,7 @@ import {
   xpToNextLevel,
   type SelfStatsPayload,
 } from "@jadethrone/shared";
+import { playerBuffModifiers } from "../skills/effects";
 import { equipmentBonusStats } from "../items/equipment";
 import type { PlayerRuntime } from "../rooms/playerRuntime";
 import type { PlayerState } from "../rooms/state/WorldState";
@@ -18,6 +20,7 @@ export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): Sel
   const progression = runtime.progression;
   const classId = isClassId(player.classId) ? player.classId : "warrior";
   const equipment = equipmentBonusStats(runtime.inventory);
+  const mods = playerBuffModifiers(runtime.buffs, Date.now());
   return {
     level: progression.level,
     xp: progression.xp,
@@ -28,14 +31,26 @@ export function buildSelfStats(runtime: PlayerRuntime, player: PlayerState): Sel
     maxMp: progression.maxMp,
     statPoints: progression.statPoints,
     stats: { ...progression.stats },
-    attack: physicalAttack({
-      classId,
-      stats: progression.stats,
-      level: progression.level,
-      weaponAttack: equipment.attack,
-    }),
-    defense: defenseOf(progression.stats.vit) + equipment.defense,
-    critChance: critChance(progression.stats.dex, equipment.critChance),
+    attack: applyBuffModifiers(
+      physicalAttack({
+        classId,
+        stats: progression.stats,
+        level: progression.level,
+        weaponAttack: equipment.attack,
+      }),
+      mods,
+      "attack",
+    ),
+    defense: applyBuffModifiers(
+      defenseOf(progression.stats.vit) + equipment.defense,
+      mods,
+      "defense",
+    ),
+    critChance: applyBuffModifiers(
+      critChance(progression.stats.dex, equipment.critChance),
+      mods,
+      "critChance",
+    ),
     doctrine: progression.doctrine,
     skillPoints: progression.skillPoints,
   };

@@ -62,8 +62,6 @@ function normalizeSave(save: CharacterSave): CharacterSave {
     statStr: boundedInt(save.statStr, 0, MAX_STAT),
     statDex: boundedInt(save.statDex, 0, MAX_STAT),
     statPoints: boundedInt(save.statPoints, 0, MAX_STAT_POINTS),
-    doctrine: save.doctrine,
-    skillPoints: boundedInt(save.skillPoints, 0, MAX_STAT_POINTS),
   };
 }
 
@@ -305,9 +303,7 @@ export async function saveCharacterState(
         statStr: save.statStr,
         statDex: save.statDex,
         statPoints: save.statPoints,
-        doctrine: save.doctrine,
-        skillPoints: save.skillPoints,
-        updatedAt: new Date(),
+        updatedAt: sql`now()`,
       })
       .where(eq(characters.id, characterId))
       .returning({ id: characters.id });
@@ -339,7 +335,7 @@ export async function saveCharacterStates(
 
   const values = normalized.map(
     (save) =>
-      sql`(${save.characterId}::uuid, ${save.mapId}::text, ${save.x}::real, ${save.y}::real, ${save.hp}::int, ${save.mp}::int, ${save.xp}::bigint, ${save.level}::int, ${save.statVit}::int, ${save.statInt}::int, ${save.statStr}::int, ${save.statDex}::int, ${save.statPoints}::int, ${save.doctrine}::text, ${save.skillPoints}::int)`,
+      sql`(${save.characterId}::uuid, ${save.mapId}::text, ${save.x}::real, ${save.y}::real, ${save.hp}::int, ${save.mp}::int, ${save.xp}::bigint, ${save.level}::int, ${save.statVit}::int, ${save.statInt}::int, ${save.statStr}::int, ${save.statDex}::int, ${save.statPoints}::int)`,
   );
   try {
     await db.execute(sql`
@@ -348,11 +344,10 @@ export async function saveCharacterStates(
           hp = v.hp, mp = v.mp, xp = v.xp, level = v.level,
           stat_vit = v.stat_vit, stat_int = v.stat_int,
           stat_str = v.stat_str, stat_dex = v.stat_dex,
-          stat_points = v.stat_points, doctrine = v.doctrine,
-          skill_points = v.skill_points, updated_at = now()
+          stat_points = v.stat_points, updated_at = now()
       FROM (VALUES ${sql.join(values, sql`, `)}) AS v(
         id, map_id, x, y, hp, mp, xp, level,
-        stat_vit, stat_int, stat_str, stat_dex, stat_points, doctrine, skill_points
+        stat_vit, stat_int, stat_str, stat_dex, stat_points
       )
       WHERE c.id = v.id
     `);

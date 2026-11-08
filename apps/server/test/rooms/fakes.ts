@@ -159,8 +159,6 @@ export function createFakeServices(): FakeServices {
           statStr: save.statStr,
           statDex: save.statDex,
           statPoints: save.statPoints,
-          doctrine: save.doctrine,
-          skillPoints: save.skillPoints,
         },
       });
     }

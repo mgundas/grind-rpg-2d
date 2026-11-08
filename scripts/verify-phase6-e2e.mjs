@@ -72,7 +72,7 @@ async function relocateToFields(characterId) {
   try {
     await client.query(
       "UPDATE characters SET map_id = $1, x = $2, y = $3 WHERE id = $4",
-      [MAP, 1376, 1312, characterId],
+      [MAP, 2944, 3712, characterId],
     );
   } finally {
     await client.end();
@@ -258,7 +258,9 @@ async function main() {
   );
 
   const initialHp = stone.hp;
-  const deadline = Date.now() + 30_000;
+  const beforeFirst = first.getStats();
+  const beforeSecond = second.getStats();
+  const deadline = Date.now() + 60_000;
   let damagedHp = initialHp;
   while (Date.now() < deadline) {
     const meA = self(first.room);
@@ -273,9 +275,18 @@ async function main() {
       break;
     }
     damagedHp = current.hp;
-    if (damagedHp < initialHp) break;
   }
-  check("the party damages the spirit stone together", damagedHp < initialHp);
+  check(
+    "the party breaks the spirit stone together",
+    damagedHp === 0 || !first.room.state.stones?.get?.(stone.stoneId),
+  );
+  await wait(1200);
+  const afterFirst = first.getStats();
+  const afterSecond = second.getStats();
+  const gained = (before, after) =>
+    after && before && (after.level > before.level || after.xp > before.xp);
+  check("first member gains party XP", gained(beforeFirst, afterFirst));
+  check("second member gains party XP", gained(beforeSecond, afterSecond));
   await wait(1200);
 
   await first.room.leave().catch(() => {});

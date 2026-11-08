@@ -2,6 +2,7 @@ import {
   applyBuffModifiers,
   critChance,
   critDamage,
+  DIR8_VECTORS,
   dir8Towards,
   facing4FromDir8,
   facing4FromIndex,
@@ -156,17 +157,7 @@ function aimPoint(ctx: SkillCombatContext, input: ResolveSkillInput, origin: Vec
     }
   }
   if (input.dir !== undefined) {
-    const vectors: ReadonlyArray<Vec2> = [
-      { x: 0, y: 1 },
-      { x: -0.7071, y: 0.7071 },
-      { x: -1, y: 0 },
-      { x: -0.7071, y: -0.7071 },
-      { x: 0, y: -1 },
-      { x: 0.7071, y: -0.7071 },
-      { x: 1, y: 0 },
-      { x: 0.7071, y: 0.7071 },
-    ];
-    const vector = vectors[input.dir] ?? vectors[0]!;
+    const vector = DIR8_VECTORS[input.dir] ?? DIR8_VECTORS[0]!;
     return {
       x: origin.x + vector.x * input.skill.rangePx,
       y: origin.y + vector.y * input.skill.rangePx,

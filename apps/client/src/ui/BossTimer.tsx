@@ -13,7 +13,7 @@ function formatRemaining(ms: number): string {
 export function BossTimer() {
   const timers = useUiStore((state) => state.bossTimers);
   const mapId = useUiStore((state) => state.mapId);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);

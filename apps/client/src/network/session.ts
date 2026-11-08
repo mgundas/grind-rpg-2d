@@ -147,6 +147,12 @@ export async function consumeWarp(payload: WarpPayload): Promise<Room> {
   store.setSessionKicked(null);
   store.setSessionId(next.sessionId);
   store.setMapId(payload.map);
+  store.setParty(null);
+  store.setPartyInvite(null);
+  store.setBuffState({ buffs: [] });
+  store.setCastState(null);
+  store.setSkillState(null);
+  store.setTargetStone(null);
   store.setConnectionPhase("connected");
   return next;
 }
@@ -158,7 +164,13 @@ export async function leave(options: { silent?: boolean } = {}): Promise<void> {
   leaving.setChatFocused(false);
   leaving.setAutoWalk(false);
   leaving.setTargetMonster(null);
+  leaving.setTargetStone(null);
   leaving.setDeath(false, 0);
+  leaving.setParty(null);
+  leaving.setPartyInvite(null);
+  leaving.setBuffState({ buffs: [] });
+  leaving.setCastState(null);
+  leaving.setSkillState(null);
   leaving.setInventory(null);
   leaving.setInventoryOpen(false);
   leaving.setInventoryError(null);
@@ -235,10 +247,15 @@ export function sendPartyInvite(target: { characterId?: string; name?: string })
 
 export function sendPartyRespond(inviteId: string, accept: boolean): void {
   room?.send(MSG.partyRespond, { inviteId, accept });
+  if (!accept) {
+    useUiStore.getState().setPartyInvite(null);
+  }
 }
 
 export function sendPartyLeave(): void {
   room?.send(MSG.partyLeave, {});
+  useUiStore.getState().setParty(null);
+  useUiStore.getState().setPartyInvite(null);
 }
 
 export function sendPartySetLoot(rule: "free_for_all" | "round_robin"): void {

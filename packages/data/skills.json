@@ -1165,7 +1165,7 @@
       "mpCost": { "base": 25, "perRank": 4 },
       "heal": { "base": 20, "perRank": 5, "overTime": true, "durationMs": 6000 },
       "effects": [],
-      "fx": "heal",
+      "fx": "ground_ring",
       "animationRow": 2
     },
     {

@@ -13,6 +13,10 @@ export function PartyWindow() {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) {
+        return;
+      }
       const store = useUiStore.getState();
       if (event.key === "Escape" && store.partyWindowOpen) {
         store.setPartyWindowOpen(false);

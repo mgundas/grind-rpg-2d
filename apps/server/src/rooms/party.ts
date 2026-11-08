@@ -86,7 +86,7 @@ export interface PartyRegistry {
     now?: number,
   ): PartyInvite;
   accept(inviteId: string, member: PartyMemberInput, now?: number): Party;
-  decline(inviteId: string): boolean;
+  decline(inviteId: string, characterId?: string): boolean;
   leave(characterId: string): PartyLeaveResult;
   get(partyId: string): Party | undefined;
   all(): Party[];
@@ -256,7 +256,11 @@ export function createPartyRegistry(
     return party;
   }
 
-  function decline(inviteId: string): boolean {
+  function decline(inviteId: string, characterId?: string): boolean {
+    const invite = invites.get(inviteId);
+    if (!invite || (characterId && invite.targetCharacterId !== characterId)) {
+      return false;
+    }
     return invites.delete(inviteId);
   }
 

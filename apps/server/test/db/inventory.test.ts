@@ -98,8 +98,6 @@ function save(overrides: Partial<CharacterSave> = {}): CharacterSave {
     statStr: 6,
     statDex: 3,
     statPoints: 0,
-    doctrine: null,
-    skillPoints: 0,
     ...overrides,
   };
 }

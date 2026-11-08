@@ -32,7 +32,9 @@ describe("skills.json", () => {
     expect(SKILLS).toHaveLength(48);
     for (const info of CLASSES) {
       for (const doctrine of info.doctrines) {
-        expect(skillsForDoctrine(info.id, doctrine.id)).toHaveLength(6);
+        const skills = skillsForDoctrine(info.id, doctrine.id);
+        expect(skills).toHaveLength(6);
+        expect(new Set(skills.map((skill) => skill.fx)).size).toBeGreaterThanOrEqual(3);
       }
     }
   });

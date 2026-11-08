@@ -120,6 +120,9 @@ interface UiState {
   /** World cursor in scene coordinates, used by ground-targeted skills. */
   cursorWorld: { x: number; y: number } | null;
   setCursorWorld: (point: { x: number; y: number } | null) => void;
+  /** Authoritative own position, used to derive skill direction. */
+  selfPosition: { x: number; y: number } | null;
+  setSelfPosition: (point: { x: number; y: number } | null) => void;
   /** Party member selected in the frames for ally heals/buffs. */
   healTargetCharacterId: string | null;
   setHealTargetCharacterId: (characterId: string | null) => void;
@@ -288,6 +291,8 @@ export const useUiStore = create<UiState>((set) => ({
   setDraggedSkillId: (draggedSkillId) => set({ draggedSkillId }),
   cursorWorld: null,
   setCursorWorld: (cursorWorld) => set({ cursorWorld }),
+  selfPosition: null,
+  setSelfPosition: (selfPosition) => set({ selfPosition }),
   healTargetCharacterId: null,
   setHealTargetCharacterId: (healTargetCharacterId) => set({ healTargetCharacterId }),
   castState: null,
@@ -296,7 +301,7 @@ export const useUiStore = create<UiState>((set) => ({
   setBuffState: (state) => set({ buffs: state.buffs }),
   party: null,
   setParty: (party) =>
-    set({ party: party && party.partyId ? party : null }),
+    set({ party: party && party.partyId ? party : null, partyInvite: null }),
   partyInvite: null,
   setPartyInvite: (partyInvite) => set({ partyInvite }),
   partyWindowOpen: false,

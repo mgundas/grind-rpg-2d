@@ -4,6 +4,7 @@ import { StateView } from "@colyseus/schema";
 import {
   CHAT_COOLDOWN_MS,
   COMBAT_EVENT_RADIUS_PX,
+  DIR8_VECTORS,
   AUTO_WALK_GIVE_UP_MS,
   AUTO_WALK_MAX_EMPTY_PATHS,
   AUTO_WALK_TARGET_RANGE_PX,
@@ -115,7 +116,7 @@ import { getClass } from "@jadethrone/data/classes";
 import { getDropTable } from "@jadethrone/data/dropTables";
 import { getItem, hasItem } from "@jadethrone/data/items";
 import { getMonster, hasMonster } from "@jadethrone/data/monsters";
-import { getSkill } from "@jadethrone/data/skills";
+import { getSkill, hasSkill } from "@jadethrone/data/skills";
 import { getNpc } from "@jadethrone/data/npcs";
 import { getShop } from "@jadethrone/data/shops";
 import { getStone, getStoneForZone } from "@jadethrone/data/stones";
@@ -894,6 +895,8 @@ export class MapRoom extends Room {
     this.sendInventory(client.sessionId);
     this.sendSkillState(client.sessionId);
     this.sendBossTimersTo(client);
+    this.sendBuffState(client.sessionId);
+    this.sendEmptyParty(client);
 
     // A duplicate join replaced and saved the previous session. Its save is
     // newer than the matchmaking snapshot, so refresh before the first tick
@@ -1601,8 +1604,6 @@ export class MapRoom extends Room {
       statStr: progression.stats.str,
       statDex: progression.stats.dex,
       statPoints: progression.statPoints,
-      doctrine: progression.doctrine,
-      skillPoints: progression.skillPoints,
     };
   }
 
@@ -1619,9 +1620,7 @@ export class MapRoom extends Room {
       progression.stats.int === snapshot.statInt &&
       progression.stats.str === snapshot.statStr &&
       progression.stats.dex === snapshot.statDex &&
-      progression.statPoints === snapshot.statPoints &&
-      progression.doctrine === snapshot.doctrine &&
-      progression.skillPoints === snapshot.skillPoints
+      progression.statPoints === snapshot.statPoints
     );
   }
 
@@ -1756,6 +1755,7 @@ export class MapRoom extends Room {
     }
     this.tickGroundItems(now);
     if (now >= this.partyBroadcastAtMs) {
+      this.parties.pruneInvites(now);
       this.refreshPartyVitals();
       this.partyBroadcastAtMs = now + 500;
     }
@@ -1827,6 +1827,13 @@ export class MapRoom extends Room {
 
     if (outcome.stoneHits.length > 0) {
       this.applyStoneHits(sessionId, outcome.stoneHits, now);
+    }
+    if (outcome.damagedMonsterIds.length > 0 || outcome.stoneHits.length > 0) {
+      const attacker = this.runtimes.get(sessionId);
+      if (attacker && removeStealth(attacker.buffs)) {
+        this.sendBuffState(sessionId);
+        this.sendSelfStats(sessionId);
+      }
     }
 
     // Aggro before cleanup: killing a monster must still wake the rest of its
@@ -1942,29 +1949,34 @@ export class MapRoom extends Room {
       this.runtimes.has(sessionId),
     );
     const ownerSessionId = topDamageOwner(runtime.damageBy, this.runtimes, killerSessionId);
-    const recipients = new Set<string>(contributors);
+    const groups = new Map<string, Set<string>>();
     const radiusSquared = PARTY_XP_RADIUS_PX * PARTY_XP_RADIUS_PX;
     for (const contributor of contributors) {
       const contributorRuntime = this.runtimes.get(contributor);
       const party = contributorRuntime
         ? this.parties.getByCharacter(contributorRuntime.characterId)
         : undefined;
-      if (!contributorRuntime || !party) {
-        continue;
-      }
-      for (const member of this.parties.members(party)) {
-        const memberRuntime = this.runtimes.get(member.sessionId);
-        if (!memberRuntime || memberRuntime.dead) {
-          continue;
+      const key = party ? party.id : `solo:${contributor}`;
+      const group = groups.get(key) ?? new Set<string>();
+      group.add(contributor);
+      if (party && contributorRuntime) {
+        for (const member of this.parties.members(party)) {
+          const memberRuntime = this.runtimes.get(member.sessionId);
+          if (!memberRuntime || memberRuntime.dead) {
+            continue;
+          }
+          const dx = memberRuntime.mover.pos.x - runtime.x;
+          const dy = memberRuntime.mover.pos.y - runtime.y;
+          if (dx * dx + dy * dy <= radiusSquared) {
+            group.add(member.sessionId);
+          }
         }
-        const dx = memberRuntime.mover.pos.x - runtime.x;
-        const dy = memberRuntime.mover.pos.y - runtime.y;
-        if (dx * dx + dy * dy <= radiusSquared) {
-          recipients.add(member.sessionId);
-        }
       }
+      groups.set(key, group);
     }
-    this.awardXpToGroup([...recipients], info.xp, info.level);
+    for (const group of groups.values()) {
+      this.awardXpToGroup([...group], info.xp, info.level);
+    }
 
     void this.spawnLoot({
       dropTableId: info.dropTableId,
@@ -2243,9 +2255,13 @@ export class MapRoom extends Room {
     runtime.diedAtMs = now;
     runtime.pending.length = 0;
     runtime.pendingAttack = null;
+    if (runtime.pendingCast) {
+      this.cancelPendingCast(runtime, sessionId, "dead");
+    }
     runtime.pendingCast = null;
     runtime.buffs.clear();
     runtime.healOverTime = [];
+    this.sendBuffState(sessionId);
     runtime.lastIntent = { kind: "none" };
     runtime.mover.path = [];
     runtime.graceTicksRemaining = 0;
@@ -3200,7 +3216,7 @@ export class MapRoom extends Room {
     }
     try {
       if (!accept) {
-        if (!this.parties.decline(inviteId)) {
+        if (!this.parties.decline(inviteId, runtime.characterId)) {
           throw new PartyRuleError("invite_not_found", "That invitation is no longer available.");
         }
         return;
@@ -3353,6 +3369,13 @@ export class MapRoom extends Room {
       return;
     }
     try {
+      if (!hasSkill(request.skillId)) {
+        this.safeSend(client, MSG.skillError, {
+          code: "unknown_skill",
+          message: "Unknown skill.",
+        });
+        return;
+      }
       const skill = getSkill(request.skillId);
       const targetPos = this.skillAim(runtime, skill, request);
       const allySessionId = this.resolveAllySession(request.targetCharacterId);
@@ -3404,10 +3427,24 @@ export class MapRoom extends Room {
   private skillAim(
     runtime: PlayerRuntime,
     skill: ReturnType<typeof getSkill>,
-    request: { x?: number; y?: number; targetMonsterId?: string; targetStoneId?: string; dir?: number },
+    request: {
+      x?: number;
+      y?: number;
+      targetMonsterId?: string;
+      targetStoneId?: string;
+      targetCharacterId?: string;
+      dir?: number;
+    },
   ): { x: number; y: number } | undefined {
     if (request.x !== undefined && request.y !== undefined) {
       return { x: request.x, y: request.y };
+    }
+    if (request.targetCharacterId) {
+      for (const active of this.runtimes.values()) {
+        if (active.characterId === request.targetCharacterId) {
+          return { x: active.mover.pos.x, y: active.mover.pos.y };
+        }
+      }
     }
     if (request.targetMonsterId) {
       const monster = this.monsterRuntimes.get(request.targetMonsterId);
@@ -3422,17 +3459,7 @@ export class MapRoom extends Room {
       }
     }
     if (request.dir !== undefined && skill.target === "ground") {
-      const vectors = [
-        { x: 0, y: 1 },
-        { x: -0.7071, y: 0.7071 },
-        { x: -1, y: 0 },
-        { x: -0.7071, y: -0.7071 },
-        { x: 0, y: -1 },
-        { x: 0.7071, y: -0.7071 },
-        { x: 1, y: 0 },
-        { x: 0.7071, y: 0.7071 },
-      ];
-      const vector = vectors[request.dir] ?? vectors[0]!;
+      const vector = DIR8_VECTORS[request.dir] ?? DIR8_VECTORS[0]!;
       return {
         x: runtime.mover.pos.x + vector.x * skill.rangePx,
         y: runtime.mover.pos.y + vector.y * skill.rangePx,
@@ -3958,6 +3985,9 @@ export class MapRoom extends Room {
     }
     runtime.warping = true;
     runtime.inventoryClosed = true;
+    if (runtime.pendingCast) {
+      this.cancelPendingCast(runtime, client.sessionId, "warped");
+    }
     runtime.pendingCast = null;
     runtime.buffs.clear();
     runtime.healOverTime = [];

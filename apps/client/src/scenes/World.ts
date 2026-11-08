@@ -464,6 +464,7 @@ export class WorldScene extends Phaser.Scene {
       const me = snapshot.players?.get(sessionId);
       if (me) {
         this.lastServerPosition = { x: me.x, y: me.y, lastSeq: me.lastSeq };
+        useUiStore.getState().setSelfPosition({ x: me.x, y: me.y });
         useUiStore.getState().setVitals({
           hp: me.hp,
           maxHp: me.maxHp,
@@ -1434,8 +1435,21 @@ export class WorldScene extends Phaser.Scene {
       this.showDamageNumber(heal.x, heal.y - 34, `+${heal.amount}`, "#7ee08a", 13);
     }
 
-    const color = payload.type === "heal" ? 0x7ee08a : payload.type === "buff" ? 0x8fd3b6 : 0xc9a227;
-    if (payload.type === "projectile" || payload.type === "dash") {
+    const palette: Record<string, number> = {
+      slash_arc: 0xc9a227,
+      spin: 0xd9b45a,
+      nova: 0xff8a5c,
+      projectile: 0x8fd3b6,
+      beam: 0x9b6bd1,
+      ground_ring: 0x7bd3c4,
+      dash: 0x8fd3b6,
+      aura: 0x7ee08a,
+      heal: 0x7ee08a,
+      shard: 0x7bd3c4,
+    };
+    const fx = payload.fx;
+    const color = palette[fx] ?? 0xc9a227;
+    if (fx === "projectile" || fx === "beam" || fx === "dash") {
       const orb = this.add.circle(payload.x, payload.y - 24, 6, color, 0.95).setDepth(payload.y + 8);
       this.tweens.add({
         targets: orb,
@@ -1447,7 +1461,7 @@ export class WorldScene extends Phaser.Scene {
         ease: "Quad.easeOut",
         onComplete: () => orb.destroy(),
       });
-    } else if (payload.type === "area") {
+    } else if (fx === "nova" || fx === "ground_ring" || fx === "spin") {
       const ring = this.add
         .circle(payload.targetX, payload.targetY - 12, 18, color, 0.35)
         .setStrokeStyle(3, color, 0.9)
@@ -1461,7 +1475,7 @@ export class WorldScene extends Phaser.Scene {
         onComplete: () => ring.destroy(),
       });
       this.cameras.main.shake(160, 0.005);
-    } else if (payload.type === "melee_aoe") {
+    } else if (fx === "slash_arc") {
       const arc = this.add
         .circle(payload.x, payload.y - 18, 26, color, 0.28)
         .setStrokeStyle(2, color, 0.9)
