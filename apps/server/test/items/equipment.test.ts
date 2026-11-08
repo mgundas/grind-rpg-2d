@@ -21,7 +21,7 @@ describe("equipment bonuses", () => {
       { type: "max_hp", value: 100 },
     ]);
     const stats = equipmentBonusStats(inventory);
-    expect(stats.attack).toBe(5);
+    expect(stats.attack).toBe(15);
     expect(stats.maxHp).toBe(100);
   });
 

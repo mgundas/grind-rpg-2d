@@ -236,7 +236,7 @@ Plan: `docs/plans/phase-7.md`.
 - [x] Task 3 — Persist upgrade/bonus row changes
 - [x] Task 4 — Bonus stats in gameplay
 - [x] Task 5 — Bonus-aware tooltips and names
-- [ ] Task 6 — Pure upgrade planner and roll
+- [x] Task 6 — Pure upgrade planner and roll
 - [ ] Task 7 — Blacksmith protocol and preview
 - [ ] Task 8 — Server upgrade execution
 - [ ] Task 9 — Client blacksmith window
