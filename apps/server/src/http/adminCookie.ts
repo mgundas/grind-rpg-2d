@@ -58,8 +58,21 @@ export function setAdminCookie(
   });
 }
 
-export function clearAdminCookie(res: Response): void {
-  res.clearCookie(ADMIN_COOKIE_NAME, { path: "/" });
+/**
+ * Clearing must mirror the attributes used when setting: a non-Secure clear
+ * does not reliably overwrite a Secure cookie in production, which would leave
+ * the monitor session alive after logout.
+ */
+export function clearAdminCookie(
+  res: Response,
+  secure = process.env.NODE_ENV === "production",
+): void {
+  res.clearCookie(ADMIN_COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure,
+    path: "/",
+  });
 }
 
 /** Non-throwing check used by the admin UI before showing the monitor iframe. */

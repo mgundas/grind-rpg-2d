@@ -76,10 +76,15 @@ describe("admin cookie helpers", () => {
     );
   });
 
-  it("clears the cookie on logout", () => {
+  it("clears the cookie with the same attributes it was set with", () => {
     const res = response();
-    clearAdminCookie(res);
-    expect(res.clearCookie).toHaveBeenCalledWith(ADMIN_COOKIE_NAME, { path: "/" });
+    clearAdminCookie(res, false);
+    expect(res.clearCookie).toHaveBeenCalledWith(ADMIN_COOKIE_NAME, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: false,
+      path: "/",
+    });
   });
 });
 
