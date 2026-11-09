@@ -5,11 +5,11 @@ import { worldMapNodes } from "../src/ui/worldMap";
 describe("world map layout", () => {
   it("marks the current map and preserves connections", () => {
     const nodes = worldMapNodes(MAP_POLICIES, "map_ember_village");
-    expect(nodes).toHaveLength(2);
+    expect(nodes).toHaveLength(MAP_POLICIES.length);
     const current = nodes.find((node) => node.current);
     expect(current?.mapId).toBe("map_ember_village");
-    expect(current?.connections).toContain("map_ember_fields");
-    expect(new Set(nodes.map((node) => node.x)).size).toBe(2);
+    expect(current?.connections).toEqual(["map_ember_fields"]);
+    expect(new Set(nodes.map((node) => node.x)).size).toBeGreaterThanOrEqual(3);
   });
 
   it("handles an unknown current map", () => {

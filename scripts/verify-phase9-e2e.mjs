@@ -72,7 +72,7 @@ async function main() {
     body: { email, username: name, password: PASSWORD, kingdom: KINGDOM },
   });
   check("register", register.status === 201, String(register.status));
-  const access = register.data?.accessToken;
+  const access = register.data?.tokens?.accessToken;
   check("access token issued", typeof access === "string");
   if (!access) process.exit(1);
 
@@ -82,7 +82,7 @@ async function main() {
     body: { name, classId: "warrior", gender: "male", hairStyle: 0, hairColor: 0 },
   });
   check("create character", created.status === 201, String(created.status));
-  const character = created.data;
+  const character = created.data?.character;
   if (!character) process.exit(1);
 
   const client = new Client(WS_URL);
@@ -115,6 +115,8 @@ async function main() {
   await waitUntil(() => room.sessionId !== undefined, 8000, "highlands join");
   check("arrived in the highlands room", room.roomId !== undefined);
 
+  // Arrival arms the 2 s anti-ping-pong cooldown; wait it out before switching.
+  await wait(2300);
   const switched = nextMessage(room, "warp");
   room.send("channelSwitch", { channel: 2 });
   const channelWarp = await switched;
@@ -126,7 +128,6 @@ async function main() {
   check("arrived in a CH2 room", room.roomId !== undefined);
 
   await room.leave(false);
-  client.close();
   return failures;
 }
 

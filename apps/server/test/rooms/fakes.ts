@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { vi, type Mock } from "vitest";
 import {
   EQUIP_SLOTS,
+  MAP_IDS,
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
   emptyInventory,
@@ -249,9 +250,12 @@ export function createFakeServices(): FakeServices {
 
     let warp: WarpTokenPayload | null = null;
     if (options.warpToken) {
-      warp =
-        checkWarpToken(options.warpToken, ROOM_NAME_VILLAGE) ??
-        checkWarpToken(options.warpToken, ROOM_NAME_FIELDS);
+      for (const candidate of MAP_IDS) {
+        warp = checkWarpToken(options.warpToken, candidate);
+        if (warp) {
+          break;
+        }
+      }
       if (!warp) {
         return null;
       }

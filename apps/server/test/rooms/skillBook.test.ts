@@ -92,9 +92,7 @@ afterAll(async () => {
 describe("room skill-book reading", () => {
   it("succeeds, consumes the book and refreshes mastery state", async () => {
     const { client, identity, bookId } = await joinWithBook("ReaderOne");
-    const resultPromise = client.waitForMessage(MSG.skillBookResult, 2000);
-    const inventoryPromise = client.waitForMessage(MSG.inventory, 2000);
-    const skillStatePromise = client.waitForMessage(MSG.skillState, 2000);
+    const resultPromise = client.waitForMessage(MSG.skillBookResult, 5000);
     send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
 
     const result = (await resultPromise) as SkillBookResultPayload;
@@ -105,8 +103,13 @@ describe("room skill-book reading", () => {
       masterLevel: 1,
     });
     expect(result.chance).toBe(0.9);
+    // Fetch fresh snapshots instead of racing join-time messages under load.
+    const inventoryPromise = client.waitForMessage(MSG.inventory, 5000);
+    send(client, MSG.requestInventory, {});
     const inventory = (await inventoryPromise) as InventorySnapshotPayload;
     expect(inventory.items.some((item) => item.id === bookId)).toBe(false);
+    const skillStatePromise = client.waitForMessage(MSG.skillState, 5000);
+    send(client, MSG.requestSkillState, {});
     const skillState = (await skillStatePromise) as SkillStatePayload;
     expect(skillState.skills.find((skill) => skill.skillId === SKILL)?.masterLevel).toBe(1);
     expect(

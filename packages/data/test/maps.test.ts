@@ -4,6 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import committedVillage from "../maps/map_ember_village.json";
 import committedFields from "../maps/map_ember_fields.json";
+import committedGaleVillage from "../maps/map_gale_village.json";
+import committedTideVillage from "../maps/map_tide_village.json";
+import committedGaleHighlands from "../maps/map_gale_highlands.json";
+import committedTideHighlands from "../maps/map_tide_highlands.json";
+import committedValley from "../maps/map_valley_of_echoes.json";
+import committedForest from "../maps/map_corrupted_forest.json";
+import committedCave from "../maps/map_spider_cave.json";
 import {
   FIELDS_HEIGHT,
   FIELDS_SPAWN,
@@ -45,6 +52,7 @@ import {
 import { hasSpawnGroup } from "../src/spawnGroups";
 import { STONES } from "../src/stones";
 import { hasNpc } from "../src/npcs";
+import { getStoneForZone } from "../src/stones";
 
 const tile = 32;
 
@@ -377,6 +385,7 @@ function expectOutdoorMap(
   for (const zone of current.objects.stoneZones) {
     const zoneId = zone.properties?.find((property) => property.name === "zoneId")?.value;
     expect(typeof zoneId).toBe("string");
+    expect(getStoneForZone(zoneId as string)).toBeDefined();
   }
   expect(current.objects.npcs).toHaveLength(1);
   for (const npc of current.objects.npcs) {
@@ -520,5 +529,17 @@ describe("writeMapFiles", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("committed map files", () => {
+  it("matches the generator for every Phase-9 map", () => {
+    expect(structuredClone(committedGaleVillage)).toEqual(generateGaleVillageMap());
+    expect(structuredClone(committedTideVillage)).toEqual(generateTideVillageMap());
+    expect(structuredClone(committedGaleHighlands)).toEqual(generateGaleHighlandsMap());
+    expect(structuredClone(committedTideHighlands)).toEqual(generateTideHighlandsMap());
+    expect(structuredClone(committedValley)).toEqual(generateValleyMap());
+    expect(structuredClone(committedForest)).toEqual(generateForestMap());
+    expect(structuredClone(committedCave)).toEqual(generateSpiderCaveMap());
   });
 });

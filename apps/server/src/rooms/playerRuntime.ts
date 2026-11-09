@@ -29,12 +29,15 @@ export interface PlayerRuntime {
   /** Authenticated account/character this session belongs to. */
   accountId: string;
   characterId: string;
+  kingdom: string;
   /** Account role captured at authentication (GM commands/admin bus). */
   role: AccountRole;
   /** Map channel (CH1–CH4). */
   channel: ChannelId;
   /** Mounted players walk at MOUNT_SPEED_MULT until they fight, die or warp. */
   mounted: boolean;
+  /** Inventory instance that summoned the mount; losing it dismounts. */
+  mountItemId: string | null;
   /** GM invisibility: excluded from monster targeting and other clients' views. */
   invisible: boolean;
   /** Account token generation captured at authentication. */
@@ -148,6 +151,8 @@ export interface PlayerRuntime {
 export interface PlayerIdentity {
   accountId: string;
   characterId: string;
+  /** Home kingdom id, used for death respawns. */
+  kingdom?: string;
   tokenVersion: number;
   role?: AccountRole;
   channel?: ChannelId;
@@ -176,11 +181,13 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
   const now = Date.now();
   return {
     sessionId: "",
+    kingdom: identity.kingdom ?? "ember",
     accountId: identity.accountId,
     characterId: identity.characterId,
     role: identity.role ?? "player",
     channel: clampChannelId(identity.channel),
     mounted: false,
+    mountItemId: null,
     invisible: false,
     tokenVersion: identity.tokenVersion,
     mover: createMover(spawn),

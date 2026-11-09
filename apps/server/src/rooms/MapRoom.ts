@@ -158,6 +158,8 @@ import {
   type WarpZone,
   MAP_LABELS,
   ROOM_NAME_FOREST,
+  ROOM_NAME_VILLAGE,
+  KINGDOM_VILLAGE_MAPS,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import type { SkillInfo } from "@jadethrone/data/skills";
@@ -1354,6 +1356,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     const runtime = createPlayerRuntime(spawn, {
       accountId: auth.account.id,
       characterId: auth.character.id,
+      kingdom: auth.account.kingdom,
       tokenVersion: auth.account.tokenVersion,
       role: auth.account.role,
       channel: auth.channel,
@@ -1672,7 +1675,13 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     }
     runtime.progression.hp = runtime.progression.maxHp;
     runtime.progression.mp = runtime.progression.maxMp;
-    return defaultSpawn();
+    if (getMapPolicy(this.mapId).dungeon) {
+      const forest = loadMapAssets(ROOM_NAME_FOREST).spawn;
+      return { mapId: ROOM_NAME_FOREST, x: forest.x, y: forest.y };
+    }
+    const villageMap = KINGDOM_VILLAGE_MAPS[runtime.kingdom as keyof typeof KINGDOM_VILLAGE_MAPS] ?? ROOM_NAME_VILLAGE;
+    const village = loadMapAssets(villageMap).spawn;
+    return { mapId: villageMap, x: village.x, y: village.y };
   }
 
   /** Save one player before a session is replaced (kick path). */
@@ -2251,10 +2260,20 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     destination: { mapId: MapId; x: number; y: number; channel?: ChannelId },
   ): CharacterSave {
     const progression = runtime.progression;
+    // A dungeon instance is disposable: never persist a position inside it.
+    let mapId = destination.mapId;
+    let x = destination.x;
+    let y = destination.y;
+    if (getMapPolicy(mapId).dungeon) {
+      const forest = loadMapAssets(ROOM_NAME_FOREST).spawn;
+      mapId = ROOM_NAME_FOREST;
+      x = forest.x;
+      y = forest.y;
+    }
     return {
-      mapId: destination.mapId,
-      x: destination.x,
-      y: destination.y,
+      mapId,
+      x,
+      y,
       channel: destination.channel ?? runtime.channel,
       hp: progression.hp,
       mp: progression.mp,
@@ -3353,7 +3372,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     }
 
     if (effect.kind === "summon_mount") {
-      this.toggleMount(runtime, definition.spriteLayerKey ?? "mount.jade_wolf");
+      this.toggleMount(runtime, instanceId, definition.spriteLayerKey ?? "mount.jade_wolf");
       return;
     }
 
@@ -6221,14 +6240,22 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   }
 
   private playerSpeed(runtime: PlayerRuntime): number {
+    if (
+      runtime.mounted &&
+      (!runtime.mountItemId || !runtime.inventory.items.some((item) => item.id === runtime.mountItemId))
+    ) {
+      // Trading, selling or storing the whistle dismounts on the next step.
+      this.dismount(runtime);
+    }
     const base =
       WALK_SPEED *
       moveSpeedMultiplier(equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()));
     return base * (runtime.mounted ? MOUNT_SPEED_MULT : 1);
   }
 
-  private toggleMount(runtime: PlayerRuntime, mountLayer: string): void {
+  private toggleMount(runtime: PlayerRuntime, instanceId: string, mountLayer: string): void {
     runtime.mounted = !runtime.mounted;
+    runtime.mountItemId = runtime.mounted ? instanceId : null;
     const player = this.state.players.get(runtime.sessionId);
     if (player) {
       player.mounted = runtime.mounted;
@@ -6242,6 +6269,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
       return;
     }
     runtime.mounted = false;
+    runtime.mountItemId = null;
     const player = this.state.players.get(runtime.sessionId);
     if (player) {
       player.mounted = false;

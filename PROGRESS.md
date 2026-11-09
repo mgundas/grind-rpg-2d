@@ -317,7 +317,7 @@ D71–D76.
 
 ## Phase 9 — The wider world
 
-Plan: `docs/plans/phase-9.md`.
+Plan: `docs/plans/phase-9.md`. Report: `docs/reports/phase-9.md`.
 
 - [x] Task 1 — Shared map ids and labels for the final 9 maps
 - [x] Task 2 — Map policies for all maps
@@ -342,7 +342,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 21 — Mount client visuals and predictor sync
 - [x] Task 22 — Admin updates for new maps and channels
 - [x] Task 23 — Phase 9 E2E script, assets and docs
-- [ ] Task 24 — Phase gate
+- [x] Task 24 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)
 

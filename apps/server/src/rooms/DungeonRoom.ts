@@ -1,4 +1,5 @@
 import type { AuthContext } from "@colyseus/core";
+import { PARTY_MAX_MEMBERS } from "@jadethrone/shared";
 import { getServerServices } from "../services";
 import type { JoinIdentity } from "../auth/joinAuth";
 import { MapRoom } from "./MapRoom";
@@ -9,6 +10,7 @@ import { MapRoom } from "./MapRoom";
  * every party gets its own Spider Cave room and the room disposes when empty.
  */
 export class DungeonRoom extends MapRoom {
+  override maxClients = PARTY_MAX_MEMBERS;
   /**
    * Same authentication as a normal map plus a hard party requirement. The
    * `partyId` option is written by the server-side warp reservation, never by
@@ -28,7 +30,8 @@ export class DungeonRoom extends MapRoom {
       return null;
     }
     const requested = (options as { partyId?: unknown } | undefined)?.partyId;
-    if (typeof requested === "string" && requested !== party.id) {
+    // A direct room join without the server-issued party id must never enter.
+    if (typeof requested !== "string" || requested !== party.id) {
       return null;
     }
     return identity;

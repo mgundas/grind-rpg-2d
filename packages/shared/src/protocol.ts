@@ -1,5 +1,4 @@
 import {
-  CHANNEL_IDS,
   CHAT_MAX_LEN,
   MAP_IDS,
   MAX_GOLD,

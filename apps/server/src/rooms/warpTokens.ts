@@ -73,6 +73,7 @@ export function checkWarpToken(
   map: MapId,
   now = Date.now(),
 ): WarpTokenPayload | null {
+  pruneExpiredWarpTokens(now);
   const data = tokens.get(token);
   if (!data) {
     return null;
