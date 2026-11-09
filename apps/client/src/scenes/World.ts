@@ -41,6 +41,8 @@ import { getClass } from "@jadethrone/data/classes";
 import { getItem, hasItem } from "../data/catalog";
 import { getNpc } from "../data/catalog";
 import { createPlaceholder } from "../assets/placeholders";
+import { musicKeyForMap } from "../assets/audioManifest";
+import { audio } from "../audio/service";
 import {
   consumeWarp,
   getPingMs,
@@ -197,6 +199,7 @@ export class WorldScene extends Phaser.Scene {
   private shadow!: Phaser.GameObjects.Ellipse;
   private arrow!: Phaser.GameObjects.Triangle;
   private mapId: MapId = DEFAULT_MAP;
+  private audioUnlockDetach: (() => void) | null = null;
 
   private predictor: LocalPredictor | null = null;
   private initializedFor: string | null = null;
@@ -287,6 +290,15 @@ export class WorldScene extends Phaser.Scene {
     this.buildNpcVisuals();
     this.buildCharacter();
     this.setupInput();
+
+    // Audio survives scene restarts (warps restart the scene); the first
+    // gesture unlocks the suspended context and the music crossfades only
+    // when the map theme actually changes.
+    this.audioUnlockDetach?.();
+    this.audioUnlockDetach = audio.attachUnlock(this.game.canvas);
+    audio.playMusic(musicKeyForMap(this.mapId));
+    this.events.off("shutdown", this.handleSceneShutdown, this);
+    this.events.once("shutdown", this.handleSceneShutdown, this);
 
     this.input.keyboard?.off("keydown-F9");
     this.input.keyboard?.on("keydown-F9", (event: KeyboardEvent) => {
@@ -1909,6 +1921,11 @@ export class WorldScene extends Phaser.Scene {
       right: this.cursors?.right.isDown ?? false,
     }[name];
     return numeric || (this.wasd?.[name]?.isDown ?? false);
+  }
+
+  private handleSceneShutdown(): void {
+    this.audioUnlockDetach?.();
+    this.audioUnlockDetach = null;
   }
 
   private setupInput(): void {

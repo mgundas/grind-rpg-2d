@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { GAME_NAME } from "@jadethrone/shared";
 import { fetchAssetManifest } from "../assets/manifest";
+import { EMPTY_AUDIO_MANIFEST, fetchAudioManifest } from "../assets/audioManifest";
+import { audio } from "../audio/service";
 
 /**
  * Boot: log the engine version (phase-0 acceptance evidence), fetch the
@@ -17,6 +19,12 @@ export class BootScene extends Phaser.Scene {
     try {
       const manifest = await fetchAssetManifest();
       this.game.registry.set("manifest", manifest);
+      const audioManifest = await fetchAudioManifest().catch((error: unknown) => {
+        console.warn(`Audio manifest unavailable; running silent: ${String(error)}`);
+        return EMPTY_AUDIO_MANIFEST;
+      });
+      this.game.registry.set("audioManifest", audioManifest);
+      audio.setManifest(audioManifest);
       this.scene.start("Preload");
     } catch (error) {
       this.add

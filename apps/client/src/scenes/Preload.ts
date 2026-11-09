@@ -4,6 +4,7 @@ import { MAP_JSON } from "@jadethrone/data/maps";
 import { MAP_IDS, TILE_SIZE } from "@jadethrone/shared";
 import type { AssetManifest } from "../assets/manifest";
 import { createPlaceholder } from "../assets/placeholders";
+import { audio } from "../audio/service";
 import { TILEMAP_KEYS, TILESET_TEXTURE_KEYS } from "../world/mapKeys";
 
 /**
@@ -105,6 +106,9 @@ export class PreloadScene extends Phaser.Scene {
         ensureTilesetFrames(this, key);
       }
       this.game.registry.set("placeholderCount", placeholderCount);
+      // Warm SFX in the background; music loads on the first map. Decoding the
+      // synthesized fallbacks must never delay entering the world.
+      void audio.preloadSounds();
       this.scene.start("World");
     });
   }

@@ -48,6 +48,9 @@ export interface AudioManifest {
 
 export const DEFAULT_AUDIO_MANIFEST_URL = "/assets/audio.json";
 
+/** Used when the manifest itself cannot be fetched: silent but playable. */
+export const EMPTY_AUDIO_MANIFEST: AudioManifest = { version: 1, sounds: {}, music: {} };
+
 const WAVES: ReadonlySet<string> = new Set(["sine", "square", "triangle", "sawtooth", "noise"]);
 const MAX_DURATION_MS = 120_000;
 const MAX_VOICES = 16;
