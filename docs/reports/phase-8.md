@@ -35,9 +35,9 @@ E2E_SERVER_URL=... pnpm verify:phase8-e2e
 Gate results (2026-11-09):
 
 - `pnpm typecheck`, `pnpm lint` and `pnpm build` pass.
-- Full suite against `jade_throne_test`: **133 files / 962 tests pass**.
+- Full suite against `jade_throne_test`: **133 files / 968 tests pass**.
 - Live Phase 8 E2E passes **13 checks**: mastery book grant, guild creation/invite, guild leave before PvP, friend add, cross-map whisper, same-room PvP, players in range, book load/read, mastery cooldown, PvP attack delivery and damage.
-- Reviewer findings were fixed before the gate: guild invites moved to a process-wide registry (cross-room accept regression test added), PvP death XP exemption, slash/body chat canonicalisation, guild-name minimum, roster reload after leave/kick, cached minimap background and updated admin kick/editor expectations.
+- Reviewer findings were fixed before the gate: guild invites moved to a process-wide registry (cross-room accept regression test added), PvP death XP exemption with room-level no-XP/no-loot assertion, guild/party/invisible/stealth friendly-fire coverage including an AoE mixed-crowd case, slash/body chat canonicalisation, guild-name minimum, roster reload after leave/kick, in-trade and moved-book skill-book guards, cached minimap background and updated admin kick/editor expectations.
 
 ## Manual acceptance
 

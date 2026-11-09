@@ -7,6 +7,7 @@ import {
   type InventorySnapshotPayload,
   type SkillBookResultPayload,
   type SkillStatePayload,
+  type TradeInvitePayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
 import type { MapRoom } from "../../src/rooms/MapRoom";
@@ -158,6 +159,59 @@ describe("room skill-book reading", () => {
     const warping = client.waitForMessage(MSG.skillBookResult, 2000);
     send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
     expect(((await warping) as SkillBookResultPayload).code).toBe("warping");
+  });
+
+  it("rejects reading while a trade is open", async () => {
+    const { room, client, bookId } = await joinWithBook("ReaderTrade");
+    const partnerIdentity = fake.prepare({ name: "BookTradePartner" });
+    const partner = await colyseus.connectTo(room, {
+      name: partnerIdentity.character.name,
+      characterId: partnerIdentity.character.id,
+    });
+    await room.waitForNextPatch();
+    await waitUntil(() => Boolean(fake.adminBus.get(partnerIdentity.character.id)));
+
+    const invitePromise = partner.waitForMessage(MSG.tradeInvite, 2000);
+    send(client, MSG.tradeInvite, { characterId: partnerIdentity.character.id });
+    const invite = (await invitePromise) as TradeInvitePayload;
+    const tradeState = client.waitForMessage(MSG.tradeState, 2000);
+    send(partner, MSG.tradeRespond, { tradeId: invite.tradeId, accept: true });
+    await tradeState;
+
+    const resultPromise = client.waitForMessage(MSG.skillBookResult, 2000);
+    send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
+    const result = (await resultPromise) as SkillBookResultPayload;
+    expect(result.ok).toBe(false);
+    expect(result.code).toBe("in_trade");
+  });
+
+  it("aborts when the book has moved out of the bag, then succeeds when moved back", async () => {
+    const { client, identity, bookId } = await joinWithBook("ReaderMoved");
+    fake.giveItem({
+      id: bookId,
+      itemId: "skillbook_mastery",
+      location: "ground",
+      slot: null,
+      ownerCharacterId: identity.character.id,
+    });
+
+    const moved = client.waitForMessage(MSG.skillBookResult, 2000);
+    send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
+    const movedResult = (await moved) as SkillBookResultPayload;
+    expect(movedResult.ok).toBe(false);
+    expect(["book_missing", "book_invalid"]).toContain(movedResult.code);
+
+    fake.giveItem({
+      id: bookId,
+      itemId: "skillbook_mastery",
+      location: "inventory",
+      slot: 0,
+      ownerCharacterId: identity.character.id,
+    });
+    const retry = client.waitForMessage(MSG.skillBookResult, 2000);
+    send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
+    const retryResult = (await retry) as SkillBookResultPayload;
+    expect(retryResult.ok).toBe(true);
   });
 
   it("rejects an unlearned rank without consuming the book", async () => {

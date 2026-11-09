@@ -6,10 +6,12 @@ import {
   ROOM_NAME_VILLAGE,
   type CombatEventPayload,
   type PvpMode,
+  type SkillCastPayload,
 } from "@jadethrone/shared";
 import { createGameServer } from "../../src/server";
 import type { MapRoom } from "../../src/rooms/MapRoom";
 import type { JoinIdentity } from "../../src/auth/joinAuth";
+import { applyPlayerBuff } from "../../src/skills/effects";
 import { createFakeServices, type FakeServices } from "./fakes";
 
 let colyseus: ColyseusTestServer;
@@ -45,6 +47,42 @@ async function join(room: MapRoom, identity: JoinIdentity) {
 async function setMode(client: unknown, mode: PvpMode, room: MapRoom, sessionId: string) {
   send(client, MSG.setPvpMode, { mode });
   await waitUntil(() => room.state.players.get(sessionId)?.pvpMode === mode);
+}
+
+interface PvpRuntime {
+  mover: { pos: { x: number; y: number } };
+  attackReadyAtMs: number;
+  progression: { hp: number; xp: number };
+  guildId: string | null;
+  invisible: boolean;
+  buffs: Parameters<typeof applyPlayerBuff>[0];
+}
+
+function runtimes(room: MapRoom): Map<string, PvpRuntime> {
+  return (room as unknown as { runtimes: Map<string, PvpRuntime> }).runtimes;
+}
+
+function setGuild(room: MapRoom, sessionId: string, guildId: string): void {
+  runtimes(room).get(sessionId)!.guildId = guildId;
+}
+
+function setInvisible(room: MapRoom, sessionId: string, invisible: boolean): void {
+  runtimes(room).get(sessionId)!.invisible = invisible;
+}
+
+function addStealth(room: MapRoom, sessionId: string): void {
+  applyPlayerBuff(
+    runtimes(room).get(sessionId)!.buffs,
+    {
+      sourceSkillId: "test_stealth",
+      name: "Stealth",
+      iconKey: "icon.skill.stealth",
+      modifiers: [],
+      durationMs: 10_000,
+      stealth: true,
+    },
+    Date.now(),
+  );
 }
 
 function place(room: MapRoom, sessionId: string, x: number, y = 200): void {
@@ -173,6 +211,169 @@ describe("room pvp combat", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(playerHit).toBe(false);
     expect(room.state.players.get(second.sessionId)?.hp).toBe(before);
+  });
+
+  it("blocks guild friendly fire even in Free mode", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const firstIdentity = fake.prepare({ name: "GuildA", map: ROOM_NAME_FIELDS, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "GuildB", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const first = await join(room, firstIdentity);
+    const second = await join(room, secondIdentity);
+    setGuild(room, first.sessionId, "guild-phase8");
+    setGuild(room, second.sessionId, "guild-phase8");
+    await setMode(first, "free", room, first.sessionId);
+    await setMode(second, "free", room, second.sessionId);
+    place(room, first.sessionId, 200);
+    place(room, second.sessionId, 230);
+    const before = room.state.players.get(second.sessionId)?.hp;
+
+    let playerHit = false;
+    first.onMessage(MSG.combat, (payload: CombatEventPayload) => {
+      if (payload.hits.some((hit) => hit.target.kind === "player" && !hit.miss)) {
+        playerHit = true;
+      }
+    });
+    send(first, MSG.attack, { dir: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(playerHit).toBe(false);
+    expect(room.state.players.get(second.sessionId)?.hp).toBe(before);
+  });
+
+  it("filters party members from a hostile AoE crowd", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const firstIdentity = fake.prepare({
+      name: "AoeCaster",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "ember",
+      level: 20,
+      doctrine: "blade",
+      skills: { warrior_blade_whirlwind: 1 },
+    });
+    const hostileIdentity = fake.prepare({
+      name: "AoeHostile",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "gale",
+      level: 20,
+    });
+    const allyIdentity = fake.prepare({
+      name: "AoeAlly",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "gale",
+      level: 20,
+    });
+    const first = await join(room, firstIdentity);
+    const hostile = await join(room, hostileIdentity);
+    const ally = await join(room, allyIdentity);
+
+    const invitePromise = ally.waitForMessage(MSG.partyInvite, 2000);
+    send(first, MSG.partyInvite, { characterId: allyIdentity.character.id });
+    const invite = (await invitePromise) as { inviteId: string };
+    const joined = ally.waitForMessage(MSG.partyState, 2000);
+    send(ally, MSG.partyRespond, { inviteId: invite.inviteId, accept: true });
+    await joined;
+
+    await setMode(first, "free", room, first.sessionId);
+    await setMode(hostile, "free", room, hostile.sessionId);
+    await setMode(ally, "free", room, ally.sessionId);
+    place(room, first.sessionId, 200);
+    place(room, hostile.sessionId, 230);
+    place(room, ally.sessionId, 270);
+    const hostileHp = room.state.players.get(hostile.sessionId)?.hp ?? 0;
+    const allyHp = room.state.players.get(ally.sessionId)?.hp ?? 0;
+
+    const eventPromise = new Promise<SkillCastPayload>((resolve) => {
+      first.onMessage(MSG.skillCast, (payload: SkillCastPayload) => {
+        if (payload.hits.some((hit) => hit.target.kind === "player")) {
+          resolve(payload);
+        }
+      });
+    });
+    send(first, MSG.castSkill, { skillId: "warrior_blade_whirlwind", dir: 0 });
+    const event = await eventPromise;
+    const targets = event.hits
+      .filter((hit) => hit.target.kind === "player" && !hit.miss)
+      .map((hit) => (hit.target as { sessionId: string }).sessionId);
+    expect(targets).toContain(hostile.sessionId);
+    expect(targets).not.toContain(ally.sessionId);
+    await waitUntil(
+      () => (room.state.players.get(hostile.sessionId)?.hp ?? hostileHp) < hostileHp,
+    );
+    expect(room.state.players.get(ally.sessionId)?.hp).toBe(allyHp);
+  });
+
+  it("cannot hit an invisible or stealthed player", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const firstIdentity = fake.prepare({
+      name: "HiddenHunter",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "ember",
+    });
+    const secondIdentity = fake.prepare({
+      name: "HiddenTarget",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "gale",
+    });
+    const first = await join(room, firstIdentity);
+    const second = await join(room, secondIdentity);
+    await setMode(first, "free", room, first.sessionId);
+    await setMode(second, "free", room, second.sessionId);
+
+    let playerHit = false;
+    first.onMessage(MSG.combat, (payload: CombatEventPayload) => {
+      if (payload.hits.some((hit) => hit.target.kind === "player" && !hit.miss)) {
+        playerHit = true;
+      }
+    });
+
+    setInvisible(room, second.sessionId, true);
+    place(room, first.sessionId, 200);
+    place(room, second.sessionId, 230);
+    send(first, MSG.attack, { dir: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(playerHit).toBe(false);
+
+    setInvisible(room, second.sessionId, false);
+    addStealth(room, second.sessionId);
+    place(room, first.sessionId, 200);
+    place(room, second.sessionId, 230);
+    send(first, MSG.attack, { dir: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(playerHit).toBe(false);
+  });
+
+  it("does not apply PvE XP loss or rewards on a PvP death", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const firstIdentity = fake.prepare({
+      name: "DeathDealer",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "ember",
+    });
+    const secondIdentity = fake.prepare({
+      name: "DeathVictim",
+      map: ROOM_NAME_FIELDS,
+      kingdom: "gale",
+    });
+    const first = await join(room, firstIdentity);
+    const second = await join(room, secondIdentity);
+    await setMode(first, "free", room, first.sessionId);
+    await setMode(second, "free", room, second.sessionId);
+    place(room, first.sessionId, 200);
+    place(room, second.sessionId, 230);
+    const entries = runtimes(room);
+    const attackerRuntime = entries.get(first.sessionId)!;
+    const victimRuntime = entries.get(second.sessionId)!;
+    attackerRuntime.progression.xp = 5000;
+    victimRuntime.progression.xp = 5000;
+    victimRuntime.progression.hp = 1;
+    room.state.players.get(second.sessionId)!.hp = 1;
+    const dropsBefore = room.state.groundItems.size;
+
+    const deathPromise = second.waitForMessage(MSG.death, 2000);
+    send(first, MSG.attack, { dir: 0 });
+    await deathPromise;
+    expect(victimRuntime.progression.xp).toBe(5000);
+    expect(attackerRuntime.progression.xp).toBe(5000);
+    expect(room.state.groundItems.size).toBe(dropsBefore);
   });
 
   it("rejects a peaceful target in a PvP map", async () => {
