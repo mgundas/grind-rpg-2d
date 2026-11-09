@@ -353,3 +353,14 @@ five times, so burning the token in `onAuth` would destroy it. `onJoin` consumes
 it once the seat is ours. Switching channels reuses `beginWarp` to the same map
 at the current position, which keeps the `character.map === options.map` auth
 check true and preserves the 2 s anti-ping-pong cooldown.
+
+## D80 — The party registry is process-wide; warps detach instead of leaving
+
+Parties now live in `ServerServices.parties`, so a warp, teleport or dungeon
+entry no longer disbands them. A room that removes a warping member only
+`detachPartyMember`s it (session id cleared, membership kept); the target room
+rebinds the new session in `onJoin` and broadcasts the full party snapshot,
+which is how cross-map party frames stay populated. XP and loot eligibility are
+still decided per room by looking up `this.runtimes.get(member.sessionId)`, so a
+member standing on another map simply contributes nothing. Party chat remains
+room-local (the Phase-8 rule); only guild/whisper chat is process-wide.

@@ -335,7 +335,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 14 — Items and shops to level 60
 - [x] Task 15 — Spirit stones for the new maps
 - [x] Task 16 — Boss coverage and 1→60 balance simulation
-- [ ] Task 17 — Cross-map party registry
+- [x] Task 17 — Cross-map party registry
 - [ ] Task 18 — Spider Cave instanced dungeon room
 - [ ] Task 19 — Dungeon client flow
 - [ ] Task 20 — Mounts: item effect, state and speed

@@ -43,8 +43,10 @@ import { setServerServices, type ChatLogInput, type CombatTuning } from "./servi
 import { createDbGameDataStore } from "./gameData/dbStore";
 import type { GameDataStore } from "./gameData/store";
 import { createSocialDirectory } from "./social/bus";
+import { createPartyRegistry } from "./rooms/party";
 import { createGuildInviteRegistry } from "./social/guildInvites";
 import type { SocialDirectory } from "./social/bus";
+import type { PartyRegistry } from "./rooms/party";
 import { createGuildService } from "./guilds/service";
 import type { GuildService } from "./guilds/service";
 import { createFriendsService } from "./friends/service";
@@ -73,6 +75,7 @@ export interface ServerDeps {
   items?: ItemService;
   gameData?: GameDataStore;
   social?: SocialDirectory;
+  parties?: PartyRegistry;
   guilds?: GuildService;
   friends?: FriendsService;
   setPvpMode?: (characterId: string, mode: PvpMode) => Promise<boolean>;
@@ -130,6 +133,7 @@ export function createGameServer(deps: ServerDeps = {}) {
   const itemService = deps.items ?? createItemService(db);
   const gameData = deps.gameData ?? createDbGameDataStore(db);
   const social = deps.social ?? createSocialDirectory();
+  const parties = deps.parties ?? createPartyRegistry();
   const guildInvites = createGuildInviteRegistry();
   const guilds = deps.guilds ?? (deps.joinAuthenticator ? null : createGuildService(db));
   const friends = deps.friends ?? (deps.joinAuthenticator ? null : createFriendsService(db));
@@ -171,6 +175,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     items: itemService,
     gameData,
     social,
+    parties,
     guilds,
     friends,
     setPvpMode,

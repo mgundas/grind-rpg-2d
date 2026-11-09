@@ -16,6 +16,7 @@ import type { GuildService } from "./guilds/service";
 import type { FriendsService } from "./friends/service";
 import type { PvpMode } from "@jadethrone/shared";
 import type { GuildInviteRegistry } from "./social/guildInvites";
+import type { PartyRegistry } from "./rooms/party";
 
 /** Test/ops overrides for combat timings (production uses the spec values). */
 export interface CombatTuning {
@@ -56,6 +57,8 @@ export interface ServerServices {
   gameData: GameDataStore;
   /** Process-wide online directory for cross-map social delivery. */
   social: SocialDirectory;
+  /** Process-wide parties so a warp or dungeon entry does not disband them. */
+  parties: PartyRegistry;
   /** Guild persistence; room tests can inject an in-memory fake. */
   guilds: GuildService | null;
   friends: FriendsService | null;

@@ -212,11 +212,11 @@ import { ServiceError } from "../errors";
 import { buildSelfStats } from "../characters/selfStats";
 import { effectiveRankFor } from "../characters/skillMastery";
 import {
-  createPartyRegistry,
   PartyRuleError,
   toPartyInvitePayload,
   type Party,
   type PartyMemberInput,
+  type PartyRegistry,
 } from "./party";
 import {
   progressionFromCharacter,
@@ -333,7 +333,9 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   private groundItems = new Map<string, GroundItemRuntime>();
   private adminActions = new Map<string, AdminLiveActions>();
   private adminRoom: AdminRoomHandle | null = null;
-  private readonly parties = createPartyRegistry();
+  private get parties(): PartyRegistry {
+    return getServerServices().parties;
+  }
   private readonly trades = createTradeRegistry({
     isOnline: (characterId) => this.runtimeForCharacter(characterId) !== undefined,
   });
@@ -1426,7 +1428,22 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     this.sendSkillState(client.sessionId);
     this.sendBossTimersTo(client);
     this.sendBuffState(client.sessionId);
-    this.sendEmptyParty(client);
+    // A warp or dungeon entry keeps the party; rebind this session to it.
+    const existingParty = this.parties.getByCharacter(runtime.characterId);
+    if (existingParty) {
+      this.parties.updateMember(runtime.characterId, {
+        sessionId: client.sessionId,
+        level: progression.level,
+        hp: progression.hp,
+        maxHp: progression.maxHp,
+        mp: progression.mp,
+        maxMp: progression.maxMp,
+        dead: false,
+      });
+      this.broadcastParty(existingParty);
+    } else {
+      this.sendEmptyParty(client);
+    }
 
     // A duplicate join replaced and saved the previous session. Its save is
     // newer than the matchmaking snapshot, so refresh before the first tick
@@ -1593,7 +1610,6 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     }
     this.adminActions.clear();
     this.adminRoom = null;
-    this.parties.clear();
     this.trades.clear();
   }
 
@@ -4192,6 +4208,16 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     }
   }
 
+  /** Warp cleanup: keep the party, but stop routing to the old session. */
+  private detachPartyMember(characterId: string): void {
+    const party = this.parties.getByCharacter(characterId);
+    if (!party) {
+      return;
+    }
+    this.parties.updateMember(characterId, { sessionId: "" });
+    this.broadcastParty(party);
+  }
+
   private setPartyLoot(client: Client, rule: "free_for_all" | "round_robin"): void {
     const runtime = this.runtimes.get(client.sessionId);
     if (!runtime) {
@@ -6045,7 +6071,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);
-    this.leavePartyInternal(runtime.characterId);
+    this.detachPartyMember(runtime.characterId);
     this.releaseOwnershipFor(runtime.characterId);
     // The move is intentional; do not let the target join "kick" this session.
     services.sessionRegistry.unregister(runtime.accountId, client.sessionId);
