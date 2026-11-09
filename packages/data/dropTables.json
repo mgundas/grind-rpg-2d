@@ -1436,6 +1436,129 @@
           "maxQty": 1
         }
       ]
+    },
+    {
+      "id": "spirit_stone_highland",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 0.5,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.45,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "scroll_blessing",
+          "chance": 0.05,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.05,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit_stone_valley",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 2,
+          "maxQty": 4
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.6,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.35,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.6,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "sword_ember_t4",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "spirit_stone_forest",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 2,
+          "maxQty": 5
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 1,
+          "minQty": 2,
+          "maxQty": 5
+        },
+        {
+          "itemId": "material_ancient_core",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_hp_xl",
+          "chance": 0.5,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "sword_ember_t5",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.05,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
     }
   ]
 }

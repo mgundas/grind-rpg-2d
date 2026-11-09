@@ -16,12 +16,207 @@
       "maxPerZone": 3,
       "respawnMinMs": 180000,
       "respawnMaxMs": 300000,
-      "waveTriggers": [80, 60, 40, 20],
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
       "waveMin": 4,
       "waveMax": 6,
-      "waveMonsters": ["wild_dog", "gray_wolf", "corrupted_deer"],
+      "waveMonsters": [
+        "wild_dog",
+        "gray_wolf",
+        "corrupted_deer"
+      ],
       "spriteKey": "mob.stone.spirit",
       "color": "#7bd3c4"
+    },
+    {
+      "id": "highland_stone",
+      "zoneId": "gale_highlands_stones",
+      "mapId": "map_gale_highlands",
+      "name": "Highland Spirit Stone",
+      "level": 22,
+      "hp": 45000,
+      "defense": 14,
+      "xp": 2400,
+      "goldMin": 80,
+      "goldMax": 200,
+      "dropTableId": "spirit_stone_highland",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 4,
+      "waveMax": 6,
+      "waveMonsters": [
+        "ash_wolf",
+        "wind_boar",
+        "highland_bandit"
+      ],
+      "spriteKey": "mob.stone.highland",
+      "color": "#9bd3a4"
+    },
+    {
+      "id": "tide_highland_stone",
+      "zoneId": "tide_highlands_stones",
+      "mapId": "map_tide_highlands",
+      "name": "Tideworn Spirit Stone",
+      "level": 22,
+      "hp": 45000,
+      "defense": 14,
+      "xp": 2400,
+      "goldMin": 80,
+      "goldMax": 200,
+      "dropTableId": "spirit_stone_highland",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 4,
+      "waveMax": 6,
+      "waveMonsters": [
+        "ash_wolf",
+        "wind_boar",
+        "ridge_archer"
+      ],
+      "spriteKey": "mob.stone.tide",
+      "color": "#7bb3d3"
+    },
+    {
+      "id": "valley_stone_west",
+      "zoneId": "valley_stones_west",
+      "mapId": "map_valley_of_echoes",
+      "name": "Echoing Spirit Stone",
+      "level": 35,
+      "hp": 90000,
+      "defense": 24,
+      "xp": 6000,
+      "goldMin": 200,
+      "goldMax": 500,
+      "dropTableId": "spirit_stone_valley",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 4,
+      "waveMax": 6,
+      "waveMonsters": [
+        "echo_wolf",
+        "valley_spirit",
+        "echo_bandit"
+      ],
+      "spriteKey": "mob.stone.echo",
+      "color": "#c4a7d3"
+    },
+    {
+      "id": "valley_stone_east",
+      "zoneId": "valley_stones_east",
+      "mapId": "map_valley_of_echoes",
+      "name": "Echoing Spirit Stone",
+      "level": 35,
+      "hp": 90000,
+      "defense": 24,
+      "xp": 6000,
+      "goldMin": 200,
+      "goldMax": 500,
+      "dropTableId": "spirit_stone_valley",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 4,
+      "waveMax": 6,
+      "waveMonsters": [
+        "valley_spirit",
+        "bone_walker",
+        "echo_wraith"
+      ],
+      "spriteKey": "mob.stone.echo",
+      "color": "#c4a7d3"
+    },
+    {
+      "id": "forest_stone_west",
+      "zoneId": "forest_stones_west",
+      "mapId": "map_corrupted_forest",
+      "name": "Corrupted Heartstone",
+      "level": 50,
+      "hp": 180000,
+      "defense": 36,
+      "xp": 15000,
+      "goldMin": 500,
+      "goldMax": 1200,
+      "dropTableId": "spirit_stone_forest",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 5,
+      "waveMax": 6,
+      "waveMonsters": [
+        "forest_stalker",
+        "corrupt_deer",
+        "spiderling"
+      ],
+      "spriteKey": "mob.stone.forest",
+      "color": "#6b8f5a"
+    },
+    {
+      "id": "forest_stone_east",
+      "zoneId": "forest_stones_east",
+      "mapId": "map_corrupted_forest",
+      "name": "Corrupted Heartstone",
+      "level": 50,
+      "hp": 180000,
+      "defense": 36,
+      "xp": 15000,
+      "goldMin": 500,
+      "goldMax": 1200,
+      "dropTableId": "spirit_stone_forest",
+      "maxPerZone": 2,
+      "respawnMinMs": 180000,
+      "respawnMaxMs": 300000,
+      "waveTriggers": [
+        80,
+        60,
+        40,
+        20
+      ],
+      "waveMin": 5,
+      "waveMax": 6,
+      "waveMonsters": [
+        "spiderling",
+        "spider_matriarch",
+        "corrupted_treant"
+      ],
+      "spriteKey": "mob.stone.forest",
+      "color": "#6b8f5a"
     }
   ]
 }
