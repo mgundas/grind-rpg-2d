@@ -1,6 +1,6 @@
 # Jade Throne — Progress
 
-Current plan: `docs/plans/phase-7.md` (Phase 7 complete — see `docs/reports/phase-7.md`).
+Current plan: `docs/plans/phase-10.md` (Phase 9 complete — see `docs/reports/phase-9.md`).
 
 ## Phase 0 — Foundation ✅
 
@@ -343,6 +343,25 @@ Plan: `docs/plans/phase-9.md`. Report: `docs/reports/phase-9.md`.
 - [x] Task 22 — Admin updates for new maps and channels
 - [x] Task 23 — Phase 9 E2E script, assets and docs
 - [x] Task 24 — Phase gate
+
+## Phase 10 — Polish, performance and deployment
+
+Plan: `docs/plans/phase-10.md`.
+
+- [ ] Task 1 — Audio manifest and placeholder synth
+- [ ] Task 2 — AudioService and Preload wiring
+- [ ] Task 3 — Wire SFX to existing events
+- [ ] Task 4 — Settings window and key rebinding
+- [ ] Task 5 — Credits screen and loading-tips pass
+- [ ] Task 6 — Game-feel sweep (§11 leftovers)
+- [ ] Task 7 — Client perf: lazy maps and pool audit
+- [ ] Task 8 — Server tick instrumentation
+- [ ] Task 9 — Server perf fixes
+- [ ] Task 10 — Load test: 150 bots on one channel
+- [ ] Task 11 — Production Docker and nginx
+- [ ] Task 12 — Production server behaviour
+- [ ] Task 13 — DEPLOY.md and production env example
+- [ ] Task 14 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)
 
