@@ -155,12 +155,48 @@ export const INV_SQRT2 = 0.7071067811865476;
 
 /** Room names double as map ids (GAME_DESIGN.md §10.2: one room type per map). */
 export const ROOM_NAME_VILLAGE = "map_ember_village";
+/** Ember's 15–30 map. Kept at its Phase-1 id so saved characters survive (D77). */
 export const ROOM_NAME_FIELDS = "map_ember_fields";
-export const MAP_IDS = [ROOM_NAME_VILLAGE, ROOM_NAME_FIELDS] as const;
+export const ROOM_NAME_GALE_VILLAGE = "map_gale_village";
+export const ROOM_NAME_GALE_HIGHLANDS = "map_gale_highlands";
+export const ROOM_NAME_TIDE_VILLAGE = "map_tide_village";
+export const ROOM_NAME_TIDE_HIGHLANDS = "map_tide_highlands";
+export const ROOM_NAME_VALLEY = "map_valley_of_echoes";
+export const ROOM_NAME_FOREST = "map_corrupted_forest";
+export const ROOM_NAME_SPIDER_CAVE = "map_spider_cave";
+
+export const MAP_IDS = [
+  ROOM_NAME_VILLAGE,
+  ROOM_NAME_FIELDS,
+  ROOM_NAME_GALE_VILLAGE,
+  ROOM_NAME_GALE_HIGHLANDS,
+  ROOM_NAME_TIDE_VILLAGE,
+  ROOM_NAME_TIDE_HIGHLANDS,
+  ROOM_NAME_VALLEY,
+  ROOM_NAME_FOREST,
+  ROOM_NAME_SPIDER_CAVE,
+] as const;
 export type MapId = (typeof MAP_IDS)[number];
+
+/** Kingdom home maps, used by character creation and respawns. */
+export const KINGDOM_VILLAGE_MAPS = {
+  ember: ROOM_NAME_VILLAGE,
+  gale: ROOM_NAME_GALE_VILLAGE,
+  tide: ROOM_NAME_TIDE_VILLAGE,
+} as const;
 
 /** Per-channel room cap (GAME_DESIGN.md §10.2: max 200 players per channel). */
 export const MAX_PLAYERS_PER_CHANNEL = 200;
+
+/** Map channels CH1–CH4 (GAME_DESIGN.md §10.2). */
+export const CHANNEL_IDS = [1, 2, 3, 4] as const;
+export type ChannelId = (typeof CHANNEL_IDS)[number];
+export const DEFAULT_CHANNEL: ChannelId = 1;
+export const MIN_CHANNEL = CHANNEL_IDS[0];
+export const MAX_CHANNEL = CHANNEL_IDS[CHANNEL_IDS.length - 1];
+
+/** Mounted walk speed is 300 px/s (GAME_DESIGN.md §5). */
+export const MOUNT_SPEED_MULT = 1.5;
 
 /** Per-client message rate limit in msgs/s (GAME_DESIGN.md §10.2). */
 export const MAX_MESSAGES_PER_SECOND = 30;

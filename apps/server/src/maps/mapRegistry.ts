@@ -5,6 +5,7 @@ import {
   ROOM_NAME_VILLAGE,
   buildCollisionGrid,
   extractMapObjects,
+  isMapId as isSharedMapId,
   parseTiledMap,
   type CollisionGrid,
   type MapId,
@@ -32,7 +33,11 @@ export interface MapAssets {
   heightPx: number;
 }
 
-const RAW_MAPS: Record<MapId, unknown> = {
+/**
+ * Raw map JSON is registered as each map file lands; until Phase 9 task 7 every
+ * id in `MAP_IDS` must have an entry here (the client mirrors this in Preload).
+ */
+const RAW_MAPS: Partial<Record<MapId, unknown>> = {
   [ROOM_NAME_VILLAGE]: villageMapJson,
   [ROOM_NAME_FIELDS]: fieldsMapJson,
 };
@@ -40,7 +45,7 @@ const RAW_MAPS: Record<MapId, unknown> = {
 const cache = new Map<MapId, MapAssets>();
 
 export function isMapId(value: string): value is MapId {
-  return value === ROOM_NAME_VILLAGE || value === ROOM_NAME_FIELDS;
+  return isSharedMapId(value);
 }
 
 export function loadMapAssets(mapId: MapId): MapAssets {
@@ -48,7 +53,11 @@ export function loadMapAssets(mapId: MapId): MapAssets {
   if (cached) {
     return cached;
   }
-  const map = parseTiledMap(RAW_MAPS[mapId]);
+  const raw = RAW_MAPS[mapId];
+  if (raw === undefined) {
+    throw new Error(`map assets not generated yet: "${mapId}"`);
+  }
+  const map = parseTiledMap(raw);
   const objects = extractMapObjects(map);
   const assets: MapAssets = {
     mapId,

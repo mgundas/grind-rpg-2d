@@ -7,19 +7,103 @@
       "pvpAllowed": false,
       "neutral": false,
       "safe": true,
+      "dungeon": false,
       "weather": "none",
       "connections": ["map_ember_fields"],
       "minimapScale": 2
     },
     {
       "mapId": "map_ember_fields",
-      "label": "Ember Fields",
-      "pvpAllowed": true,
+      "label": "Ember Highlands",
+      "pvpAllowed": false,
       "neutral": false,
       "safe": false,
+      "dungeon": false,
       "weather": "leaves",
-      "connections": ["map_ember_village"],
+      "connections": ["map_ember_village", "map_valley_of_echoes"],
       "minimapScale": 1.5
+    },
+    {
+      "mapId": "map_gale_village",
+      "label": "Gale Village",
+      "pvpAllowed": false,
+      "neutral": false,
+      "safe": true,
+      "dungeon": false,
+      "weather": "none",
+      "connections": ["map_gale_highlands"],
+      "minimapScale": 2
+    },
+    {
+      "mapId": "map_gale_highlands",
+      "label": "Gale Highlands",
+      "pvpAllowed": false,
+      "neutral": false,
+      "safe": false,
+      "dungeon": false,
+      "weather": "leaves",
+      "connections": ["map_gale_village", "map_valley_of_echoes"],
+      "minimapScale": 1.5
+    },
+    {
+      "mapId": "map_tide_village",
+      "label": "Tide Village",
+      "pvpAllowed": false,
+      "neutral": false,
+      "safe": true,
+      "dungeon": false,
+      "weather": "none",
+      "connections": ["map_tide_highlands"],
+      "minimapScale": 2
+    },
+    {
+      "mapId": "map_tide_highlands",
+      "label": "Tide Highlands",
+      "pvpAllowed": false,
+      "neutral": false,
+      "safe": false,
+      "dungeon": false,
+      "weather": "rain",
+      "connections": ["map_tide_village", "map_valley_of_echoes"],
+      "minimapScale": 1.5
+    },
+    {
+      "mapId": "map_valley_of_echoes",
+      "label": "Valley of Echoes",
+      "pvpAllowed": true,
+      "neutral": true,
+      "safe": false,
+      "dungeon": false,
+      "weather": "leaves",
+      "connections": [
+        "map_ember_fields",
+        "map_gale_highlands",
+        "map_tide_highlands",
+        "map_corrupted_forest"
+      ],
+      "minimapScale": 1.2
+    },
+    {
+      "mapId": "map_corrupted_forest",
+      "label": "Corrupted Forest",
+      "pvpAllowed": true,
+      "neutral": true,
+      "safe": false,
+      "dungeon": false,
+      "weather": "rain",
+      "connections": ["map_valley_of_echoes", "map_spider_cave"],
+      "minimapScale": 1.2
+    },
+    {
+      "mapId": "map_spider_cave",
+      "label": "Spider Cave",
+      "pvpAllowed": false,
+      "neutral": true,
+      "safe": false,
+      "dungeon": true,
+      "weather": "none",
+      "connections": ["map_corrupted_forest"],
+      "minimapScale": 2
     }
   ]
 }

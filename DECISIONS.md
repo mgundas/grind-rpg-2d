@@ -323,3 +323,19 @@ Skill mastery is stored separately from the normal rank in `character_skill_mast
 PvP uses the shared `canAttackPlayer` matrix: safe maps block all player damage, Peaceful blocks both directions, Kingdom only hits other kingdoms, Free hits anyone non-peaceful, and party/guild members are never valid targets. Player damage reuses the existing hit/crit/defense formulas, has no PvP multiplier, no player statuses, no lifesteal and no PvP rewards; death uses the normal death path. A `pvpReady` gate prevents guildmates being attackable before the async guild lookup completes.
 
 Day/night and weather are client-only: a Phaser 4 camera colour matrix follows the absolute 20-minute shared clock, and bounded particle emitters provide per-map weather. The minimap is generated from the same collision grid, with entity dots updated at 4 Hz; the Phase 8 world map is a policy-driven two-map view until Phase 9 supplies the full world layout.
+
+## D77 — `map_ember_fields` becomes Ember Highlands instead of being renamed
+
+The final map list in GAME_DESIGN.md §3.1 replaces the Phase-1 "Ember Fields"
+with three Highlands maps. Renaming `map_ember_fields` would invalidate saved
+`characters.map` rows and every drop/stone/spawn-group reference, so the id is
+kept and the map is rethemed and relabelled "Ember Highlands" in
+`MAP_LABELS`/`policies.json`. It also loses its Phase-8 `pvpAllowed` stand-in
+(D73): PvP moves to the neutral Valley of Echoes and Corrupted Forest.
+
+## D78 — Map connections are a validated bidirectional travel graph
+
+`policies.json` now carries a `dungeon` flag and the parser requires every
+connection to point back at its source, so travel can never strand a player on a
+map with no return path. The dungeon flag also forbids PvP and is what the
+server uses to decide that a map is instanced (Phase 9 task 18).

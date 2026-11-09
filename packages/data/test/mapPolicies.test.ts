@@ -15,10 +15,27 @@ describe("map policies", () => {
     expect(village.pvpAllowed).toBe(false);
     expect(village.weather).toBe("none");
     const fields = getMapPolicy("map_ember_fields");
+    expect(fields.label).toBe("Ember Highlands");
     expect(fields.safe).toBe(false);
-    expect(fields.pvpAllowed).toBe(true);
+    expect(fields.pvpAllowed).toBe(false);
     expect(fields.weather).toBe("leaves");
     expect(fields.connections).toContain("map_ember_village");
+    expect(fields.connections).toContain("map_valley_of_echoes");
+    const valley = getMapPolicy("map_valley_of_echoes");
+    expect(valley.neutral).toBe(true);
+    expect(valley.pvpAllowed).toBe(true);
+    const cave = getMapPolicy("map_spider_cave");
+    expect(cave.dungeon).toBe(true);
+    expect(cave.pvpAllowed).toBe(false);
+  });
+
+  it("keeps every connection walkable in both directions", () => {
+    const byId = new Map(MAP_POLICIES.map((policy) => [policy.mapId, policy]));
+    for (const policy of MAP_POLICIES) {
+      for (const targetId of policy.connections) {
+        expect(byId.get(targetId)?.connections).toContain(policy.mapId);
+      }
+    }
   });
 
   it("rejects unsafe combinations and unknown connections", () => {

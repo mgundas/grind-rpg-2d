@@ -319,8 +319,8 @@ D71–D76.
 
 Plan: `docs/plans/phase-9.md`.
 
-- [ ] Task 1 — Shared map ids and labels for the final 9 maps
-- [ ] Task 2 — Map policies for all maps
+- [x] Task 1 — Shared map ids and labels for the final 9 maps
+- [x] Task 2 — Map policies for all maps
 - [ ] Task 3 — Generator: Gale and Tide village variants
 - [ ] Task 4 — Generator: three Highlands (15–30)
 - [ ] Task 5 — Generator: Valley of Echoes and Corrupted Forest

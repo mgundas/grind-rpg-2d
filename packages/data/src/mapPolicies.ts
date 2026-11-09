@@ -16,6 +16,8 @@ export interface MapPolicy {
   pvpAllowed: boolean;
   neutral: boolean;
   safe: boolean;
+  /** Instanced dungeon map: members enter as a party and the room is disposable. */
+  dungeon: boolean;
   weather: WeatherKind;
   connections: MapId[];
   minimapScale: number;
@@ -28,6 +30,7 @@ const policySchema = z
     pvpAllowed: z.boolean(),
     neutral: z.boolean(),
     safe: z.boolean(),
+    dungeon: z.boolean(),
     weather: z.enum(WEATHER_KINDS),
     connections: z.array(z.enum(MAP_IDS)),
     minimapScale: z.number().min(0.5).max(8),
@@ -36,6 +39,9 @@ const policySchema = z
   .superRefine((policy, ctx) => {
     if (policy.safe && policy.pvpAllowed) {
       ctx.addIssue({ code: "custom", message: `${policy.mapId}: safe maps cannot allow PvP` });
+    }
+    if (policy.dungeon && policy.pvpAllowed) {
+      ctx.addIssue({ code: "custom", message: `${policy.mapId}: dungeons cannot allow PvP` });
     }
     if (new Set(policy.connections).size !== policy.connections.length) {
       ctx.addIssue({ code: "custom", message: `${policy.mapId}: duplicate connection` });
@@ -64,6 +70,19 @@ const fileSchema = z
         ctx.addIssue({ code: "custom", message: `missing map policy "${mapId}"` });
       }
     }
+    // Connections are a travel graph: every edge must be walkable both ways.
+    const byId = new Map(file.maps.map((policy) => [policy.mapId, policy]));
+    for (const policy of file.maps) {
+      for (const targetId of policy.connections) {
+        const target = byId.get(targetId);
+        if (target && !target.connections.includes(policy.mapId)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `${policy.mapId} -> ${targetId}: connection is not bidirectional`,
+          });
+        }
+      }
+    }
   });
 
 export function buildMapPolicies(rawJson: unknown): readonly MapPolicy[] {
@@ -80,4 +99,12 @@ export function getMapPolicy(mapId: MapId): MapPolicy {
     throw new Error(`unknown map policy "${mapId}"`);
   }
   return policy;
+}
+
+export function isDungeonMap(mapId: MapId): boolean {
+  return getMapPolicy(mapId).dungeon;
+}
+
+export function isNeutralMap(mapId: MapId): boolean {
+  return getMapPolicy(mapId).neutral;
 }

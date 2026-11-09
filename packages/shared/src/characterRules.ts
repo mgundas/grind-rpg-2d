@@ -46,7 +46,14 @@ export interface CharacterSummary extends CharacterAppearance {
 
 export const MAP_LABELS: Record<MapId, string> = {
   map_ember_village: "Ember Village",
-  map_ember_fields: "Ember Fields",
+  map_ember_fields: "Ember Highlands",
+  map_gale_village: "Gale Village",
+  map_gale_highlands: "Gale Highlands",
+  map_tide_village: "Tide Village",
+  map_tide_highlands: "Tide Highlands",
+  map_valley_of_echoes: "Valley of Echoes",
+  map_corrupted_forest: "Corrupted Forest",
+  map_spider_cave: "Spider Cave",
 };
 
 export function isValidCharacterName(name: string): boolean {
