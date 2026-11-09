@@ -11,7 +11,9 @@ import {
   planConsume,
   planDeposit,
   planEquip,
+  planGoldChange,
   planGoldPickup,
+  planSpendGold,
   planMove,
   planPickup,
   planSell,
@@ -354,5 +356,34 @@ describe("warehouse planners", () => {
         ),
       "inventory_full",
     );
+  });
+});
+
+describe("gold-only plans", () => {
+  it("spends gold without touching items and logs the reason", () => {
+    const result = planSpendGold(emptyInventory(), 200, "teleport", { to: "map_valley_of_echoes" });
+    expect(result.plan.changes).toEqual([]);
+    expect(result.plan.gold).toEqual({
+      delta: -200,
+      reason: "teleport",
+      detail: { to: "map_valley_of_echoes" },
+    });
+  });
+
+  it("emits no gold row for a zero-cost hop", () => {
+    expect(planSpendGold(emptyInventory(), 0, "teleport").plan.gold).toBeUndefined();
+  });
+
+  it("supports refunds as a positive delta", () => {
+    expect(planGoldChange(emptyInventory(), 50, "teleport", { refund: true }).plan.gold).toEqual({
+      delta: 50,
+      reason: "teleport",
+      detail: { refund: true },
+    });
+  });
+
+  it("rejects negative or fractional amounts", () => {
+    expect(() => planSpendGold(emptyInventory(), -1, "teleport")).toThrow(/non-negative/);
+    expect(() => planSpendGold(emptyInventory(), 1.5, "teleport")).toThrow(/non-negative/);
   });
 });

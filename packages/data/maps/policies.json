@@ -8,8 +8,11 @@
       "neutral": false,
       "safe": true,
       "dungeon": false,
+      "teleportCost": 0,
       "weather": "none",
-      "connections": ["map_ember_fields"],
+      "connections": [
+        "map_ember_fields"
+      ],
       "minimapScale": 2
     },
     {
@@ -19,8 +22,12 @@
       "neutral": false,
       "safe": false,
       "dungeon": false,
+      "teleportCost": 50,
       "weather": "leaves",
-      "connections": ["map_ember_village", "map_valley_of_echoes"],
+      "connections": [
+        "map_ember_village",
+        "map_valley_of_echoes"
+      ],
       "minimapScale": 1.5
     },
     {
@@ -30,8 +37,11 @@
       "neutral": false,
       "safe": true,
       "dungeon": false,
+      "teleportCost": 0,
       "weather": "none",
-      "connections": ["map_gale_highlands"],
+      "connections": [
+        "map_gale_highlands"
+      ],
       "minimapScale": 2
     },
     {
@@ -41,8 +51,12 @@
       "neutral": false,
       "safe": false,
       "dungeon": false,
+      "teleportCost": 50,
       "weather": "leaves",
-      "connections": ["map_gale_village", "map_valley_of_echoes"],
+      "connections": [
+        "map_gale_village",
+        "map_valley_of_echoes"
+      ],
       "minimapScale": 1.5
     },
     {
@@ -52,8 +66,11 @@
       "neutral": false,
       "safe": true,
       "dungeon": false,
+      "teleportCost": 0,
       "weather": "none",
-      "connections": ["map_tide_highlands"],
+      "connections": [
+        "map_tide_highlands"
+      ],
       "minimapScale": 2
     },
     {
@@ -63,8 +80,12 @@
       "neutral": false,
       "safe": false,
       "dungeon": false,
+      "teleportCost": 50,
       "weather": "rain",
-      "connections": ["map_tide_village", "map_valley_of_echoes"],
+      "connections": [
+        "map_tide_village",
+        "map_valley_of_echoes"
+      ],
       "minimapScale": 1.5
     },
     {
@@ -74,6 +95,7 @@
       "neutral": true,
       "safe": false,
       "dungeon": false,
+      "teleportCost": 200,
       "weather": "leaves",
       "connections": [
         "map_ember_fields",
@@ -90,8 +112,12 @@
       "neutral": true,
       "safe": false,
       "dungeon": false,
+      "teleportCost": 400,
       "weather": "rain",
-      "connections": ["map_valley_of_echoes", "map_spider_cave"],
+      "connections": [
+        "map_valley_of_echoes",
+        "map_spider_cave"
+      ],
       "minimapScale": 1.2
     },
     {
@@ -101,8 +127,11 @@
       "neutral": true,
       "safe": false,
       "dungeon": true,
+      "teleportCost": 0,
       "weather": "none",
-      "connections": ["map_corrupted_forest"],
+      "connections": [
+        "map_corrupted_forest"
+      ],
       "minimapScale": 2
     }
   ]

@@ -24,6 +24,7 @@ import {
   rowStateFromStack,
   type DeleteChange,
   type GoldDelta,
+  type GoldReason,
   type InsertChange,
   type ItemChange,
   type ItemPlan,
@@ -435,6 +436,42 @@ export function planGoldPickup(characterId: string, amount: number, dropId: stri
     logs: [],
     gold: { delta: amount, reason: "pickup", detail: { dropId, characterId } },
   };
+}
+
+/**
+ * Apply a signed gold delta with no item changes. The executor validates the
+ * balance again inside the transaction, so a racing purchase cannot overdraw.
+ */
+export function planGoldChange(
+  state: InventoryState,
+  delta: number,
+  reason: GoldReason,
+  detail?: Record<string, unknown>,
+): ItemPlanResult<InventoryState> {
+  if (!Number.isInteger(delta)) {
+    throw new ItemError("invalid_quantity", "Gold amount must be an integer.");
+  }
+  return {
+    state,
+    plan: {
+      changes: [],
+      logs: [],
+      gold: delta !== 0 ? { delta, reason, detail } : undefined,
+    },
+  };
+}
+
+/** Spend gold with no item changes (teleports, fees). */
+export function planSpendGold(
+  state: InventoryState,
+  amount: number,
+  reason: GoldReason,
+  detail?: Record<string, unknown>,
+): ItemPlanResult<InventoryState> {
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new ItemError("invalid_quantity", "Gold amount must be a non-negative integer.");
+  }
+  return planGoldChange(state, -amount, reason, detail);
 }
 
 export function planBuy(

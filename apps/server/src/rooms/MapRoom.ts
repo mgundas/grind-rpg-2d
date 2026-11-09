@@ -98,6 +98,7 @@ import {
   seedFromString,
   setTargetMessageSchema,
   splitStackMessageSchema,
+  teleportRequestMessageSchema,
   stepMover,
   tradeAcceptMessageSchema,
   tradeCancelMessageSchema,
@@ -132,6 +133,9 @@ import {
   type MonsterDiedPayload,
   type NpcDialogPayload,
   type PartyStatePayload,
+  type TeleportDestination,
+  type TeleportErrorCode,
+  type TeleportErrorPayload,
   type PickupResultPayload,
   type RandomSource,
   type SkillBuffResult,
@@ -147,6 +151,7 @@ import {
   type Vec2,
   type WarpPayload,
   type WarpZone,
+  MAP_LABELS,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import type { SkillInfo } from "@jadethrone/data/skills";
@@ -183,9 +188,11 @@ import {
   planDeposit,
   planEquip,
   planGoldPickup,
+  planGoldChange,
   planMove,
   planPickup,
   planSell,
+  planSpendGold,
   planSplit,
   planUnequip,
   planWithdraw,
@@ -1016,6 +1023,21 @@ export class MapRoom extends Room {
         return;
       }
       this.interactNpc(client, parsed.data.npcId);
+    });
+
+    this.onMessage(MSG.teleportRequest, (client, raw) => {
+      const parsed = teleportRequestMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid teleportRequest message");
+        return;
+      }
+      const runtime = this.runtimes.get(client.sessionId);
+      const point = runtime ? this.assets.npcs.find((npc) => npc.npcId === parsed.data.npcId) : undefined;
+      if (!runtime || !point) {
+        this.sendTeleportError(client, "out_of_range");
+        return;
+      }
+      this.teleportTo(client, parsed.data.targetMap);
     });
 
     this.onMessage(MSG.shopBuy, (client, raw) => {
@@ -3358,7 +3380,116 @@ export class MapRoom extends Room {
       greeting: info.greeting,
       shopId: info.shopId,
     };
+    if (info.kind === "teleporter") {
+      payload.destinations = this.teleportDestinations();
+    }
     this.safeSend(client, MSG.npcDialog, payload);
+  }
+
+  /** Connected maps offered by a teleporter NPC, priced by the destination. */
+  private teleportDestinations(): TeleportDestination[] {
+    return getMapPolicy(this.mapId).connections.map((mapId) => ({
+      mapId,
+      label: MAP_LABELS[mapId],
+      cost: getMapPolicy(mapId).teleportCost,
+    }));
+  }
+
+  private sendTeleportError(client: Client, code: TeleportErrorCode): void {
+    this.safeSend(client, MSG.teleportError, { code } satisfies TeleportErrorPayload);
+  }
+
+  /**
+   * Paid travel from a teleporter NPC. Gold is charged before the warp and
+   * refunded if the reservation fails; the whole flow shares the item chain so
+   * it cannot interleave with a purchase or a pickup.
+   */
+  private teleportTo(client: Client, targetMap: MapId): void {
+    const initial = this.runtimes.get(client.sessionId);
+    if (!initial) {
+      return;
+    }
+    const run = async (): Promise<void> => {
+      const runtime = this.runtimes.get(client.sessionId);
+      if (!runtime) {
+        return;
+      }
+      if (!this.takeItemCommandToken(runtime)) {
+        this.sendTeleportError(client, "cooldown");
+        return;
+      }
+      try {
+        if (runtime.warping) {
+          this.sendTeleportError(client, "cooldown");
+          return;
+        }
+        if (runtime.dead) {
+          this.sendTeleportError(client, "dead");
+          return;
+        }
+        const destination = this.teleportDestinations().find((entry) => entry.mapId === targetMap);
+        if (!destination) {
+          this.sendTeleportError(client, "invalid_target");
+          return;
+        }
+        const nearTeleporter = this.assets.npcs.some((npc) => {
+          let info;
+          try {
+            info = this.catalog().getNpc(npc.npcId);
+          } catch {
+            return false;
+          }
+          return info.kind === "teleporter" && this.isNearNpc(runtime, npc);
+        });
+        if (!nearTeleporter) {
+          this.sendTeleportError(client, "out_of_range");
+          return;
+        }
+        if (destination.cost > 0) {
+          const charge = planSpendGold(runtime.inventory, destination.cost, "teleport", {
+            from: this.mapId,
+            to: destination.mapId,
+          });
+          await this.applyItemPlan(runtime, charge.state, charge.plan);
+        }
+        const spawn = loadMapAssets(destination.mapId).spawn;
+        const accepted = await this.beginWarp(
+          client,
+          { mapId: destination.mapId, x: spawn.x, y: spawn.y },
+          { awaitInventory: false },
+        );
+        if (!accepted && destination.cost > 0) {
+          const current = this.runtimes.get(client.sessionId);
+          if (current) {
+            const refund = planGoldChange(current.inventory, destination.cost, "teleport", {
+              refund: true,
+              from: this.mapId,
+              to: destination.mapId,
+            });
+            await this.applyItemPlan(current, refund.state, refund.plan);
+          }
+        }
+      } catch (error) {
+        if (isItemError(error)) {
+          const code: TeleportErrorCode =
+            error.code === "no_gold" || error.code === "out_of_range" || error.code === "dead"
+              ? error.code
+              : "internal";
+          this.sendTeleportError(client, code);
+          return;
+        }
+        logger.error(
+          { roomId: this.roomId, characterId: runtime.characterId, error },
+          "teleport failed",
+        );
+        this.sendTeleportError(client, "internal");
+      }
+    };
+    const next = (initial.inventoryChain ?? Promise.resolve()).then(run, run);
+    initial.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   private requireShopRange(runtime: PlayerRuntime, shopId: string): void {

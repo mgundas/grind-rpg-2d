@@ -1,4 +1,11 @@
-import { CHAT_MAX_LEN, MAX_GOLD, TRADE_MAX_OFFER_ITEMS, type MapId, type Stats } from "./constants";
+import {
+  CHAT_MAX_LEN,
+  MAP_IDS,
+  MAX_GOLD,
+  TRADE_MAX_OFFER_ITEMS,
+  type MapId,
+  type Stats,
+} from "./constants";
 import { CHAT_CHANNELS, type ChatChannel } from "./chat";
 import { GUILD_RANKS, type GuildErrorPayload, type GuildRank, type GuildStatePayload } from "./guild";
 import { PVP_MODES, type PvpMode } from "./pvp";
@@ -43,6 +50,8 @@ export const MSG = {
   pickupResult: "pickupResult",
   interactNpc: "interactNpc",
   npcDialog: "npcDialog",
+  teleportRequest: "teleportRequest",
+  teleportError: "teleportError",
   shopBuy: "shopBuy",
   shopSell: "shopSell",
   warehouseOpen: "warehouseOpen",
@@ -329,6 +338,24 @@ export const pickupMessageSchema = z.object({ dropId: instanceIdSchema }).strict
 export type PickupMessage = z.infer<typeof pickupMessageSchema>;
 
 export const interactNpcMessageSchema = z.object({ npcId: npcIdSchema }).strict();
+
+export const teleportRequestMessageSchema = z
+  .object({ npcId: npcIdSchema, targetMap: z.enum(MAP_IDS) })
+  .strict();
+export type TeleportRequestMessage = z.infer<typeof teleportRequestMessageSchema>;
+
+export type TeleportErrorCode =
+  | "no_gold"
+  | "out_of_range"
+  | "invalid_target"
+  | "dead"
+  | "cooldown"
+  | "internal";
+
+export interface TeleportErrorPayload {
+  code: TeleportErrorCode;
+  message?: string;
+}
 export type InteractNpcMessage = z.infer<typeof interactNpcMessageSchema>;
 
 export const shopBuyMessageSchema = z
@@ -699,12 +726,21 @@ export interface PickupResultPayload {
 
 export type NpcDialogKind = "shop" | "warehouse" | "blacksmith" | "teleporter";
 
+/** A destination offered by a teleporter NPC, priced by the target map. */
+export interface TeleportDestination {
+  mapId: MapId;
+  label: string;
+  cost: number;
+}
+
 export interface NpcDialogPayload {
   npcId: string;
   name: string;
   kind: NpcDialogKind;
   greeting: string;
   shopId?: string;
+  /** Present only for teleporter NPCs; only connected maps are offered. */
+  destinations?: TeleportDestination[];
 }
 
 export interface ShopStockEntry {

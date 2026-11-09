@@ -85,6 +85,7 @@ export interface FakeServices {
     bonuses?: ItemBonus[];
   }) => void;
   setGold: (characterId: string, gold: number) => void;
+  goldOf: (characterId: string) => number;
   identities: Map<string, JoinIdentity>;
   saved: BulkCharacterSave[];
   prepare: (options?: FakeJoinOptions) => JoinIdentity;
@@ -586,6 +587,9 @@ export function createFakeServices(): FakeServices {
     giveItem,
     setGold(characterId, gold) {
       goldByCharacter.set(characterId, gold);
+    },
+    goldOf(characterId) {
+      return goldByCharacter.get(characterId) ?? 0;
     },
     identities,
     saved,

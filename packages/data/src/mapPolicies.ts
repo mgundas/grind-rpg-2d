@@ -18,6 +18,8 @@ export interface MapPolicy {
   safe: boolean;
   /** Instanced dungeon map: members enter as a party and the room is disposable. */
   dungeon: boolean;
+  /** Gold paid to teleport TO this map; 0 means free. */
+  teleportCost: number;
   weather: WeatherKind;
   connections: MapId[];
   minimapScale: number;
@@ -31,6 +33,7 @@ const policySchema = z
     neutral: z.boolean(),
     safe: z.boolean(),
     dungeon: z.boolean(),
+    teleportCost: z.number().int().min(0).max(1_000_000),
     weather: z.enum(WEATHER_KINDS),
     connections: z.array(z.enum(MAP_IDS)),
     minimapScale: z.number().min(0.5).max(8),
