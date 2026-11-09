@@ -63,6 +63,10 @@ let connectPromise: Promise<Room> | null = null;
 
 function serverUrl(): string {
   const configured = import.meta.env.VITE_SERVER_URL;
+  if (configured === "same-origin") {
+    const protocol = location.protocol === "https:" ? "wss" : "ws";
+    return `${protocol}://${location.host}`;
+  }
   if (configured) {
     return configured;
   }
