@@ -207,6 +207,15 @@ describe("moving and splitting", () => {
     expect(result.state.items.find((item) => item.id === "sword")?.slot).toBe(0);
   });
 
+  it("reports stack_full instead of a silent no-op when the target stack is full", () => {
+    const state = stateWith([
+      stack({ id: "a", quantity: 10, slot: 0 }),
+      stack({ id: "b", quantity: 3, slot: 1 }),
+    ]);
+    const result = moveItem(state, "b", 0, getDefinition);
+    expect(result).toEqual({ ok: false, code: "stack_full" });
+  });
+
   it("merges a moved stack into a compatible stack", () => {
     const state = stateWith([
       stack({ id: "a", quantity: 6, slot: 0 }),
@@ -314,6 +323,22 @@ describe("normalization", () => {
     for (const item of result.items) {
       expect(cellsForSlot(item.slot, getDefinition(item.itemId).size)).not.toBeNull();
     }
+  });
+
+  it("parks overflow items at unique negative slots instead of overlapping", () => {
+    const items = Array.from({ length: 90 }, (_, slot) =>
+      stack({ id: `p${slot}`, itemId: "potion", slot }),
+    );
+    // A 91st one-cell item cannot fit in a 90-cell grid.
+    items.push(stack({ id: "extra", itemId: "potion", slot: 0 }));
+    const result = normalizeInventory(items, getDefinition);
+    expect(result.overflow).toHaveLength(1);
+    expect(result.overflow[0]?.id).toBeDefined();
+    expect(result.overflow[0]?.slot).toBeLessThan(0);
+    expect(result.items).toHaveLength(91);
+    expect(result.items.filter((item) => item.slot >= 0)).toHaveLength(90);
+    const slots = result.items.map((item) => item.slot);
+    expect(new Set(slots).size).toBe(slots.length);
   });
 
   it("leaves a valid layout untouched", () => {

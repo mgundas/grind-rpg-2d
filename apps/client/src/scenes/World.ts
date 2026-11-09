@@ -9,10 +9,12 @@ import {
   dir8FromAxes,
   dir8Towards,
   extractMapObjects,
+  equippedBonusValue,
   facing4FromDir8,
   isClassId,
   isGender,
   isWalkableAt,
+  moveSpeedMultiplier,
   nearestWalkable,
   parseTiledMap,
   type ChatMsgPayload,
@@ -395,15 +397,8 @@ export class WorldScene extends Phaser.Scene {
       } else {
         const desired = this.resolveInput();
         const inventory = useUiStore.getState().inventory;
-        const moveBonus = (inventory?.equipment ?? []).reduce((total, item) => {
-          if (!item) {
-            return total;
-          }
-          return total + item.bonuses
-            .filter((bonus) => bonus.type === "move_speed")
-            .reduce((sum, bonus) => sum + bonus.value, 0);
-        }, 0);
-        this.predictor.setSpeedMultiplier(1 + moveBonus);
+        const moveBonus = equippedBonusValue(inventory?.equipment ?? [], "move_speed");
+        this.predictor.setSpeedMultiplier(moveSpeedMultiplier(moveBonus));
         this.predictor.update(delta, desired);
         if (this.pathTarget && !this.predictor.isFollowingPath) {
           this.pathTarget = null;

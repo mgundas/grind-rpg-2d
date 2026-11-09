@@ -7,6 +7,7 @@ import {
   type WarehouseState,
 } from "@jadethrone/shared";
 import type { Db, Tx } from "../db/client";
+import { logger } from "../logger";
 import { accounts, characters, itemLog, items } from "../db/schema";
 import { ItemError } from "./errors";
 import { BASE_CATALOG, type CatalogLookup } from "@jadethrone/data/catalog";
@@ -110,6 +111,13 @@ export async function loadInventory(
       .orderBy(items.location, items.slot);
 
     const { inventory, repairs } = loadRowsIntoState(rows, catalog);
+    const overflow = inventory.items.filter((item) => item.slot < 0);
+    if (overflow.length > 0) {
+      logger.warn(
+        { characterId, accountId, itemIds: overflow.map((item) => item.id) },
+        "inventory overflow: items parked at negative slots for admin recovery",
+      );
+    }
     await persistRepairs(tx, repairs, { characterId, accountId });
     return { inventory, gold: character.gold, repairs };
   });

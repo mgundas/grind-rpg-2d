@@ -124,6 +124,33 @@ function heuristic(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /**
+ * A* scratch buffers, reused across calls keyed by grid cell count. `findPath`
+ * is synchronous, so one set per size is safe and avoids ~300 KB of zero-fill
+ * allocation per call (monsters repath and players click constantly).
+ */
+const pathScratchBySize = new Map<
+  number,
+  { gScore: Float64Array; cameFrom: Int32Array; closed: Uint8Array }
+>();
+
+function pathScratch(total: number): {
+  gScore: Float64Array;
+  cameFrom: Int32Array;
+  closed: Uint8Array;
+} {
+  let scratch = pathScratchBySize.get(total);
+  if (!scratch) {
+    scratch = {
+      gScore: new Float64Array(total),
+      cameFrom: new Int32Array(total),
+      closed: new Uint8Array(total),
+    };
+    pathScratchBySize.set(total, scratch);
+  }
+  return scratch;
+}
+
+/**
  * Find a walkable path between two pixel positions. Returns waypoints in
  * pixels (start excluded, final point included), or `[]` when the start is
  * unusable, no walkable target exists nearby, or the node budget runs out.
@@ -171,9 +198,10 @@ export function findPath(
   const width = grid.width;
   const height = grid.height;
   const total = width * height;
-  const gScore = new Float64Array(total).fill(Number.POSITIVE_INFINITY);
-  const cameFrom = new Int32Array(total).fill(-1);
-  const closed = new Uint8Array(total);
+  const { gScore, cameFrom, closed } = pathScratch(total);
+  gScore.fill(Number.POSITIVE_INFINITY);
+  cameFrom.fill(-1);
+  closed.fill(0);
 
   const startIndex = start.ty * width + start.tx;
   const goalIndex = goal.ty * width + goal.tx;

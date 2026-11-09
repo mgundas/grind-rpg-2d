@@ -35,6 +35,7 @@ import {
   TICK_MS,
   TILE_SIZE,
   WALK_SPEED,
+  moveSpeedMultiplier,
   WARP_COOLDOWN_MS,
   XP_SAVE_INTERVAL_MS,
   PARTY_XP_RADIUS_PX,
@@ -5925,7 +5926,10 @@ export class MapRoom extends Room {
   }
 
   private playerSpeed(runtime: PlayerRuntime): number {
-    return WALK_SPEED * (1 + equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()));
+    return (
+      WALK_SPEED *
+      moveSpeedMultiplier(equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()))
+    );
   }
 
   private stepPlayer(

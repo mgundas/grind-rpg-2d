@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findArcTargets, isInMeleeArc } from "@jadethrone/shared";
+import { findArcTargets, findCircleTargets, findLineTargets, isInMeleeArc } from "@jadethrone/shared";
 
 const origin = { x: 100, y: 100 };
 
@@ -85,5 +85,38 @@ describe("findArcTargets", () => {
     expect(
       findArcTargets(candidates, { origin, facing: "right", rangePx: 64, maxTargets: 0 }),
     ).toEqual([]);
+  });
+});
+
+describe("findLineTargets", () => {
+  const start = { x: 100, y: 100 };
+  const end = { x: 200, y: 100 };
+
+  it("accepts targets inside the corridor and rejects those outside it", () => {
+    const candidates = [
+      point("near", 130, 100),
+      point("side", 150, 120),
+      point("far", 260, 100),
+    ];
+    expect(findLineTargets(candidates, { origin: start, end, widthPx: 20 })).toEqual(["near"]);
+  });
+
+  it("rejects a target behind the caster even when laterally inside the width", () => {
+    const candidates = [point("behind", 90, 100), point("ahead", 150, 100)];
+    expect(findLineTargets(candidates, { origin: start, end, widthPx: 40 })).toEqual(["ahead"]);
+  });
+
+  it("does not extend the corridor past its tip", () => {
+    const candidates = [point("justPast", 215, 100), point("inside", 195, 100)];
+    expect(findLineTargets(candidates, { origin: start, end, widthPx: 10 })).toEqual(["inside"]);
+  });
+});
+
+describe("findCircleTargets", () => {
+  it("includes the radius plus padding and sorts nearest first", () => {
+    const candidates = [point("edge", 135, 100), point("center", 105, 100)];
+    expect(
+      findCircleTargets(candidates, { center: origin, radiusPx: 30, padPx: 8 }),
+    ).toEqual(["center", "edge"]);
   });
 });

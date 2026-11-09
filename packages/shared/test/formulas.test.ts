@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  BUFF_PERCENT_CAP_MAX,
+  BUFF_PERCENT_CAP_MIN,
   CRIT_MULTIPLIER,
   MAX_LEVEL,
+  applyBuffModifiers,
   applyXpGain,
   critChance,
   critDamage,
@@ -26,8 +29,18 @@ function fixed(value: number): RandomSource {
   return { next: () => value };
 }
 
-describe("character HP/MP formulas", () => {
-  it("computes level-1 warrior HP/MP from the spec formula", () => {
+describe("buff percentage caps", () => {
+  it("clamps stacked percent modifiers to the exported bounds", () => {
+    expect(
+      applyBuffModifiers(100, [{ stat: "attack", mode: "percent", value: 10 }], "attack"),
+    ).toBe(100 * (1 + BUFF_PERCENT_CAP_MAX));
+    expect(
+      applyBuffModifiers(100, [{ stat: "attack", mode: "percent", value: -10 }], "attack"),
+    ).toBeCloseTo(100 * (1 + BUFF_PERCENT_CAP_MIN));
+  });
+});
+
+describe("character HP/MP formulas", () => {  it("computes level-1 warrior HP/MP from the spec formula", () => {
     expect(maxHp({ baseHp: 120, vit: 4, level: 1 })).toBe(316);
     expect(maxMp({ baseMp: 20, int: 3, level: 1 })).toBe(92);
   });

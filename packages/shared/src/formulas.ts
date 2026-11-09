@@ -49,6 +49,8 @@ export interface PhysicalAttackInput {
 /**
  * Physical attack contribution from stats (spec §4.3):
  * STR ×2 for Warrior/Hexblade, STR ×1 for the others, plus DEX ×2 for Assassin.
+ * The weights are class rules, not data: `packages/data/classes.json` carries the
+ * starting stats, and `formulas.test.ts` pins these weights for all four classes.
  */
 export function statAttack(classId: ClassId, stats: Stats): number {
   const strength = stats.str * (classId === "warrior" || classId === "hexblade" ? 2 : 1);
@@ -204,6 +206,14 @@ export function buffModifierTotals(
   return { flat, percent };
 }
 
+/**
+ * Buff percentage caps. GAME_DESIGN.md §8 allows stacking buffs but the totals
+ * must stay bounded; +200% / -90% is the Phase-6 balance choice and is exported
+ * so tooltips and tests can reference the same numbers.
+ */
+export const BUFF_PERCENT_CAP_MAX = 2;
+export const BUFF_PERCENT_CAP_MIN = -0.9;
+
 /** Apply flat then percent modifiers to a base stat, never below zero. */
 export function applyBuffModifiers(
   base: number,
@@ -211,7 +221,10 @@ export function applyBuffModifiers(
   stat: BuffStat,
 ): number {
   const { flat, percent } = buffModifierTotals(modifiers, stat);
-  const cappedPercent = Math.min(2, Math.max(-0.9, percent));
+  const cappedPercent = Math.min(
+    BUFF_PERCENT_CAP_MAX,
+    Math.max(BUFF_PERCENT_CAP_MIN, percent),
+  );
   return Math.max(0, (base + flat) * (1 + cappedPercent));
 }
 
