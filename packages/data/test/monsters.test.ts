@@ -48,23 +48,22 @@ describe("monsters.json", () => {
 });
 
 describe("spawnGroups.json", () => {
-  it("defines the three field groups plus the boss", () => {
-    expect(SPAWN_GROUPS.map((group) => group.id).sort()).toEqual([
-      "field_bandits",
-      "field_boars",
-      "field_boss",
-      "field_wolves",
-    ]);
+  it("defines the Ember field groups plus the world boss groups", () => {
+    const ids = SPAWN_GROUPS.map((group) => group.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(["field_wolves", "field_boars", "field_bandits", "field_boss"]),
+    );
+    expect(ids.filter((id) => id.endsWith("_boss"))).toHaveLength(6);
     expect(hasSpawnGroup("field_wolves")).toBe(true);
     expect(() => getSpawnGroup("nope")).toThrow(/unknown spawn group/);
   });
 
-  it("uses 3–7 members per normal group and exactly one boss", () => {
+  it("uses 3–7 members per normal group and exactly one boss per boss group", () => {
     for (const group of SPAWN_GROUPS) {
       const total = group.members.reduce((sum, member) => sum + member.count, 0);
       if (total === 1) {
-        expect(group.id).toBe("field_boss");
-        expect(group.respawnMinMs).toBe(20 * 60 * 1000);
+        expect(group.id.endsWith("_boss")).toBe(true);
+        expect(group.respawnMinMs).toBeGreaterThanOrEqual(15 * 60 * 1000);
       } else {
         expect(total).toBeGreaterThanOrEqual(3);
         expect(total).toBeLessThanOrEqual(7);

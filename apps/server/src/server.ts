@@ -2,8 +2,7 @@ import express from "express";
 import { defineRoom, defineServer } from "@colyseus/core";
 import { monitor } from "@colyseus/monitor";
 import {
-  ROOM_NAME_FIELDS,
-  ROOM_NAME_VILLAGE,
+  MAP_IDS,
   type MapId,
   type RandomSource,
 } from "@jadethrone/shared";
@@ -185,10 +184,7 @@ export function createGameServer(deps: ServerDeps = {}) {
   });
 
   const server = defineServer({
-    rooms: {
-      [ROOM_NAME_VILLAGE]: defineRoom(MapRoom),
-      [ROOM_NAME_FIELDS]: defineRoom(MapRoom),
-    },
+    rooms: Object.fromEntries(MAP_IDS.map((mapId) => [mapId, defineRoom(MapRoom)])),
     express: (app) => {
       app.disable("x-powered-by");
       app.get("/api/health", healthHandler);

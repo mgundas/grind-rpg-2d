@@ -1,8 +1,5 @@
-import villageMapJson from "@jadethrone/data/maps/map_ember_village.json";
-import fieldsMapJson from "@jadethrone/data/maps/map_ember_fields.json";
+import { MAP_JSON } from "@jadethrone/data/maps";
 import {
-  ROOM_NAME_FIELDS,
-  ROOM_NAME_VILLAGE,
   buildCollisionGrid,
   extractMapObjects,
   isMapId as isSharedMapId,
@@ -33,15 +30,6 @@ export interface MapAssets {
   heightPx: number;
 }
 
-/**
- * Raw map JSON is registered as each map file lands; until Phase 9 task 7 every
- * id in `MAP_IDS` must have an entry here (the client mirrors this in Preload).
- */
-const RAW_MAPS: Partial<Record<MapId, unknown>> = {
-  [ROOM_NAME_VILLAGE]: villageMapJson,
-  [ROOM_NAME_FIELDS]: fieldsMapJson,
-};
-
 const cache = new Map<MapId, MapAssets>();
 
 export function isMapId(value: string): value is MapId {
@@ -53,11 +41,7 @@ export function loadMapAssets(mapId: MapId): MapAssets {
   if (cached) {
     return cached;
   }
-  const raw = RAW_MAPS[mapId];
-  if (raw === undefined) {
-    throw new Error(`map assets not generated yet: "${mapId}"`);
-  }
-  const map = parseTiledMap(raw);
+  const map = parseTiledMap(MAP_JSON[mapId]);
   const objects = extractMapObjects(map);
   const assets: MapAssets = {
     mapId,

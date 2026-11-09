@@ -9,6 +9,15 @@
  * `packages/data/test`.
  */
 import { BASE_CATALOG } from "../packages/data/src/catalog.ts";
+import { MAP_JSON } from "../packages/data/src/maps.ts";
+import { getMapPolicy } from "../packages/data/src/mapPolicies.ts";
+import { hasSpawnGroup } from "../packages/data/src/spawnGroups.ts";
+import {
+  MAP_IDS,
+  extractMapObjects,
+  parseTiledMap,
+  type MapId,
+} from "../packages/shared/src/index.ts";
 
 const datasets = {
   items: BASE_CATALOG.items.length,
@@ -29,4 +38,21 @@ for (const [dataset, count] of Object.entries(datasets)) {
   }
   console.log(`ok ${dataset}: ${count}`);
 }
+
+// Every map parses, has a policy, and only references known spawn groups/maps.
+for (const mapId of MAP_IDS) {
+  getMapPolicy(mapId);
+  const objects = extractMapObjects(parseTiledMap(MAP_JSON[mapId]));
+  for (const zone of objects.mobZones) {
+    if (!hasSpawnGroup(zone.spawnGroupId)) {
+      throw new Error(`map "${mapId}": unknown spawn group "${zone.spawnGroupId}"`);
+    }
+  }
+  for (const warp of objects.warps) {
+    if (!(MAP_IDS as readonly MapId[]).includes(warp.targetMap)) {
+      throw new Error(`map "${mapId}": unknown warp target "${warp.targetMap}"`);
+    }
+  }
+}
+console.log(`ok maps: ${MAP_IDS.length}`);
 console.log(`data catalog v${BASE_CATALOG.version} validated`);

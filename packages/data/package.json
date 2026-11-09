@@ -20,6 +20,7 @@
     "./spawnGroups": "./src/spawnGroups.ts",
     "./stones": "./src/stones.ts",
     "./upgrades": "./src/upgrades.ts",
+    "./maps": "./src/maps.ts",
     "./maps/*": "./maps/*"
   },
   "types": "./src/index.ts",
