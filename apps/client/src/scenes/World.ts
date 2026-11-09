@@ -166,6 +166,9 @@ interface StoneVisual {
   label: Phaser.GameObjects.Text;
   barBackground: Phaser.GameObjects.Rectangle;
   barFill: Phaser.GameObjects.Rectangle;
+  /** Animated HP-bar tween and the ratio it is currently heading to. */
+  barTween: Phaser.Tweens.Tween | null;
+  barRatio: number;
 }
 
 interface StonesCollection {
@@ -1492,8 +1495,28 @@ export class WorldScene extends Phaser.Scene {
         visual.barFill.setPosition(stone.x - 40, stone.y - 88).setDepth(stone.y + 2);
       }
       const ratio = stone.maxHp > 0 ? Math.max(0, Math.min(1, stone.hp / stone.maxHp)) : 0;
-      visual.barBackground.setVisible(ratio < 1);
-      visual.barFill.setVisible(ratio < 1).setDisplaySize(80 * ratio, 5);
+      if (ratio < 1) {
+        visual.barBackground.setVisible(true);
+        visual.barFill.setVisible(true);
+        // Animate the fill over 120 ms instead of snapping every state patch.
+        if (Math.abs(visual.barRatio - ratio) > 0.005) {
+          visual.barTween?.remove();
+          visual.barTween = this.tweens.add({
+            targets: visual.barFill,
+            displayWidth: 80 * ratio,
+            duration: 120,
+            ease: "Quad.easeOut",
+          });
+          visual.barRatio = ratio;
+        }
+      } else {
+        visual.barTween?.remove();
+        visual.barTween = null;
+        visual.barRatio = 1;
+        visual.barFill.setDisplaySize(80, 4);
+        visual.barFill.setVisible(false);
+        visual.barBackground.setVisible(false);
+      }
     });
 
     for (const [stoneId, visual] of this.stoneVisuals) {
@@ -1575,7 +1598,7 @@ export class WorldScene extends Phaser.Scene {
       .setOrigin(0, 0.5)
       .setDepth(stone.y + 2)
       .setVisible(ratio < 1);
-    return { sprite, shadow, label, barBackground, barFill };
+    return { sprite, shadow, label, barBackground, barFill, barTween: null, barRatio: ratio };
   }
 
   private showSkillCast(payload: SkillCastPayload): void {

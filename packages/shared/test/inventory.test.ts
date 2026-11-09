@@ -252,6 +252,40 @@ describe("moving and splitting", () => {
     expect(result.state.items.find((item) => item.id === "new-stack")?.slot).toBe(1);
   });
 
+  it("merges a split into an occupied compatible stack", () => {
+    const state = stateWith([
+      stack({ id: "a", quantity: 8, slot: 0 }),
+      stack({ id: "b", quantity: 3, slot: 1 }),
+    ]);
+    const result = splitStack(state, "a", 4, "new-stack", 1, getDefinition);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.state.items).toHaveLength(2);
+    expect(result.state.items.find((item) => item.id === "a")?.quantity).toBe(4);
+    expect(result.state.items.find((item) => item.id === "b")?.quantity).toBe(7);
+    expect(result.state.items.some((item) => item.id === "new-stack")).toBe(false);
+  });
+
+  it("rejects a split into a full or incompatible target stack", () => {
+    const full = stateWith([
+      stack({ id: "a", quantity: 8, slot: 0 }),
+      stack({ id: "b", quantity: 10, slot: 1 }),
+    ]);
+    expect(splitStack(full, "a", 1, "new", 1, getDefinition)).toEqual({
+      ok: false,
+      code: "inventory_full",
+    });
+
+    const incompatible = stateWith([
+      stack({ id: "a", quantity: 8, slot: 0 }),
+      stack({ id: "ore", itemId: "ore", slot: 1 }),
+    ]);
+    expect(splitStack(incompatible, "a", 1, "new", 1, getDefinition)).toEqual({
+      ok: false,
+      code: "slot_occupied",
+    });
+  });
+
   it("rejects invalid split quantities", () => {
     const state = stateWith([stack({ id: "a", quantity: 8 })]);
     expect(splitStack(state, "a", 0, "new", null, getDefinition)).toEqual({
