@@ -13,6 +13,11 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   /** Dev-only artificial latency (applied in both directions by the transport). */
   SIMULATE_LATENCY_MS: z.coerce.number().int().min(0).max(5000).default(0),
+  /** Trust X-Forwarded-For from the first proxy hop (set behind nginx). */
+  TRUST_PROXY: z
+    .enum(["0", "1", "true", "false"])
+    .default("0")
+    .transform((value) => value === "1" || value === "true"),
 
   POSTGRES_HOST: z.string().min(1).default("localhost"),
   POSTGRES_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -49,6 +54,8 @@ export interface Config {
   port: number;
   logLevel: "debug" | "info" | "warn" | "error";
   simulateLatencyMs: number;
+  /** True when the app may trust X-Forwarded-For (behind a reverse proxy). */
+  trustProxy: boolean;
   databaseUrl: string;
   /** True when a dev placeholder POSTGRES_PASSWORD is configured. */
   usingDefaultDbPassword: boolean;
@@ -88,6 +95,7 @@ function parseConfig(): Config {
     port: env.GAME_SERVER_PORT,
     logLevel: env.LOG_LEVEL,
     simulateLatencyMs: env.SIMULATE_LATENCY_MS,
+    trustProxy: env.TRUST_PROXY,
     databaseUrl:
       env.DATABASE_URL ??
       buildDatabaseUrl({

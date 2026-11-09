@@ -446,3 +446,22 @@ and worst p95 < 20 ms. Cleanup deletes every `loadbot_<run>` account (cascades
 items/characters/sessions) even if seeding or joining throws; the script refuses
 to run with `NODE_ENV=production`. `@colyseus/loadtest` was not added: its thin
 wrapper adds a peer-range risk and no control we need.
+
+## D87 — Production boots migrate-first and shuts down through the room bus
+
+`NODE_ENV=production` changes `app.config.ts` in four deliberate ways. First,
+migrations are awaited before `server.listen`, so a broken schema fails fast
+instead of serving auth 503s; development keeps the background migrate/reload
+path. Second, JWT secrets must be ≥32 characters and not one of the documented
+dev placeholders, and the dev database password is rejected — the log names the
+offending variable without printing its value. Third, `TRUST_PROXY` (default 0)
+sets Express `trust proxy` to one hop only when explicitly enabled, so a direct
+deployment cannot be IP-spoofed for rate limits while nginx deployments get the
+real client address. Fourth, `SIGTERM`/`SIGINT` save every registered room via
+`AdminBus.roomHandles()`, broadcast a shutdown notice, call
+`server.gracefullyShutdown(false)`, close the pool and exit 0; the existing
+admin-scheduled shutdown still uses the same `saveAllForShutdown` contract.
+Docker was not available in the development environment, so the image build
+itself is verified in CI/release, not locally; compose syntax and the nginx
+routing were reviewed against the SDK's `/matchmake` and `/<processId>/<roomId>`
+endpoints.

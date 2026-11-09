@@ -359,7 +359,7 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 9 — Server perf fixes
 - [x] Task 10 — Load test: 150 bots on one channel
 - [x] Task 11 — Production Docker and nginx
-- [ ] Task 12 — Production server behaviour
+- [x] Task 12 — Production server behaviour
 - [ ] Task 13 — DEPLOY.md and production env example
 - [ ] Task 14 — Phase gate
 
