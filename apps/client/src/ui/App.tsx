@@ -27,6 +27,7 @@ import { FriendsWindow } from "./FriendsWindow";
 import { Minimap } from "./Minimap";
 import { WorldMapWindow } from "./WorldMapWindow";
 import { SettingsWindow } from "./SettingsWindow";
+import { CreditsWindow } from "./CreditsWindow";
 import { GuildInvitePrompt, GuildWindow } from "./GuildWindow";
 import { TradeWindow } from "./TradeWindow";
 import { ShopWindow } from "./ShopWindow";
@@ -205,6 +206,7 @@ export function App() {
           <ShopWindow />
           <WarehouseWindow />
           <SettingsWindow />
+          <CreditsWindow />
           <Chat />
           <DebugOverlay />
           <DeathScreen />

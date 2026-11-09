@@ -284,6 +284,25 @@ export function SettingsWindow() {
         >
           Reset all settings
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            useUiStore.getState().setCreditsOpen(true);
+            setOpen(false);
+          }}
+          style={{
+            marginTop: 4,
+            padding: "4px 8px",
+            borderRadius: 4,
+            border: "1px solid rgba(255,255,255,0.18)",
+            background: "transparent",
+            color: theme.muted,
+            fontSize: 11,
+            cursor: "pointer",
+          }}
+        >
+          Credits & licenses
+        </button>
       </Section>
     </Window>
   );

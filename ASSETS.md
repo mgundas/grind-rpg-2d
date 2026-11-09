@@ -99,8 +99,8 @@ on-screen error text).
 
 - Universal LPC art is **CC-BY-SA 3.0 / GPL 3.0** dual-licensed. Any game
   built on LPC assets must carry attribution — `apps/client/public/assets/CREDITS.md`
-  is committed with the art, and a future credits screen reads from it at
-  runtime (Phase 10).
+  is committed with the art, and the in-game Credits window (Settings →
+  Credits & licenses) reads that file at runtime.
 - Original art commissioned for Jade Throne is licensed for the game; per-
   contributor attribution also goes into CREDITS.md.
 - Audio credits: same rules, same file.

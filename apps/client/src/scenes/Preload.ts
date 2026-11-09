@@ -24,14 +24,22 @@ function ensureTilesetFrames(scene: Phaser.Scene, key: string): void {
 }
 
 const TIPS = [
-  "Click the ground to walk; WASD also works.",
-  "Press Tab to cycle nearby monsters.",
+  "Click the ground to walk; WASD or the arrow keys also work.",
+  "Press Tab to cycle nearby monsters; Space swings at everything in front of you.",
   "Spirit stones drop upgrade materials — break them with a party.",
   "Upgrade gear at the blacksmith; +7 and above announce server-wide.",
-  "Drink potions from the hotbar with 1–4.",
-  "Trade face to face to move items safely.",
-  "The field boss respawns on a fixed timer.",
+  "Drink potions from the hotbar with 1–4, or skills with F1–F4.",
+  "Trade face to face to move items and gold safely.",
+  "The field boss respawns on a fixed timer; watch the top-right clock.",
   "Higher-level monsters give less XP; level up where the fight is fair.",
+  "If a hunting spot is crowded, switch channels from the HUD dropdown.",
+  "Spider Cave needs a party — talk to the Waykeeper and bring a friend.",
+  "The Jade Wolf Whistle toggles your mount; it dismounts in combat.",
+  "Valley of Echoes and Corrupted Forest allow PvP — villages are always safe.",
+  "Skill books drop from spirit stones; a failed read still starts its cooldown.",
+  "Rebind keys, volumes and zoom in Settings (O by default).",
+  "Auto-loot only picks up drops you own; press Z for the rest.",
+  "Hover a buff icon above the hotbar to read what it does.",
 ];
 
 /**

@@ -254,6 +254,8 @@ interface UiState {
   settingsOpen: boolean;
   setSettingsOpen: (open: boolean) => void;
   toggleSettings: () => void;
+  creditsOpen: boolean;
+  setCreditsOpen: (open: boolean) => void;
 
   skillBookTarget: SkillBookTarget;
   beginSkillBook: (bookInstanceId: string) => void;
@@ -529,6 +531,8 @@ export const useUiStore = create<UiState>((set) => ({
   settingsOpen: false,
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
+  creditsOpen: false,
+  setCreditsOpen: (creditsOpen) => set({ creditsOpen }),
 
   skillBookTarget: IDLE_SKILL_BOOK_TARGET,
   beginSkillBook: (bookInstanceId) =>
