@@ -348,7 +348,7 @@ Plan: `docs/plans/phase-9.md`. Report: `docs/reports/phase-9.md`.
 
 Plan: `docs/plans/phase-10.md`.
 
-- [ ] Task 1 — Audio manifest and placeholder synth
+- [x] Task 1 — Audio manifest and placeholder synth
 - [ ] Task 2 — AudioService and Preload wiring
 - [ ] Task 3 — Wire SFX to existing events
 - [ ] Task 4 — Settings window and key rebinding

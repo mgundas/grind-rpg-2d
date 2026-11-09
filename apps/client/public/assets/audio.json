@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "sounds": {
+    "sfx.hit": {
+      "path": "audio/sfx/hit.wav",
+      "volume": 0.5,
+      "maxVoices": 4,
+      "synth": { "wave": "noise", "frequency": 180, "durationMs": 70, "volume": 0.55, "decay": 0.9 }
+    },
+    "sfx.crit": {
+      "path": "audio/sfx/crit.wav",
+      "volume": 0.6,
+      "maxVoices": 3,
+      "synth": { "wave": "square", "frequency": 320, "endFrequency": 90, "durationMs": 130, "volume": 0.5, "decay": 0.7 }
+    },
+    "sfx.swing": {
+      "path": "audio/sfx/swing.wav",
+      "volume": 0.35,
+      "maxVoices": 2,
+      "minIntervalMs": 80,
+      "synth": { "wave": "noise", "frequency": 640, "endFrequency": 240, "durationMs": 90, "volume": 0.3, "decay": 1 }
+    },
+    "sfx.miss": {
+      "path": "audio/sfx/miss.wav",
+      "volume": 0.3,
+      "maxVoices": 2,
+      "synth": { "wave": "triangle", "frequency": 220, "endFrequency": 180, "durationMs": 80, "volume": 0.25, "decay": 0.8 }
+    },
+    "sfx.recv_hit": {
+      "path": "audio/sfx/recv-hit.wav",
+      "volume": 0.45,
+      "maxVoices": 3,
+      "synth": { "wave": "sawtooth", "frequency": 140, "endFrequency": 80, "durationMs": 110, "volume": 0.35, "decay": 0.9 }
+    },
+    "sfx.pickup": {
+      "path": "audio/sfx/pickup.wav",
+      "volume": 0.35,
+      "maxVoices": 2,
+      "synth": { "wave": "sine", "frequency": 660, "endFrequency": 990, "durationMs": 90, "volume": 0.3, "decay": 0.5 }
+    },
+    "sfx.gold": {
+      "path": "audio/sfx/gold.wav",
+      "volume": 0.4,
+      "maxVoices": 2,
+      "synth": { "wave": "sine", "frequency": 880, "notes": [880, 1175, 1568], "durationMs": 180, "volume": 0.32, "decay": 0.4 }
+    },
+    "sfx.levelup": {
+      "path": "audio/sfx/levelup.wav",
+      "volume": 0.6,
+      "maxVoices": 1,
+      "synth": { "wave": "triangle", "notes": [523, 659, 784, 1047], "durationMs": 700, "volume": 0.45, "decay": 0.25 }
+    },
+    "sfx.upgrade_success": {
+      "path": "audio/sfx/upgrade-success.wav",
+      "volume": 0.65,
+      "maxVoices": 1,
+      "synth": { "wave": "triangle", "notes": [440, 554, 659, 880], "durationMs": 900, "volume": 0.5, "decay": 0.2 }
+    },
+    "sfx.upgrade_fail": {
+      "path": "audio/sfx/upgrade-fail.wav",
+      "volume": 0.6,
+      "maxVoices": 1,
+      "synth": { "wave": "sawtooth", "frequency": 300, "endFrequency": 70, "durationMs": 700, "volume": 0.45, "decay": 0.35 }
+    },
+    "sfx.ui_click": {
+      "path": "audio/sfx/ui-click.wav",
+      "volume": 0.25,
+      "maxVoices": 2,
+      "minIntervalMs": 40,
+      "synth": { "wave": "square", "frequency": 520, "durationMs": 35, "volume": 0.16, "decay": 1 }
+    },
+    "sfx.step": {
+      "path": "audio/sfx/step.wav",
+      "volume": 0.16,
+      "maxVoices": 2,
+      "minIntervalMs": 300,
+      "synth": { "wave": "noise", "frequency": 120, "durationMs": 45, "volume": 0.12, "decay": 1 }
+    },
+    "sfx.heal": {
+      "path": "audio/sfx/heal.wav",
+      "volume": 0.35,
+      "maxVoices": 2,
+      "synth": { "wave": "sine", "notes": [660, 880], "durationMs": 220, "volume": 0.28, "decay": 0.4 }
+    },
+    "sfx.death": {
+      "path": "audio/sfx/death.wav",
+      "volume": 0.45,
+      "maxVoices": 1,
+      "synth": { "wave": "triangle", "frequency": 260, "endFrequency": 60, "durationMs": 500, "volume": 0.4, "decay": 0.4 }
+    }
+  },
+  "music": {
+    "music.village": {
+      "path": "audio/music/village.ogg",
+      "volume": 0.4,
+      "synth": { "wave": "triangle", "notes": [262, 330, 392, 330, 294, 349, 392, 349], "durationMs": 16000, "volume": 0.16, "decay": 0 }
+    },
+    "music.highlands": {
+      "path": "audio/music/highlands.ogg",
+      "volume": 0.4,
+      "synth": { "wave": "sine", "notes": [220, 262, 294, 330, 294, 262, 220, 196], "durationMs": 16000, "volume": 0.15, "decay": 0 }
+    },
+    "music.valley": {
+      "path": "audio/music/valley.ogg",
+      "volume": 0.4,
+      "synth": { "wave": "sine", "notes": [196, 233, 262, 311, 262, 233, 196, 175], "durationMs": 18000, "volume": 0.15, "decay": 0 }
+    },
+    "music.forest": {
+      "path": "audio/music/forest.ogg",
+      "volume": 0.4,
+      "synth": { "wave": "triangle", "notes": [174, 196, 233, 262, 233, 196, 174, 155], "durationMs": 18000, "volume": 0.14, "decay": 0 }
+    },
+    "music.dungeon": {
+      "path": "audio/music/dungeon.ogg",
+      "volume": 0.35,
+      "synth": { "wave": "sine", "notes": [110, 131, 147, 131, 110, 98, 110, 123], "durationMs": 20000, "volume": 0.14, "decay": 0 }
+    }
+  }
+}

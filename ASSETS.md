@@ -111,3 +111,41 @@ on-screen error text).
 - Maps: map_gale_village, map_tide_village, map_gale_highlands, map_tide_highlands, map_valley_of_echoes, map_corrupted_forest, map_spider_cave (Tiled JSON in packages/data/maps; villages use tileset.village, outdoor/cave maps use tileset.fields as placeholders).
 - Monsters: mob.<monsterId> placeholder keys are generated for every entry in packages/data/monsters.json (ash wolf, highland ogre, echo warden, spider queen, corrupted ancient, and the rest).
 - Mount: icon.item.mount_jade_wolf icon plus the mount.jade_wolf layer key; the client draws a placeholder mount ellipse until real art exists.
+
+## Audio (Phase 10)
+
+Sound and music use `apps/client/public/assets/audio.json`, a separate
+manifest from the visual one. Keys are `sfx.*` (sound effects) and `music.*`
+(looping background tracks); each entry maps a key to a file path, a volume,
+an optional polyphony/throttle limit and a **synth spec** used when the file
+is missing. `apps/client/src/audio/synth.ts` renders the fallback
+deterministically from the spec, so no audio file is required to play.
+
+| Key | Used for | Suggested real file |
+| --- | --- | --- |
+| `sfx.hit` | normal weapon hit | short impact, 60–90 ms |
+| `sfx.crit` | critical hit | heavier impact with a low tail |
+| `sfx.swing` | every swing start | air whoosh, 80–120 ms |
+| `sfx.miss` | whiffed attack | soft swish |
+| `sfx.recv_hit` | player takes damage | dull body impact |
+| `sfx.pickup` | item/gold pickup | bright pluck |
+| `sfx.gold` | gold gained | small coin arpeggio |
+| `sfx.levelup` | level-up banner | rising fanfare |
+| `sfx.upgrade_success` | blacksmith success | bright chime |
+| `sfx.upgrade_fail` | blacksmith fail | descending crack |
+| `sfx.ui_click` | buttons, windows | short click |
+| `sfx.step` | footsteps (throttled 300 ms) | soft footfall |
+| `sfx.heal` | healing tick | warm rise |
+| `sfx.death` | player/monster death | low fall |
+| `music.village` | all three villages | calm loop, ≤ 32 s |
+| `music.highlands` | highlands/fields | open-air loop |
+| `music.valley` | Valley of Echoes | sparse neutral loop |
+| `music.forest` | Corrupted Forest | dark loop |
+| `music.dungeon` | Spider Cave | tense loop |
+
+Format: OGG Vorbis (primary) or WAV; 44.1 kHz, mono is enough for effects.
+Music defaults to 40% volume and SFX are mixed under a separate gain, both
+adjustable in the in-game Settings window. Missing files are not an error:
+`audio/service.ts` synthesises the entry from its `synth` spec under the same
+key, matching the visual placeholder rule ("missing → placeholder, never a
+crash").
