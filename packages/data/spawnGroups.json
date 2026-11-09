@@ -37,6 +37,76 @@
       "members": [{ "monsterId": "wolf_king", "count": 1, "leader": true }],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
+    },
+    {
+      "id": "gale_highlands_wolves",
+      "members": [
+        { "monsterId": "gray_wolf", "count": 3 },
+        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 30000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "gale_highlands_boars",
+      "members": [
+        { "monsterId": "wild_boar", "count": 3 },
+        { "monsterId": "brown_bear", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "gale_highlands_bandits",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 3 },
+        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "gale_highlands_boss",
+      "members": [
+        { "monsterId": "wolf_king", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 1200000,
+      "respawnMaxMs": 1200000
+    },
+    {
+      "id": "tide_highlands_wolves",
+      "members": [
+        { "monsterId": "gray_wolf", "count": 3 },
+        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 30000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "tide_highlands_boars",
+      "members": [
+        { "monsterId": "wild_boar", "count": 3 },
+        { "monsterId": "brown_bear", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "tide_highlands_bandits",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 3 },
+        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 60000
+    },
+    {
+      "id": "tide_highlands_boss",
+      "members": [
+        { "monsterId": "wolf_king", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 1200000,
+      "respawnMaxMs": 1200000
     }
   ]
 }
