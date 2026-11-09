@@ -7,7 +7,8 @@
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ROOM_NAME_FIELDS,
   ROOM_NAME_VILLAGE,
@@ -442,10 +443,6 @@ export function generateVillageMap(): TiledMapFile {
   ]);
 }
 
-// Placeholder so this file compiles before the fields generator lands in the
-// next task; replaced by a real export there.
-export const MAP_NAMES = { village: ROOM_NAME_VILLAGE, fields: ROOM_NAME_FIELDS };
-
 /** Clearings where the fields generator keeps trees and rocks out. */
 const FIELDS_CLEARINGS = [
   { x: 5, y: 80, r: 11 },
@@ -637,19 +634,19 @@ export function generateFieldsMap(): TiledMapFile {
 }
 
 /** Write the generated map files. Run via `pnpm generate:maps`. */
-export function writeMapFiles(): void {
-  const mapsDir = new URL("../maps/", import.meta.url);
+export function writeMapFiles(dir?: string): void {
+  const mapsDir = dir ?? fileURLToPath(new URL("../maps/", import.meta.url));
   mkdirSync(mapsDir, { recursive: true });
   writeFileSync(
-    new URL("../maps/map_ember_village.json", import.meta.url),
+    join(mapsDir, "map_ember_village.json"),
     `${JSON.stringify(generateVillageMap(), null, 2)}\n`,
   );
   writeFileSync(
-    new URL("../maps/map_ember_fields.json", import.meta.url),
+    join(mapsDir, "map_ember_fields.json"),
     `${JSON.stringify(generateFieldsMap(), null, 2)}\n`,
   );
-  console.info("Wrote packages/data/maps/map_ember_village.json");
-  console.info("Wrote packages/data/maps/map_ember_fields.json");
+  console.info(`Wrote ${join(mapsDir, "map_ember_village.json")}`);
+  console.info(`Wrote ${join(mapsDir, "map_ember_fields.json")}`);
 }
 
 const isMain =

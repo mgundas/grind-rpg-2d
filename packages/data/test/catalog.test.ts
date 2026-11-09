@@ -74,6 +74,18 @@ describe("catalog", () => {
     expect(BASE_CATALOG.getItem("potion_hp_s").buyPrice).toBeGreaterThanOrEqual(0);
   });
 
+  it("rejects a monster whose drop table does not exist", () => {
+    const monster = BASE_GAME_DATA.monsters[0] as Record<string, unknown>;
+    const merged = mergeGameData(BASE_GAME_DATA, [
+      {
+        dataset: "monsters",
+        entryId: String(monster.id),
+        payload: { ...monster, dropTableId: "missing_drop_table" },
+      },
+    ]);
+    expect(() => buildCatalog(merged, 2)).toThrow(GameDataValidationError);
+  });
+
   it("applies an upgrade override without changing the fixed max level", () => {
     const step = BASE_GAME_DATA.upgrades[4] as Record<string, unknown>;
     const merged = mergeGameData(BASE_GAME_DATA, [

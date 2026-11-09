@@ -6,8 +6,8 @@ const bonusSchema = z
   .object({
     type: z.enum(BONUS_TYPES),
     label: z.string().min(1).max(64),
-    min: z.number(),
-    max: z.number(),
+    min: z.number().min(-10_000).max(10_000),
+    max: z.number().min(-10_000).max(10_000),
     itemTypes: z.array(z.enum(ITEM_TYPES)).min(1),
   })
   .strict()

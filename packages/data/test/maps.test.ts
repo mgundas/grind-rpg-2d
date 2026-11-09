@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import committedVillage from "../maps/map_ember_village.json";
 import committedFields from "../maps/map_ember_fields.json";
 import {
@@ -25,6 +28,7 @@ import {
   type TiledMapJson,
 } from "@jadethrone/shared";
 import { hasSpawnGroup } from "../src/spawnGroups";
+import { STONES } from "../src/stones";
 import { hasNpc } from "../src/npcs";
 
 const tile = 32;
@@ -244,6 +248,15 @@ describe("generateFieldsMap", () => {
     }
   });
 
+  it("links every stone zone to a stones.json entry for this map", () => {
+    for (const zone of fields.objects.stoneZones) {
+      const zoneId = zone.properties?.find((property) => property.name === "zoneId")?.value;
+      expect(typeof zoneId).toBe("string");
+      const stones = STONES.filter((stone) => stone.mapId === ROOM_NAME_FIELDS);
+      expect(stones.some((stone) => stone.zoneId === zoneId)).toBe(true);
+    }
+  });
+
   it("places the boss zone on walkable ground", () => {
     const boss = fields.objects.mobZones.find((zone) => zone.spawnGroupId === "field_boss")!;
     expect(
@@ -262,8 +275,16 @@ describe("cross-map warps", () => {
 });
 
 describe("writeMapFiles", () => {
-  it("writes both map files", () => {
-    // The committed-file comparisons above prove the writer's output.
-    expect(() => writeMapFiles()).not.toThrow();
+  it("writes both map files to a target directory", () => {
+    // Write to a temp directory: the committed-file comparisons above already
+    // prove the writer output, and tests must not mutate the working tree.
+    const dir = mkdtempSync(join(tmpdir(), "jade-maps-"));
+    try {
+      writeMapFiles(dir);
+      expect(existsSync(join(dir, "map_ember_village.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_ember_fields.json"))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -4,7 +4,8 @@ import raw from "../monsters.json";
 /**
  * Monster balance and behaviour data (GAME_DESIGN.md §6.1). Validated at import
  * so a malformed file fails at boot/bundle time. Phase 3 does not roll drops;
- * `dropTableId` stays nullable until Phase 4 creates drop tables.
+ * `dropTableId` is nullable for future monsters, but every shipped monster has
+ * one and `buildCatalog` cross-checks it against the drop-table dataset.
  */
 const monsterSchema = z
   .object({
@@ -88,9 +89,27 @@ export interface MonsterInfo {
   isBoss: boolean;
 }
 
+export interface MonsterRefs {
+  /** Cross-reference check used by the merged catalog; omitted for the base module. */
+  hasDropTable?: (id: string) => boolean;
+}
+
 /** Build and validate monsters from raw JSON (base or merged). */
-export function buildMonsters(rawJson: unknown): readonly MonsterInfo[] {
-  return monstersFileSchema.parse(rawJson).monsters;
+export function buildMonsters(
+  rawJson: unknown,
+  refs: MonsterRefs = {},
+): readonly MonsterInfo[] {
+  const monsters = monstersFileSchema.parse(rawJson).monsters;
+  if (refs.hasDropTable) {
+    for (const monster of monsters) {
+      if (monster.dropTableId && !refs.hasDropTable(monster.dropTableId)) {
+        throw new Error(
+          `monster "${monster.id}" references unknown drop table "${monster.dropTableId}"`,
+        );
+      }
+    }
+  }
+  return monsters;
 }
 
 export const MONSTERS: readonly MonsterInfo[] = buildMonsters(raw);

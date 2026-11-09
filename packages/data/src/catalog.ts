@@ -80,7 +80,11 @@ function wrapValidation(dataset: GameDataDataset, task: () => void): void {
         })),
       );
     }
-    throw error;
+    // Cross-reference checks throw plain Errors; keep the catalog error shape so
+    // admin writes surface a 400 with the offending dataset.
+    throw new GameDataValidationError(dataset, [
+      { path: "", message: error instanceof Error ? error.message : "invalid data" },
+    ]);
   }
 }
 
@@ -176,9 +180,6 @@ export function buildCatalog(entries: GameDataEntries, version: number): GameDat
   wrapValidation("items", () => {
     items = buildItems({ version: 1, items: entries.items });
   });
-  wrapValidation("monsters", () => {
-    monsters = buildMonsters({ version: 1, monsters: entries.monsters });
-  });
 
   const itemById = indexById(items);
   const itemRefs = {
@@ -187,6 +188,15 @@ export function buildCatalog(entries: GameDataEntries, version: number): GameDat
   };
   wrapValidation("dropTables", () => {
     dropTables = buildDropTables({ version: 1, dropTables: entries.dropTables }, itemRefs);
+  });
+  wrapValidation("monsters", () => {
+    // Built after drop tables so a typo in `dropTableId` fails the catalog
+    // instead of leaving a monster that silently drops nothing.
+    const dropById = indexById(dropTables);
+    monsters = buildMonsters(
+      { version: 1, monsters: entries.monsters },
+      { hasDropTable: (id) => dropById.has(id) },
+    );
   });
   wrapValidation("shops", () => {
     shops = buildShops({ version: 1, shops: entries.shops }, itemRefs);

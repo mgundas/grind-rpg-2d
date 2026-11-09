@@ -20,8 +20,8 @@ import raw from "../skills.json";
  * boot and in the client bundle instead of producing an unusable skill.
  */
 const mpCostSchema = z.object({
-  base: z.number().int().min(0),
-  perRank: z.number().int().min(0),
+  base: z.number().int().min(0).max(10_000),
+  perRank: z.number().int().min(0).max(10_000),
 });
 
 const damageSchema = z

@@ -230,6 +230,13 @@ export function extractMapObjects(map: TiledMapJson): MapObjects {
       spawnGroupId: requiredString(object, "spawnGroupId"),
     }));
 
+  const stoneZones = objects.filter((object) => object.name === "stone_zone");
+  // Validate the property here so a renamed zone fails map parsing instead of
+  // silently spawning nothing at runtime.
+  for (const zone of stoneZones) {
+    requiredString(zone, "zoneId");
+  }
+
   return {
     spawn: { x: spawnObject.x, y: spawnObject.y },
     warps,
@@ -241,6 +248,6 @@ export function extractMapObjects(map: TiledMapJson): MapObjects {
         y: object.y,
       })),
     mobZones,
-    stoneZones: objects.filter((object) => object.name === "stone_zone"),
+    stoneZones,
   };
 }

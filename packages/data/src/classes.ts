@@ -53,6 +53,22 @@ const classesFileSchema = z.object({
 
 const parsed = classesFileSchema.parse(raw);
 
+// Spec §4.2: every class starts with 16 stat points distributed across VIT/INT/STR/DEX.
+for (const characterClass of parsed.classes) {
+  const total =
+    characterClass.stats.vit +
+    characterClass.stats.int +
+    characterClass.stats.str +
+    characterClass.stats.dex;
+  if (total !== 16) {
+    throw new Error(`class "${characterClass.id}" starting stats sum to ${total}, expected 16`);
+  }
+  const doctrineIds = new Set(characterClass.doctrines.map((doctrine) => doctrine.id));
+  if (doctrineIds.size !== characterClass.doctrines.length) {
+    throw new Error(`class "${characterClass.id}" has duplicate doctrine ids`);
+  }
+}
+
 export interface DoctrineInfo {
   id: string;
   name: string;

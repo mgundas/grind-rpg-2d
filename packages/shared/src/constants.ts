@@ -38,9 +38,6 @@ export const RARITY_COLORS: Record<Rarity, string> = {
   legendary: "#d4a017",
 };
 
-/** Demo spawn point until real maps exist (Phase 1 uses map spawn objects). */
-export const SPAWN_POINT = { x: 400, y: 304 };
-
 /** Base walk speed in px/s (GAME_DESIGN.md §5). */
 export const WALK_SPEED = 200;
 
