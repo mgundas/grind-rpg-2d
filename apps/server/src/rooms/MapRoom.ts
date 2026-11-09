@@ -265,6 +265,7 @@ import {
   type SwingOutcome,
 } from "./combat";
 import { buildPvpActors, canPvpTarget, type PvpActorInput } from "./pvpActors";
+import { TickStats, type TickStatsSnapshot } from "./tickStats";
 import { applyRegenTick } from "./regen";
 import { stepMonsterAi, aggroMonster, type AiPlayerSnapshot } from "./monsterAi";
 import type { MonsterRuntime } from "./monsterRuntime";
@@ -359,6 +360,8 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   /** Built once per tick and reused by every PvP-aware system in that tick. */
   private tickPvp: PvpCombatContext | null = null;
   private tickActive = false;
+  /** Allocation-free 60 s timing window, exposed through the admin bus. */
+  private readonly tickStats = new TickStats();
   /** Auto-walk repaths consume this per tick (reset in `tick`). */
   private autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
   /** Next 1 Hz update of the coarse server clock exposed in state. */
@@ -1323,6 +1326,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
         return sent;
       },
       saveAllForShutdown: () => this.saveAllForShutdown(),
+      tickStats: () => this.tickStatsSnapshot(),
     };
     getServerServices().adminBus.registerRoom(this.adminRoom);
     logger.info({ roomId: this.roomId, mapId: this.mapId }, "map room created");
@@ -2414,6 +2418,20 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
    * each system observes the positions produced by the previous one.
    */
   private tick(): void {
+    const startedAt = performance.now();
+    try {
+      this.runTick();
+    } finally {
+      this.tickStats.record(performance.now() - startedAt);
+    }
+  }
+
+  /** Timing seam for the admin bus; safe to call from a 1 Hz poller. */
+  tickStatsSnapshot(): TickStatsSnapshot {
+    return this.tickStats.snapshot();
+  }
+
+  private runTick(): void {
     const now = Date.now();
     if (now >= this.nextServerClockAtMs) {
       this.state.serverTimeMs = now;

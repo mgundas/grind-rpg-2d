@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MAX_ADMIN_SPAWN, MAX_GOLD, MAX_LEVEL, MAP_IDS, STAT_POINT_CAP } from "./constants";
+import type { MapId } from "./constants";
 import type { AccountRole } from "./auth";
 import type { ClassId } from "./characterRules";
 import type { ItemInstanceDto } from "./protocol";
@@ -245,6 +246,21 @@ export interface AdminAnnouncementRow {
   expiresAt: string | null;
 }
 
+/** Per-room tick timing shown on the dashboard and read by the load test. */
+export interface AdminRoomTickStats {
+  roomId: string;
+  mapId: MapId;
+  channel?: number;
+  players: number;
+  count: number;
+  lastMs: number;
+  avgMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  maxMs: number;
+  overruns: number;
+}
+
 export interface AdminServerStatus {
   xpRate: number;
   dropRate: number;
@@ -252,6 +268,12 @@ export interface AdminServerStatus {
   shutdownMessage: string | null;
   uptimeSeconds: number;
   online: number;
+  /** Present on servers that expose tick instrumentation. */
+  tick?: {
+    rooms: AdminRoomTickStats[];
+    worstP95Ms: number;
+    worstRoomId: string | null;
+  };
 }
 
 export interface AdminMonitorStatus {

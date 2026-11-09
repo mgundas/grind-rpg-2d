@@ -1,5 +1,5 @@
 import { and, eq, or, isNull, gt } from "drizzle-orm";
-import type { AdminServerStatus } from "@jadethrone/shared";
+import type { AdminRoomTickStats, AdminServerStatus } from "@jadethrone/shared";
 import type { Db } from "../db/client";
 import { announcements, type AnnouncementRow } from "../db/schema";
 import { logger } from "../logger";
@@ -167,6 +167,13 @@ export function createAdminRuntime(options: AdminRuntimeOptions): AdminRuntime {
       settings.dropRate = dropRate;
     },
     status() {
+      const tickRooms = options.bus.tickSummary();
+      let worst: AdminRoomTickStats | null = null;
+      for (const room of tickRooms) {
+        if (!worst || room.p95Ms > worst.p95Ms) {
+          worst = room;
+        }
+      }
       return {
         xpRate: settings.xpRate,
         dropRate: settings.dropRate,
@@ -174,6 +181,11 @@ export function createAdminRuntime(options: AdminRuntimeOptions): AdminRuntime {
         shutdownMessage: settings.shutdownMessage,
         uptimeSeconds: Math.round(process.uptime()),
         online: options.bus.onlineCount(),
+        tick: {
+          rooms: tickRooms,
+          worstP95Ms: worst?.p95Ms ?? 0,
+          worstRoomId: worst?.roomId ?? null,
+        },
       };
     },
     start() {

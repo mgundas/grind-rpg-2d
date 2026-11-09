@@ -354,8 +354,8 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 4 — Settings window and key rebinding
 - [x] Task 5 — Credits screen and loading-tips pass
 - [x] Task 6 — Game-feel sweep (§11 leftovers)
-- [ ] Task 7 — Client perf: lazy maps and pool audit
-- [ ] Task 8 — Server tick instrumentation
+- [x] Task 7 — Client perf: lazy maps and pool audit
+- [x] Task 8 — Server tick instrumentation
 - [ ] Task 9 — Server perf fixes
 - [ ] Task 10 — Load test: 150 bots on one channel
 - [ ] Task 11 — Production Docker and nginx

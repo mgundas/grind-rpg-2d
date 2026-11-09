@@ -130,6 +130,54 @@ describe("AdminBus", () => {
     expect(bus.history().map((sample) => sample.online)).toEqual([1]);
   });
 
+  it("summarizes instrumented rooms and skips the rest", () => {
+    const bus = createAdminBus();
+    const stats = {
+      count: 10,
+      lastMs: 2,
+      avgMs: 2,
+      p50Ms: 2,
+      p95Ms: 3,
+      maxMs: 4,
+      overruns: 0,
+    };
+    bus.registerRoom({ ...room("room-1"), channel: 2, tickStats: () => stats });
+    bus.registerRoom(room("room-2"));
+
+    const summary = bus.tickSummary();
+    expect(summary).toHaveLength(1);
+    expect(summary[0]).toMatchObject({
+      roomId: "room-1",
+      mapId: "map_ember_village",
+      channel: 2,
+      players: 2,
+      p95Ms: 3,
+    });
+  });
+
+  it("survives a room whose tick snapshot throws", () => {
+    const bus = createAdminBus();
+    bus.registerRoom({
+      ...room("room-1"),
+      tickStats: () => {
+        throw new Error("boom");
+      },
+    });
+    bus.registerRoom({
+      ...room("room-2"),
+      tickStats: () => ({
+        count: 1,
+        lastMs: 1,
+        avgMs: 1,
+        p50Ms: 1,
+        p95Ms: 1,
+        maxMs: 1,
+        overruns: 0,
+      }),
+    });
+    expect(bus.tickSummary().map((entry) => entry.roomId)).toEqual(["room-2"]);
+  });
+
   it("clear removes everything", () => {
     const bus = createAdminBus();
     bus.register(actions());

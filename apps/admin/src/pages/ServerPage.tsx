@@ -256,6 +256,48 @@ export function ServerPage() {
         {status ? <StatusLine status={status} /> : <p className="text-xs text-[#7d8a84]">Loading…</p>}
       </section>
       {status ? (
+        <section className="rounded-lg border border-[var(--jade-soft)] bg-[var(--lacquer)] p-4">
+          <h3 className="mb-3 text-sm font-semibold text-[var(--gold)]">Tick timing</h3>
+          {status.tick && status.tick.rooms.length > 0 ? (
+            <div className="overflow-auto">
+              <div className="mb-2 text-xs text-[#8d9a94]">
+                worst p95 {status.tick.worstP95Ms.toFixed(2)} ms
+                {status.tick.worstRoomId ? ` · ${status.tick.worstRoomId}` : ""}
+              </div>
+              <table className="w-full text-left text-xs">
+                <thead className="text-[#7d8a84]">
+                  <tr>
+                    <th className="pb-2">Room</th>
+                    <th className="pb-2 text-right">Players</th>
+                    <th className="pb-2 text-right">avg</th>
+                    <th className="pb-2 text-right">p95</th>
+                    <th className="pb-2 text-right">max</th>
+                    <th className="pb-2 text-right">overruns</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {status.tick.rooms.map((room) => (
+                    <tr key={room.roomId} className="border-t border-[#1d2622]">
+                      <td className="py-2">
+                        {room.mapId}
+                        {room.channel ? ` · CH${room.channel}` : ""}
+                      </td>
+                      <td className="py-2 text-right">{room.players}</td>
+                      <td className="py-2 text-right">{room.avgMs.toFixed(2)} ms</td>
+                      <td className="py-2 text-right">{room.p95Ms.toFixed(2)} ms</td>
+                      <td className="py-2 text-right">{room.maxMs.toFixed(2)} ms</td>
+                      <td className="py-2 text-right">{room.overruns}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-[#7d8a84]">No timing samples yet.</p>
+          )}
+        </section>
+      ) : null}
+      {status ? (
         <Controls
           key={`${status.xpRate}:${status.dropRate}:${status.shutdownAtMs ?? 0}`}
           status={status}

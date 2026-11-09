@@ -1,12 +1,14 @@
 import {
   type AdminGiveItemRequest,
   type AdminOnlinePlayer,
+  type AdminRoomTickStats,
   type AdminUpdateCharacterRequest,
   type AnnouncementPayload,
   type ItemInstanceDto,
   type MapId,
 } from "@jadethrone/shared";
 import type { AdminOnlineSource } from "./adminService";
+import type { TickStatsSnapshot } from "../rooms/tickStats";
 import { logger } from "../logger";
 
 /**
@@ -40,6 +42,8 @@ export interface AdminRoomHandle {
   /** Sends MSG.announcement once to every client in the room. */
   announce(payload: AnnouncementPayload): number;
   saveAllForShutdown(): Promise<void>;
+  /** Optional: rooms without tick instrumentation simply return null. */
+  tickStats?(): TickStatsSnapshot | null;
 }
 
 export interface AdminBus extends AdminOnlineSource {
@@ -53,6 +57,7 @@ export interface AdminBus extends AdminOnlineSource {
   registerRoom(handle: AdminRoomHandle): void;
   unregisterRoom(roomId: string): void;
   roomHandles(): readonly AdminRoomHandle[];
+  tickSummary(): AdminRoomTickStats[];
   rooms(): Array<{
     roomId: string;
     mapId: MapId;
@@ -152,6 +157,27 @@ export function createAdminBus(): AdminBus {
     },
     roomHandles() {
       return [...rooms.values()];
+    },
+    tickSummary() {
+      const result: AdminRoomTickStats[] = [];
+      for (const room of rooms.values()) {
+        try {
+          const stats = room.tickStats?.();
+          if (!stats) {
+            continue;
+          }
+          result.push({
+            roomId: room.roomId,
+            mapId: room.mapId,
+            channel: room.channel,
+            players: room.playerCount(),
+            ...stats,
+          });
+        } catch (error) {
+          logger.error({ roomId: room.roomId, error }, "tick stats snapshot failed");
+        }
+      }
+      return result;
     },
     rooms() {
       return [...rooms.values()].map((room) => ({

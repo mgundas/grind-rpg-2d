@@ -404,3 +404,17 @@ map whose chunk is not cached yet, `World` briefly builds the default village
 and the normal map-switch path takes over, so there is never a blank scene. The
 server keeps importing the static `MAP_JSON` object, and a parity test asserts
 that every dynamic import equals its static entry byte-for-byte.
+
+## D84 — Tick timings live in per-room rings, aggregated only on read
+
+`apps/server/src/rooms/tickStats.ts` is a fixed 1200-sample Float64 ring
+(60 s at 20 Hz) using `performance.now()` for measurement while game logic keeps
+`Date.now()`. `record()` is allocation-free; p50/p95 are computed in
+`snapshot()` by sorting a reused scratch buffer, so the 20 Hz hot path only pays
+two clock reads. `MapRoom` exposes `tickStatsSnapshot()` through an optional
+`tickStats()` method on the existing `AdminRoomHandle`; `AdminBus.tickSummary()`
+attaches room/map/channel/player data and skips rooms without instrumentation
+(including old test fakes and `DungeonRoom`). `AdminRuntime.status()` derives the
+worst p95 and `GET /api/admin/server` carries the result, so no room imports
+HTTP or the admin runtime. Snapshot is documented as single-poller to keep the
+scratch reuse safe.
