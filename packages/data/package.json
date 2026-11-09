@@ -21,6 +21,7 @@
     "./stones": "./src/stones.ts",
     "./upgrades": "./src/upgrades.ts",
     "./maps": "./src/maps.ts",
+    "./mapLoader": "./src/mapLoader.ts",
     "./maps/*": "./maps/*"
   },
   "types": "./src/index.ts",

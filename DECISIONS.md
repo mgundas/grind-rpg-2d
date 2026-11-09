@@ -390,3 +390,17 @@ pair rather than Phaser `addKey` objects so a rebind applies immediately without
 rebuilding input state; arrow keys always remain a movement alternate. `F9` is
 the debug overlay default because `F3` now belongs to hotbar slot 7 (§5); the
 old F3 alias was dropped to remove the pre-existing double binding.
+
+## D83 — Tiled maps load per-map as their own chunk
+
+The client used to seed all nine Tiled maps into Phaser's tilemap cache during
+`Preload`, which put every map into the initial bundle (~3.4 MB total). Phase 10
+adds `packages/data/src/mapLoader.ts`, a `Record<MapId, () => import(...)>` that
+lets Vite emit one JSON chunk per map; `apps/client/src/world/mapLoader.ts`
+loads and caches a map on demand. `Preload` now loads only the map the player is
+about to enter, and `World` requests a chunk asynchronously before restarting
+the scene on a map change (with a 2 s retry on failure). If a join lands on a
+map whose chunk is not cached yet, `World` briefly builds the default village
+and the normal map-switch path takes over, so there is never a blank scene. The
+server keeps importing the static `MAP_JSON` object, and a parity test asserts
+that every dynamic import equals its static entry byte-for-byte.

@@ -41,6 +41,7 @@ import { getItem, hasItem } from "../data/catalog";
 import { getNpc } from "../data/catalog";
 import { isTypingTarget, matchesKeybind, normalizeKey } from "../ui/keybinds";
 import { CURSOR_BAG, CURSOR_DEFAULT, CURSOR_HAND, CURSOR_SWORD } from "../world/cursors";
+import { ensureMapTilemap } from "../world/mapLoader";
 import { createPlaceholder } from "../assets/placeholders";
 import { musicKeyForMap } from "../assets/audioManifest";
 import { audio } from "../audio/service";
@@ -240,6 +241,7 @@ export class WorldScene extends Phaser.Scene {
   private debugAccumMs = 0;
   private warping = false;
   private mapSwitchPending = false;
+  private mapSwitchRetryAt = 0;
   /** Room hand-off counter; a same-map channel switch must still rebind. */
   private worldEpochSeen = 0;
   private ownMount: Phaser.GameObjects.Ellipse | null = null;
@@ -286,8 +288,15 @@ export class WorldScene extends Phaser.Scene {
     this.pathTarget = null;
     this.warping = false;
     this.mapSwitchPending = false;
+    this.mapSwitchRetryAt = 0;
 
     this.mapId = useUiStore.getState().mapId ?? DEFAULT_MAP;
+    // A join can land on a map whose lazy chunk has not finished loading yet.
+    // Build the always-cached default village, then let update() request the
+    // real map once its chunk is in the tilemap cache.
+    if (!this.cache.tilemap.exists(tilemapKeyFor(this.mapId))) {
+      this.mapId = DEFAULT_MAP;
+    }
     this.buildMap();
     this.buildNpcVisuals();
     this.buildCharacter();
@@ -344,16 +353,15 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
-    if (ui.worldEpoch !== this.worldEpochSeen) {
-      this.worldEpochSeen = ui.worldEpoch;
-      if (!this.mapSwitchPending) {
-        this.mapSwitchPending = true;
-        this.scene.restart();
+    if (ui.mapId && ui.mapId !== this.mapId) {
+      if (!this.mapSwitchPending && this.time.now >= this.mapSwitchRetryAt) {
+        void this.requestMapSwitch(ui.mapId);
       }
       return;
     }
 
-    if (ui.mapId && ui.mapId !== this.mapId) {
+    if (ui.worldEpoch !== this.worldEpochSeen) {
+      this.worldEpochSeen = ui.worldEpoch;
       if (!this.mapSwitchPending) {
         this.mapSwitchPending = true;
         this.scene.restart();
@@ -1974,6 +1982,25 @@ export class WorldScene extends Phaser.Scene {
       this.refreshGroundLabels();
     }
   };
+
+  private async requestMapSwitch(mapId: MapId): Promise<void> {
+    if (this.mapSwitchPending) {
+      return;
+    }
+    this.mapSwitchPending = true;
+    try {
+      await ensureMapTilemap(this, mapId);
+      if (useUiStore.getState().mapId === mapId && this.scene.isActive()) {
+        this.scene.restart();
+      } else {
+        this.mapSwitchPending = false;
+      }
+    } catch (error) {
+      console.warn(`Map "${mapId}" failed to load; retrying shortly: ${String(error)}`);
+      this.mapSwitchPending = false;
+      this.mapSwitchRetryAt = this.time.now + 2000;
+    }
+  }
 
   private handleSceneShutdown(): void {
     window.removeEventListener("keydown", this.handleDomKeyDown);

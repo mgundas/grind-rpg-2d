@@ -1,11 +1,12 @@
 import Phaser from "phaser";
 import { ITEMS } from "@jadethrone/data/items";
-import { MAP_JSON } from "@jadethrone/data/maps";
-import { MAP_IDS, TILE_SIZE } from "@jadethrone/shared";
+import { TILE_SIZE } from "@jadethrone/shared";
 import type { AssetManifest } from "../assets/manifest";
 import { createPlaceholder } from "../assets/placeholders";
 import { audio } from "../audio/service";
-import { TILEMAP_KEYS, TILESET_TEXTURE_KEYS } from "../world/mapKeys";
+import { useUiStore } from "../ui/store";
+import { DEFAULT_MAP, TILESET_TEXTURE_KEYS } from "../world/mapKeys";
+import { ensureMapTilemap } from "../world/mapLoader";
 
 /**
  * Tilesets are horizontal strips. Register one frame per tile so tall decor
@@ -64,19 +65,8 @@ export class PreloadScene extends Phaser.Scene {
       return;
     }
 
-    // Seed Phaser's tilemap cache with the bundled Tiled JSON. Importing the
-    // same files the server bundles guarantees the client builds the exact
-    // same collision grid.
-    for (const mapId of MAP_IDS) {
-      const key = TILEMAP_KEYS[mapId];
-      if (!this.cache.tilemap.exists(key)) {
-        this.cache.tilemap.add(key, {
-          format: Phaser.Tilemaps.Formats.TILED_JSON,
-          data: MAP_JSON[mapId],
-        });
-      }
-    }
-
+    // Tiled maps are no longer seeded here: `ensureMapTilemap` fetches only the
+    // map being entered, as its own chunk (Phase 10).
     this.buildProgressBar();
 
     for (const [key, entry] of Object.entries(manifest.assets)) {
@@ -117,8 +107,28 @@ export class PreloadScene extends Phaser.Scene {
       // Warm SFX in the background; music loads on the first map. Decoding the
       // synthesized fallbacks must never delay entering the world.
       void audio.preloadSounds();
-      this.scene.start("World");
+      void this.startWorld();
     });
+  }
+
+  /**
+   * Fetches only the map the player is about to enter. If that chunk fails we
+   * still start the world on the default village so the error screen is not
+   * the only outcome.
+   */
+  private async startWorld(): Promise<void> {
+    const mapId = useUiStore.getState().mapId ?? DEFAULT_MAP;
+    try {
+      await ensureMapTilemap(this, mapId);
+    } catch (error) {
+      console.warn(`Map "${mapId}" failed to load; using ${DEFAULT_MAP}: ${String(error)}`);
+      try {
+        await ensureMapTilemap(this, DEFAULT_MAP);
+      } catch {
+        // World's fallback check will retry on the next map-switch attempt.
+      }
+    }
+    this.scene.start("World");
   }
 
   private buildProgressBar(): void {
