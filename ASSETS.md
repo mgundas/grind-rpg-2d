@@ -104,3 +104,10 @@ on-screen error text).
 - Original art commissioned for Jade Throne is licensed for the game; per-
   contributor attribution also goes into CREDITS.md.
 - Audio credits: same rules, same file.
+
+
+## Phase 9 additions
+
+- Maps: map_gale_village, map_tide_village, map_gale_highlands, map_tide_highlands, map_valley_of_echoes, map_corrupted_forest, map_spider_cave (Tiled JSON in packages/data/maps; villages use tileset.village, outdoor/cave maps use tileset.fields as placeholders).
+- Monsters: mob.<monsterId> placeholder keys are generated for every entry in packages/data/monsters.json (ash wolf, highland ogre, echo warden, spider queen, corrupted ancient, and the rest).
+- Mount: icon.item.mount_jade_wolf icon plus the mount.jade_wolf layer key; the client draws a placeholder mount ellipse until real art exists.

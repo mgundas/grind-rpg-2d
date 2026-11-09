@@ -341,7 +341,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 20 — Mounts: item effect, state and speed
 - [x] Task 21 — Mount client visuals and predictor sync
 - [x] Task 22 — Admin updates for new maps and channels
-- [ ] Task 23 — Phase 9 E2E script, assets and docs
+- [x] Task 23 — Phase 9 E2E script, assets and docs
 - [ ] Task 24 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)
