@@ -146,20 +146,26 @@ export interface LineQuery {
   maxTargets?: number;
 }
 
-function distanceToSegmentSquared(point: Vec2, start: Vec2, end: Vec2): number {
+interface SegmentProjection {
+  squared: number;
+  /** Unclamped projection: 0 at `start`, 1 at `end`, outside for points past the ends. */
+  t: number;
+}
+
+function projectOnSegment(point: Vec2, start: Vec2, end: Vec2): SegmentProjection {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const lengthSquared = dx * dx + dy * dy;
   if (lengthSquared === 0) {
-    return distanceSquared(point, start);
+    return { squared: distanceSquared(point, start), t: 0 };
   }
-  const projection = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
-  const t = Math.min(1, Math.max(0, projection));
-  const closestX = start.x + dx * t;
-  const closestY = start.y + dy * t;
+  const t = ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared;
+  const clamped = Math.min(1, Math.max(0, t));
+  const closestX = start.x + dx * clamped;
+  const closestY = start.y + dy * clamped;
   const offsetX = point.x - closestX;
   const offsetY = point.y - closestY;
-  return offsetX * offsetX + offsetY * offsetY;
+  return { squared: offsetX * offsetX + offsetY * offsetY, t };
 }
 
 /** Ids inside a line corridor between `origin` and `end`, nearest first. */
@@ -172,12 +178,11 @@ export function findLineTargets(candidates: readonly ArcTarget[], query: LineQue
   const halfWidthSquared = halfWidth * halfWidth;
   const hits: Array<{ id: string; squared: number }> = [];
   for (const candidate of candidates) {
-    const fromOrigin = distanceSquared(query.origin, candidate);
-    if (
-      distanceToSegmentSquared(candidate, query.origin, query.end) <= halfWidthSquared &&
-      fromOrigin <= distanceSquared(query.origin, query.end) + halfWidthSquared
-    ) {
-      hits.push({ id: candidate.id, squared: fromOrigin });
+    const projection = projectOnSegment(candidate, query.origin, query.end);
+    // The corridor is the rectangle from origin to end: points behind the
+    // caster or past the tip are outside even when laterally within half-width.
+    if (projection.t >= 0 && projection.t <= 1 && projection.squared <= halfWidthSquared) {
+      hits.push({ id: candidate.id, squared: distanceSquared(query.origin, candidate) });
     }
   }
   hits.sort((a, b) => (a.squared !== b.squared ? a.squared - b.squared : compareIds(a.id, b.id)));

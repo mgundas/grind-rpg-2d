@@ -52,6 +52,22 @@ import {
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
+export interface MinimapMapData {
+  mapId: string;
+  widthPx: number;
+  heightPx: number;
+  widthTiles: number;
+  heightTiles: number;
+  tileSize: number;
+  solid: Uint8Array;
+}
+
+export interface MinimapDot {
+  kind: "self" | "party" | "player" | "monster" | "npc";
+  x: number;
+  y: number;
+}
+
 /** Auth/screen phase: checking tokens at boot, signed out, or signed in. */
 export type AuthPhase = "checking" | "anonymous" | "authenticated";
 
@@ -218,6 +234,13 @@ interface UiState {
   /** Increment to ask the chat input to focus itself. */
   chatFocusRequest: number;
   requestChatFocus: () => void;
+
+  minimapMap: MinimapMapData | null;
+  setMinimapMap: (map: MinimapMapData | null) => void;
+  minimapDots: MinimapDot[];
+  setMinimapDots: (dots: MinimapDot[]) => void;
+  worldMapOpen: boolean;
+  setWorldMapOpen: (open: boolean) => void;
 
   dayNightEnabled: boolean;
   setDayNightEnabled: (enabled: boolean) => void;
@@ -461,6 +484,13 @@ export const useUiStore = create<UiState>((set) => ({
 
   chatFocusRequest: 0,
   requestChatFocus: () => set((state) => ({ chatFocusRequest: state.chatFocusRequest + 1 })),
+  minimapMap: null,
+  setMinimapMap: (minimapMap) => set({ minimapMap }),
+  minimapDots: [],
+  setMinimapDots: (minimapDots) => set({ minimapDots }),
+  worldMapOpen: false,
+  setWorldMapOpen: (worldMapOpen) => set({ worldMapOpen }),
+
   dayNightEnabled: true,
   setDayNightEnabled: (dayNightEnabled) => set({ dayNightEnabled }),
   weatherEnabled: true,

@@ -67,6 +67,7 @@ export interface WarehouseState {
 export const INVENTORY_ERROR_CODES = [
   "invalid_slot",
   "slot_occupied",
+  "stack_full",
   "item_not_found",
   "invalid_quantity",
   "requirements_not_met",
@@ -346,6 +347,9 @@ export function moveItem(
 
     if (sourceDefinition.stackable && sameStack(moving, target)) {
       const space = Math.max(0, targetDefinition.maxStack - target.quantity);
+      if (space === 0) {
+        return { ok: false, code: "stack_full" };
+      }
       const moved = Math.min(space, moving.quantity);
       target.quantity += moved;
       moving.quantity -= moved;
@@ -552,8 +556,9 @@ export function normalizeInventory(
   items: ReadonlyArray<ItemStack>,
   getDefinition: (itemId: string) => ItemDefinitionLike,
   grid: GridSpec = INVENTORY_GRID,
-): { items: ItemStack[]; repaired: boolean } {
+): { items: ItemStack[]; repaired: boolean; overflow: ItemStack[] } {
   const placed: ItemStack[] = [];
+  const overflow: ItemStack[] = [];
   let repaired = false;
 
   for (const item of [...items].sort((a, b) => a.slot - b.slot)) {
@@ -564,9 +569,12 @@ export function normalizeInventory(
     }
     const slot = findFreeSlot(placed, definition.size, getDefinition, grid);
     if (slot === null) {
-      // The grid is truly full; keep the item at its original slot so the
-      // caller can log it rather than silently deleting a valuable item.
-      placed.push({ ...item, bonuses: [...item.bonuses] });
+      // The grid is truly full. Park the item at a unique negative slot so two
+      // rows never share a cell (which would silently duplicate/lose items);
+      // the caller logs it and an admin can recover it. Never persist overlap.
+      const parked = { ...item, slot: -(overflow.length + 1), bonuses: [...item.bonuses] };
+      placed.push(parked);
+      overflow.push(parked);
       repaired = true;
       continue;
     }
@@ -574,7 +582,7 @@ export function normalizeInventory(
     repaired = true;
   }
 
-  return { items: placed.sort((a, b) => a.slot - b.slot), repaired };
+  return { items: placed.sort((a, b) => a.slot - b.slot), repaired, overflow };
 }
 
 /** Convenience for equipment aggregation: turn the slot array into EquippedItemLike. */

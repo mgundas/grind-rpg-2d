@@ -192,6 +192,7 @@ export class WorldScene extends Phaser.Scene {
   private predictor: LocalPredictor | null = null;
   private initializedFor: string | null = null;
   private environment: EnvironmentController | null = null;
+  private lastMinimapAt = 0;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
   private wasd: Record<string, Phaser.Input.Keyboard.Key> | null = null;
   private pointerHeld = false;
@@ -347,6 +348,7 @@ export class WorldScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     const ui = useUiStore.getState();
     this.environment?.update(this.time.now);
+    this.updateMinimap(this.time.now);
     const room = getRoom();
     if (ui.connectionPhase !== "connected" || !room) {
       this.setOwnVisible(false);
@@ -965,6 +967,44 @@ export class WorldScene extends Phaser.Scene {
       visiblePlayers: this.remoteRegistry.entities.size,
       historyLength: predictor?.pendingInputs ?? 0,
     });
+  }
+
+  private updateMinimap(now: number): void {
+    if (now - this.lastMinimapAt < 250) {
+      return;
+    }
+    this.lastMinimapAt = now;
+    const store = useUiStore.getState();
+    if (!store.minimapMap) {
+      return;
+    }
+    const partyIds = new Set(
+      (store.party?.members ?? []).map((member) => member.characterId),
+    );
+    const dots: import("../ui/store").MinimapDot[] = [];
+    const self = this.predictor?.position ?? this.character;
+    dots.push({ kind: "self", x: self.x, y: self.y });
+    for (const entity of this.remoteRegistry.entities.values()) {
+      const pos = this.remoteRegistry.renderPosition(entity, now);
+      if (!pos) {
+        continue;
+      }
+      dots.push({
+        kind: partyIds.has(entity.characterId) ? "party" : "player",
+        x: pos.x,
+        y: pos.y,
+      });
+    }
+    for (const monster of this.monsterRegistry.entities.values()) {
+      const pos = this.monsterRegistry.renderPosition(monster, now);
+      if (pos) {
+        dots.push({ kind: "monster", x: pos.x, y: pos.y });
+      }
+    }
+    for (const npc of this.npcPoints) {
+      dots.push({ kind: "npc", x: npc.x, y: npc.y });
+    }
+    store.setMinimapDots(dots);
   }
 
   private syncPlayerTarget(snapshot: RoomStateLike): void {
@@ -1936,6 +1976,15 @@ export class WorldScene extends Phaser.Scene {
     // against players by its base row instead of always drawing underneath.
     this.buildSortedDecor(tiled, tilesetTextureKeyFor(this.mapId));
     map.createLayer("above", tileset, 0, 0)?.setDepth(100000);
+    useUiStore.getState().setMinimapMap({
+      mapId: this.mapId,
+      widthPx: this.grid.width * this.grid.tileSize,
+      heightPx: this.grid.height * this.grid.tileSize,
+      widthTiles: this.grid.width,
+      heightTiles: this.grid.height,
+      tileSize: this.grid.tileSize,
+      solid: this.grid.solid.slice(),
+    });
     this.environment?.destroy();
     this.environment = new EnvironmentController(
       this,

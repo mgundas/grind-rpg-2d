@@ -23,6 +23,8 @@ import { PartyWindow } from "./PartyWindow";
 import { NpcDialog } from "./NpcDialog";
 import { PlayerContextMenu } from "./PlayerContextMenu";
 import { FriendsWindow } from "./FriendsWindow";
+import { Minimap } from "./Minimap";
+import { WorldMapWindow } from "./WorldMapWindow";
 import { GuildInvitePrompt, GuildWindow } from "./GuildWindow";
 import { TradeWindow } from "./TradeWindow";
 import { ShopWindow } from "./ShopWindow";
@@ -156,6 +158,8 @@ export function App() {
       ) : inGame ? (
         <>
           <Hud />
+          <Minimap />
+          <WorldMapWindow />
           <Hotbar />
           <AnnouncementBanner />
           <BossTimer />

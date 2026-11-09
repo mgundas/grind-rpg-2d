@@ -15,6 +15,7 @@ export * from "./guild";
 export * from "./health";
 export * from "./inventory";
 export * from "./items";
+export * from "./minimap";
 export * from "./movement";
 export * from "./pathfinding";
 export * from "./party";
