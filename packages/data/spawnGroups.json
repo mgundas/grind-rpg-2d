@@ -4,9 +4,19 @@
     {
       "id": "field_wolves",
       "members": [
-        { "monsterId": "wild_dog", "count": 3 },
-        { "monsterId": "gray_wolf", "count": 2 },
-        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+        {
+          "monsterId": "wild_dog",
+          "count": 3
+        },
+        {
+          "monsterId": "gray_wolf",
+          "count": 2
+        },
+        {
+          "monsterId": "alpha_wolf",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 30000,
       "respawnMaxMs": 60000
@@ -14,10 +24,23 @@
     {
       "id": "field_boars",
       "members": [
-        { "monsterId": "wild_boar", "count": 2 },
-        { "monsterId": "brown_bear", "count": 2 },
-        { "monsterId": "corrupted_deer", "count": 2 },
-        { "monsterId": "brown_bear", "count": 1, "leader": true }
+        {
+          "monsterId": "wild_boar",
+          "count": 2
+        },
+        {
+          "monsterId": "brown_bear",
+          "count": 2
+        },
+        {
+          "monsterId": "corrupted_deer",
+          "count": 2
+        },
+        {
+          "monsterId": "brown_bear",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 60000
@@ -25,24 +48,47 @@
     {
       "id": "field_bandits",
       "members": [
-        { "monsterId": "bandit_thug", "count": 3 },
-        { "monsterId": "bandit_archer", "count": 2 },
-        { "monsterId": "lesser_spirit", "count": 2, "leader": true }
+        {
+          "monsterId": "bandit_thug",
+          "count": 3
+        },
+        {
+          "monsterId": "bandit_archer",
+          "count": 2
+        },
+        {
+          "monsterId": "lesser_spirit",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
     },
     {
       "id": "field_boss",
-      "members": [{ "monsterId": "wolf_king", "count": 1, "leader": true }],
+      "members": [
+        {
+          "monsterId": "wolf_king",
+          "count": 1,
+          "leader": true
+        }
+      ],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
     },
     {
       "id": "gale_highlands_wolves",
       "members": [
-        { "monsterId": "gray_wolf", "count": 3 },
-        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+        {
+          "monsterId": "ash_wolf",
+          "count": 3
+        },
+        {
+          "monsterId": "dire_wolf",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 30000,
       "respawnMaxMs": 60000
@@ -50,8 +96,15 @@
     {
       "id": "gale_highlands_boars",
       "members": [
-        { "monsterId": "wild_boar", "count": 3 },
-        { "monsterId": "brown_bear", "count": 1, "leader": true }
+        {
+          "monsterId": "wind_boar",
+          "count": 3
+        },
+        {
+          "monsterId": "highland_ogre",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 60000
@@ -59,8 +112,15 @@
     {
       "id": "gale_highlands_bandits",
       "members": [
-        { "monsterId": "bandit_thug", "count": 3 },
-        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+        {
+          "monsterId": "highland_bandit",
+          "count": 3
+        },
+        {
+          "monsterId": "ridge_archer",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
@@ -68,7 +128,11 @@
     {
       "id": "gale_highlands_boss",
       "members": [
-        { "monsterId": "wolf_king", "count": 1, "leader": true }
+        {
+          "monsterId": "crag_tyrant",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
@@ -76,8 +140,15 @@
     {
       "id": "tide_highlands_wolves",
       "members": [
-        { "monsterId": "gray_wolf", "count": 3 },
-        { "monsterId": "alpha_wolf", "count": 1, "leader": true }
+        {
+          "monsterId": "ash_wolf",
+          "count": 3
+        },
+        {
+          "monsterId": "dire_wolf",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 30000,
       "respawnMaxMs": 60000
@@ -85,8 +156,15 @@
     {
       "id": "tide_highlands_boars",
       "members": [
-        { "monsterId": "wild_boar", "count": 3 },
-        { "monsterId": "brown_bear", "count": 1, "leader": true }
+        {
+          "monsterId": "wind_boar",
+          "count": 3
+        },
+        {
+          "monsterId": "highland_ogre",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 60000
@@ -94,8 +172,15 @@
     {
       "id": "tide_highlands_bandits",
       "members": [
-        { "monsterId": "bandit_thug", "count": 3 },
-        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+        {
+          "monsterId": "highland_bandit",
+          "count": 3
+        },
+        {
+          "monsterId": "ridge_archer",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
@@ -103,138 +188,231 @@
     {
       "id": "tide_highlands_boss",
       "members": [
-        { "monsterId": "wolf_king", "count": 1, "leader": true }
+        {
+          "monsterId": "crag_tyrant",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
-    }
-    ,{
+    },
+    {
       "id": "valley_wolves",
       "members": [
-        { "monsterId": "gray_wolf", "count": 4 },
-        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+        {
+          "monsterId": "echo_wolf",
+          "count": 4
+        },
+        {
+          "monsterId": "valley_spirit",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "valley_spirits",
       "members": [
-        { "monsterId": "lesser_spirit", "count": 4 },
-        { "monsterId": "corrupted_deer", "count": 2, "leader": true }
+        {
+          "monsterId": "valley_spirit",
+          "count": 4
+        },
+        {
+          "monsterId": "echo_wraith",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "valley_bandits",
       "members": [
-        { "monsterId": "bandit_thug", "count": 4 },
-        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+        {
+          "monsterId": "echo_bandit",
+          "count": 4
+        },
+        {
+          "monsterId": "bone_walker",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 45000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "valley_dead",
       "members": [
-        { "monsterId": "corrupted_deer", "count": 3 },
-        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+        {
+          "monsterId": "bone_walker",
+          "count": 3
+        },
+        {
+          "monsterId": "echo_wraith",
+          "count": 3,
+          "leader": true
+        }
       ],
       "respawnMinMs": 45000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "valley_boss",
       "members": [
-        { "monsterId": "wolf_king", "count": 1, "leader": true }
+        {
+          "monsterId": "echo_warden",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
-    }
-    ,{
+    },
+    {
       "id": "forest_wolves",
       "members": [
-        { "monsterId": "gray_wolf", "count": 3 },
-        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+        {
+          "monsterId": "forest_stalker",
+          "count": 3
+        },
+        {
+          "monsterId": "corrupt_deer",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "forest_spirits",
       "members": [
-        { "monsterId": "corrupted_deer", "count": 3 },
-        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+        {
+          "monsterId": "corrupt_deer",
+          "count": 3
+        },
+        {
+          "monsterId": "spiderling",
+          "count": 3,
+          "leader": true
+        }
       ],
       "respawnMinMs": 45000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "forest_bandits",
       "members": [
-        { "monsterId": "bandit_thug", "count": 3 },
-        { "monsterId": "bandit_archer", "count": 3, "leader": true }
+        {
+          "monsterId": "spiderling",
+          "count": 3
+        },
+        {
+          "monsterId": "spider_matriarch",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 45000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "forest_elites",
       "members": [
-        { "monsterId": "brown_bear", "count": 3 },
-        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+        {
+          "monsterId": "spider_matriarch",
+          "count": 2
+        },
+        {
+          "monsterId": "corrupted_treant",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 50000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "forest_boss",
       "members": [
-        { "monsterId": "wolf_king", "count": 1, "leader": true }
+        {
+          "monsterId": "corrupted_ancient",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
-    }
-    ,{
+    },
+    {
       "id": "cave_spiders_a",
       "members": [
-        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+        {
+          "monsterId": "cave_spider",
+          "count": 3,
+          "leader": true
+        }
       ],
       "respawnMinMs": 30000,
       "respawnMaxMs": 50000
-    }
-    ,{
+    },
+    {
       "id": "cave_spiders_b",
       "members": [
-        { "monsterId": "corrupted_deer", "count": 3 },
-        { "monsterId": "lesser_spirit", "count": 2, "leader": true }
+        {
+          "monsterId": "cave_spider",
+          "count": 3
+        },
+        {
+          "monsterId": "spiderling",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 55000
-    }
-    ,{
+    },
+    {
       "id": "cave_spiders_c",
       "members": [
-        { "monsterId": "bandit_thug", "count": 3 },
-        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+        {
+          "monsterId": "cave_spider",
+          "count": 3
+        },
+        {
+          "monsterId": "cave_guardian",
+          "count": 2,
+          "leader": true
+        }
       ],
       "respawnMinMs": 35000,
       "respawnMaxMs": 55000
-    }
-    ,{
+    },
+    {
       "id": "cave_guardians",
       "members": [
-        { "monsterId": "brown_bear", "count": 2 },
-        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+        {
+          "monsterId": "cave_guardian",
+          "count": 3,
+          "leader": true
+        }
       ],
       "respawnMinMs": 40000,
       "respawnMaxMs": 60000
-    }
-    ,{
+    },
+    {
       "id": "cave_boss",
       "members": [
-        { "monsterId": "wolf_king", "count": 1, "leader": true }
+        {
+          "monsterId": "spider_queen",
+          "count": 1,
+          "leader": true
+        }
       ],
       "respawnMinMs": 900000,
       "respawnMaxMs": 900000

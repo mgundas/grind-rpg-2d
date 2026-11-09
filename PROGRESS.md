@@ -331,8 +331,8 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 10 — Client teleporter dialog and real world map
 - [x] Task 11 — Channels core: filterBy, metadata, auth and warp tokens
 - [x] Task 12 — Channel picker UI
-- [ ] Task 13 — Monsters, spawn groups and drops to level 60
-- [ ] Task 14 — Items and shops to level 60
+- [x] Task 13 — Monsters, spawn groups and drops to level 60
+- [x] Task 14 — Items and shops to level 60
 - [ ] Task 15 — Spirit stones for the new maps
 - [ ] Task 16 — Boss coverage and 1→60 balance simulation
 - [ ] Task 17 — Cross-map party registry

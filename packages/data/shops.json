@@ -6,14 +6,36 @@
       "name": "General Goods",
       "npcId": "general_goods",
       "items": [
-        { "itemId": "potion_hp_s" },
-        { "itemId": "potion_hp_m" },
-        { "itemId": "potion_hp_l" },
-        { "itemId": "potion_mp_s" },
-        { "itemId": "potion_mp_m" },
-        { "itemId": "potion_mp_l" },
-        { "itemId": "scroll_return" },
-        { "itemId": "scroll_reinforce" }
+        {
+          "itemId": "potion_hp_s"
+        },
+        {
+          "itemId": "potion_hp_m"
+        },
+        {
+          "itemId": "potion_hp_l"
+        },
+        {
+          "itemId": "potion_mp_s"
+        },
+        {
+          "itemId": "potion_mp_m"
+        },
+        {
+          "itemId": "potion_mp_l"
+        },
+        {
+          "itemId": "scroll_return"
+        },
+        {
+          "itemId": "scroll_reinforce"
+        },
+        {
+          "itemId": "potion_hp_xl"
+        },
+        {
+          "itemId": "potion_mp_xl"
+        }
       ]
     },
     {
@@ -21,14 +43,60 @@
       "name": "Weaponsmith",
       "npcId": "weaponsmith",
       "items": [
-        { "itemId": "sword_ember_t1" },
-        { "itemId": "sword_ember_t2" },
-        { "itemId": "dagger_ember_t1" },
-        { "itemId": "dagger_ember_t2" },
-        { "itemId": "sword_hex_t1" },
-        { "itemId": "sword_hex_t2" },
-        { "itemId": "bell_ember_t1" },
-        { "itemId": "bell_ember_t2" }
+        {
+          "itemId": "sword_ember_t1"
+        },
+        {
+          "itemId": "sword_ember_t2"
+        },
+        {
+          "itemId": "dagger_ember_t1"
+        },
+        {
+          "itemId": "dagger_ember_t2"
+        },
+        {
+          "itemId": "sword_hex_t1"
+        },
+        {
+          "itemId": "sword_hex_t2"
+        },
+        {
+          "itemId": "bell_ember_t1"
+        },
+        {
+          "itemId": "bell_ember_t2"
+        },
+        {
+          "itemId": "sword_ember_t4"
+        },
+        {
+          "itemId": "sword_ember_t5"
+        },
+        {
+          "itemId": "sword_ember_t6"
+        },
+        {
+          "itemId": "dagger_ember_t4"
+        },
+        {
+          "itemId": "dagger_ember_t5"
+        },
+        {
+          "itemId": "dagger_ember_t6"
+        },
+        {
+          "itemId": "sword_hex_t5"
+        },
+        {
+          "itemId": "sword_hex_t6"
+        },
+        {
+          "itemId": "bell_ember_t5"
+        },
+        {
+          "itemId": "bell_ember_t6"
+        }
       ]
     },
     {
@@ -36,23 +104,123 @@
       "name": "Armorer",
       "npcId": "armorer",
       "items": [
-        { "itemId": "armor_warrior_t1" },
-        { "itemId": "armor_warrior_t2" },
-        { "itemId": "armor_assassin_t1" },
-        { "itemId": "armor_assassin_t2" },
-        { "itemId": "armor_hexblade_t1" },
-        { "itemId": "armor_hexblade_t2" },
-        { "itemId": "armor_mystic_t1" },
-        { "itemId": "armor_mystic_t2" },
-        { "itemId": "helmet_iron_t1" },
-        { "itemId": "helmet_iron_t2" },
-        { "itemId": "shield_oak_t1" },
-        { "itemId": "shield_oak_t2" },
-        { "itemId": "shoes_leather_t1" },
-        { "itemId": "shoes_leather_t2" },
-        { "itemId": "bracelet_copper_t1" },
-        { "itemId": "necklace_amber_t1" },
-        { "itemId": "earrings_jade_t1" }
+        {
+          "itemId": "armor_warrior_t1"
+        },
+        {
+          "itemId": "armor_warrior_t2"
+        },
+        {
+          "itemId": "armor_assassin_t1"
+        },
+        {
+          "itemId": "armor_assassin_t2"
+        },
+        {
+          "itemId": "armor_hexblade_t1"
+        },
+        {
+          "itemId": "armor_hexblade_t2"
+        },
+        {
+          "itemId": "armor_mystic_t1"
+        },
+        {
+          "itemId": "armor_mystic_t2"
+        },
+        {
+          "itemId": "helmet_iron_t1"
+        },
+        {
+          "itemId": "helmet_iron_t2"
+        },
+        {
+          "itemId": "shield_oak_t1"
+        },
+        {
+          "itemId": "shield_oak_t2"
+        },
+        {
+          "itemId": "shoes_leather_t1"
+        },
+        {
+          "itemId": "shoes_leather_t2"
+        },
+        {
+          "itemId": "bracelet_copper_t1"
+        },
+        {
+          "itemId": "necklace_amber_t1"
+        },
+        {
+          "itemId": "earrings_jade_t1"
+        },
+        {
+          "itemId": "armor_warrior_t4"
+        },
+        {
+          "itemId": "armor_warrior_t5"
+        },
+        {
+          "itemId": "armor_warrior_t6"
+        },
+        {
+          "itemId": "armor_assassin_t4"
+        },
+        {
+          "itemId": "armor_assassin_t5"
+        },
+        {
+          "itemId": "armor_assassin_t6"
+        },
+        {
+          "itemId": "armor_hexblade_t5"
+        },
+        {
+          "itemId": "armor_hexblade_t6"
+        },
+        {
+          "itemId": "armor_mystic_t5"
+        },
+        {
+          "itemId": "armor_mystic_t6"
+        },
+        {
+          "itemId": "helmet_iron_t4"
+        },
+        {
+          "itemId": "helmet_iron_t5"
+        },
+        {
+          "itemId": "shield_oak_t4"
+        },
+        {
+          "itemId": "shield_oak_t5"
+        },
+        {
+          "itemId": "shoes_leather_t4"
+        },
+        {
+          "itemId": "shoes_leather_t5"
+        },
+        {
+          "itemId": "bracelet_copper_t4"
+        },
+        {
+          "itemId": "bracelet_copper_t5"
+        },
+        {
+          "itemId": "necklace_amber_t4"
+        },
+        {
+          "itemId": "necklace_amber_t5"
+        },
+        {
+          "itemId": "earrings_jade_t4"
+        },
+        {
+          "itemId": "earrings_jade_t5"
+        }
       ]
     }
   ]

@@ -10,11 +10,12 @@ describe("monsters.json", () => {
     expect(new Set(MONSTERS.map((monster) => monster.id)).size).toBe(MONSTERS.length);
   });
 
-  it("covers levels 1 to 15 and includes a field boss", () => {
+  it("covers levels 1 to 60 and includes every boss", () => {
     expect(Math.min(...MONSTERS.map((monster) => monster.level))).toBe(1);
-    expect(Math.max(...MONSTERS.map((monster) => monster.level))).toBe(15);
-    expect(MONSTERS.filter((monster) => monster.isBoss)).toHaveLength(1);
+    expect(Math.max(...MONSTERS.map((monster) => monster.level))).toBe(60);
+    expect(MONSTERS.filter((monster) => monster.isBoss).length).toBeGreaterThanOrEqual(5);
     expect(getMonster("wolf_king").isBoss).toBe(true);
+    expect(getMonster("corrupted_ancient").level).toBe(60);
   });
 
   it("uses the expected sprite keys and positive balance values", () => {

@@ -4,105 +4,1437 @@
     {
       "id": "wild_dog",
       "drops": [
-        { "itemId": "material_wolf_fang", "chance": 1, "minQty": 1, "maxQty": 1 },
-        { "itemId": "potion_hp_s", "chance": 0.12, "minQty": 1, "maxQty": 1 },
-        { "itemId": "sword_ember_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 },
-        { "itemId": "dagger_ember_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_s",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t1",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "dagger_ember_t1",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "gray_wolf",
       "drops": [
-        { "itemId": "material_wolf_fang", "chance": 0.6, "minQty": 1, "maxQty": 2 },
-        { "itemId": "potion_hp_s", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "shoes_leather_t1", "chance": 0.02, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 0.6,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_hp_s",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "shoes_leather_t1",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "alpha_wolf",
       "drops": [
-        { "itemId": "material_wolf_fang", "chance": 1, "minQty": 1, "maxQty": 2 },
-        { "itemId": "bracelet_copper_t1", "chance": 0.05, "minQty": 1, "maxQty": 1 },
-        { "itemId": "sword_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "bracelet_copper_t1",
+          "chance": 0.05,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "wild_boar",
       "drops": [
-        { "itemId": "material_bear_claw", "chance": 0.35, "minQty": 1, "maxQty": 1 },
-        { "itemId": "potion_hp_s", "chance": 0.2, "minQty": 1, "maxQty": 2 },
-        { "itemId": "shoes_leather_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_bear_claw",
+          "chance": 0.35,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_s",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "shoes_leather_t1",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "brown_bear",
       "drops": [
-        { "itemId": "material_bear_claw", "chance": 1, "minQty": 1, "maxQty": 1 },
-        { "itemId": "potion_hp_m", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "armor_warrior_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
-        { "itemId": "armor_assassin_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_bear_claw",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_assassin_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "corrupted_deer",
       "drops": [
-        { "itemId": "material_spirit_shard", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "material_corrupted_crystal", "chance": 0.02, "minQty": 1, "maxQty": 1 },
-        { "itemId": "potion_mp_s", "chance": 0.2, "minQty": 1, "maxQty": 1 },
-        { "itemId": "earrings_jade_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_mp_s",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "earrings_jade_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "bandit_thug",
       "drops": [
-        { "itemId": "potion_hp_m", "chance": 0.2, "minQty": 1, "maxQty": 1 },
-        { "itemId": "sword_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
-        { "itemId": "armor_warrior_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 },
-        { "itemId": "helmet_iron_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t1",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "helmet_iron_t1",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "bandit_archer",
       "drops": [
-        { "itemId": "potion_mp_m", "chance": 0.2, "minQty": 1, "maxQty": 1 },
-        { "itemId": "dagger_ember_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 },
-        { "itemId": "shoes_leather_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 },
-        { "itemId": "necklace_amber_t1", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "potion_mp_m",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "dagger_ember_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "shoes_leather_t1",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t1",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "lesser_spirit",
       "drops": [
-        { "itemId": "material_spirit_shard", "chance": 0.5, "minQty": 1, "maxQty": 1 },
-        { "itemId": "material_corrupted_crystal", "chance": 0.1, "minQty": 1, "maxQty": 1 },
-        { "itemId": "scroll_return", "chance": 0.05, "minQty": 1, "maxQty": 1 },
-        { "itemId": "bracelet_copper_t1", "chance": 0.04, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.5,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.1,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "scroll_return",
+          "chance": 0.05,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "bracelet_copper_t1",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "wolf_king",
       "drops": [
-        { "itemId": "material_spirit_shard", "chance": 1, "minQty": 2, "maxQty": 4 },
-        { "itemId": "material_corrupted_crystal", "chance": 1, "minQty": 1, "maxQty": 2 },
-        { "itemId": "potion_hp_l", "chance": 1, "minQty": 1, "maxQty": 2 },
-        { "itemId": "scroll_blessing", "chance": 0.1, "minQty": 1, "maxQty": 1 },
-        { "itemId": "sword_ember_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "dagger_ember_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "armor_warrior_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 },
-        { "itemId": "armor_assassin_t2", "chance": 0.15, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 2,
+          "maxQty": 4
+        },
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "scroll_blessing",
+          "chance": 0.1,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t2",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "dagger_ember_t2",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t2",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_assassin_t2",
+          "chance": 0.15,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     },
     {
       "id": "spirit_stone",
       "drops": [
-        { "itemId": "material_spirit_shard", "chance": 1, "minQty": 2, "maxQty": 5 },
-        { "itemId": "material_corrupted_crystal", "chance": 0.6, "minQty": 1, "maxQty": 2 },
-        { "itemId": "potion_hp_m", "chance": 0.5, "minQty": 1, "maxQty": 2 },
-        { "itemId": "potion_mp_m", "chance": 0.4, "minQty": 1, "maxQty": 1 },
-        { "itemId": "scroll_enchant", "chance": 0.04, "minQty": 1, "maxQty": 1 },
-        { "itemId": "skillbook_mastery", "chance": 0.02, "minQty": 1, "maxQty": 1 },
-        { "itemId": "sword_hex_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 },
-        { "itemId": "bell_ember_t2", "chance": 0.03, "minQty": 1, "maxQty": 1 }
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 2,
+          "maxQty": 5
+        },
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.6,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.5,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "potion_mp_m",
+          "chance": 0.4,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "scroll_enchant",
+          "chance": 0.04,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.02,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_hex_t2",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "bell_ember_t2",
+          "chance": 0.03,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "ash_wolf",
+      "drops": [
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "dire_wolf",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "wind_boar",
+      "drops": [
+        {
+          "itemId": "material_wolf_fang",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "highland_bandit",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "ridge_archer",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "highland_ogre",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "stone_sentinel",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "crag_tyrant",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t4",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "helmet_iron_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "echo_wolf",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "valley_spirit",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "echo_bandit",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "bone_walker",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "echo_wraith",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "echo_warden",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t4",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "helmet_iron_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "scroll_blessing",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "sword_ember_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "forest_stalker",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "corrupt_deer",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "spiderling",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "spider_matriarch",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "corrupted_treant",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "material_ancient_core",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "corrupted_ancient",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t4",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "helmet_iron_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "scroll_blessing",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "material_ancient_core",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t6",
+          "chance": 0.06,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t6",
+          "chance": 0.06,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "cave_spider",
+      "drops": [
+        {
+          "itemId": "material_spirit_shard",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_m",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        }
+      ]
+    },
+    {
+      "id": "cave_guardian",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 0.3,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "necklace_amber_t3",
+          "chance": 0.012,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.002,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        }
+      ]
+    },
+    {
+      "id": "spider_queen",
+      "drops": [
+        {
+          "itemId": "material_corrupted_crystal",
+          "chance": 1,
+          "minQty": 1,
+          "maxQty": 3
+        },
+        {
+          "itemId": "potion_hp_l",
+          "chance": 0.14,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "sword_ember_t4",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "helmet_iron_t3",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "scroll_blessing",
+          "chance": 0.2,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "skillbook_mastery",
+          "chance": 0.08,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "material_void_shard",
+          "chance": 0.25,
+          "minQty": 1,
+          "maxQty": 2
+        },
+        {
+          "itemId": "sword_ember_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        },
+        {
+          "itemId": "armor_warrior_t5",
+          "chance": 0.12,
+          "minQty": 1,
+          "maxQty": 1
+        }
       ]
     }
   ]
