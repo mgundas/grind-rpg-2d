@@ -1,5 +1,13 @@
 import { useState } from "react";
-import { CHARACTER_SLOTS, KINGDOMS, MAP_LABELS, type CharacterSummary } from "@jadethrone/shared";
+import {
+  CHANNEL_IDS,
+  CHARACTER_SLOTS,
+  KINGDOMS,
+  MAP_LABELS,
+  clampChannelId,
+  type ChannelId,
+  type CharacterSummary,
+} from "@jadethrone/shared";
 import { CLASSES } from "@jadethrone/data/classes";
 import { ApiError, api } from "../network/api";
 import { connect, logout } from "../network/session";
@@ -25,6 +33,7 @@ export function CharacterSelect() {
   const setSessionKicked = useUiStore((state) => state.setSessionKicked);
 
   const [creating, setCreating] = useState(false);
+  const [channelChoices, setChannelChoices] = useState<Record<string, ChannelId>>({});
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,6 +45,9 @@ export function CharacterSelect() {
   const connecting = connectionPhase === "connecting";
   const showCreate = creating || characters.length === 0;
 
+  const channelFor = (character: CharacterSummary): ChannelId =>
+    channelChoices[character.id] ?? readStoredChannel(character.id) ?? clampChannelId(character.channel);
+
   const play = async (character: CharacterSummary) => {
     if (connecting) {
       return;
@@ -43,7 +55,12 @@ export function CharacterSelect() {
     setSelected(character.id);
     setError(null);
     try {
-      await connect({ characterId: character.id, map: character.map });
+      await connect({
+        characterId: character.id,
+        map: character.map,
+        channel: channelFor(character),
+      });
+      storeChannel(character.id, channelFor(character));
     } catch {
       // `connect` already recorded the phase/error in the store.
     }
@@ -160,6 +177,34 @@ export function CharacterSelect() {
                     <div style={{ fontSize: 11, color: theme.muted }}>
                       {MAP_LABELS[character.map]}
                     </div>
+                    <div style={{ display: "flex", gap: 4, alignItems: "center", marginTop: 8 }}>
+                      <span style={{ fontSize: 10, color: theme.muted }}>CH</span>
+                      {CHANNEL_IDS.map((channelId) => {
+                        const active = channelFor(character) === channelId;
+                        return (
+                          <button
+                            key={channelId}
+                            type="button"
+                            disabled={connecting}
+                            onClick={() =>
+                              setChannelChoices((current) => ({
+                                ...current,
+                                [character.id]: channelId,
+                              }))
+                            }
+                            style={{
+                              ...styles.ghostButton,
+                              padding: "2px 7px",
+                              fontSize: 11,
+                              borderColor: active ? theme.gold : "rgba(93,168,143,0.3)",
+                              color: active ? theme.gold : theme.muted,
+                            }}
+                          >
+                            {channelId}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <div style={{ display: "flex", gap: 4, marginTop: 8, flexWrap: "wrap" }}>
                       <button
                         type="button"
@@ -230,4 +275,23 @@ export function CharacterSelect() {
       {connectionError ? <p style={styles.error}>{connectionError}</p> : null}
     </Panel>
   );
+}
+
+const CHANNEL_STORAGE_PREFIX = "jt_channel_";
+
+function readStoredChannel(characterId: string): ChannelId | null {
+  try {
+    const raw = localStorage.getItem(`${CHANNEL_STORAGE_PREFIX}${characterId}`);
+    return raw === null ? null : clampChannelId(Number(raw));
+  } catch {
+    return null;
+  }
+}
+
+function storeChannel(characterId: string, channel: ChannelId): void {
+  try {
+    localStorage.setItem(`${CHANNEL_STORAGE_PREFIX}${characterId}`, String(channel));
+  } catch {
+    // Channel choice is a convenience; the server clamps whatever arrives.
+  }
 }

@@ -1,3 +1,5 @@
+import { CHANNEL_IDS, type ChannelId } from "@jadethrone/shared";
+import { sendChannelSwitch } from "../network/session";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 
@@ -36,6 +38,8 @@ export function Hud() {
   const characters = useUiStore((state) => state.characters);
   const selectedId = useUiStore((state) => state.selectedCharacterId);
   const gold = useUiStore((state) => state.inventory?.gold ?? 0);
+  const channel = useUiStore((state) => state.channel);
+  const channelSwitchError = useUiStore((state) => state.channelSwitchError);
   if (!self) {
     return null;
   }
@@ -75,10 +79,35 @@ export function Hud() {
         <span style={{ color: theme.gold, fontWeight: 700 }}>
           Lv {self.level} {character?.name ?? account?.username ?? ""}
         </span>
-        <span style={{ color: theme.muted }}>
+        <span style={{ color: theme.muted, display: "flex", alignItems: "center", gap: 6 }}>
+          <select
+            aria-label="Channel"
+            value={channel}
+            onChange={(event) => sendChannelSwitch(Number(event.target.value) as ChannelId)}
+            style={{
+              pointerEvents: "auto",
+              background: "rgba(10,14,12,0.9)",
+              color: theme.text,
+              border: "1px solid rgba(93,168,143,0.35)",
+              borderRadius: 5,
+              fontSize: 10,
+              padding: "1px 2px",
+            }}
+          >
+            {CHANNEL_IDS.map((id) => (
+              <option key={id} value={id}>
+                CH{id}
+              </option>
+            ))}
+          </select>
           {gold.toLocaleString()}g · {hp}/{maxHp} HP
         </span>
       </div>
+      {channelSwitchError ? (
+        <div style={{ fontSize: 10, color: theme.danger, marginBottom: 4 }}>
+          {channelSwitchMessage(channelSwitchError.code)}
+        </div>
+      ) : null}
       <div style={{ display: "grid", gap: 4 }}>
         <Bar value={hp} max={maxHp} color="#b83b35" height={10} />
         <Bar value={mp} max={maxMp} color="#3f79b8" height={7} />
@@ -86,4 +115,19 @@ export function Hud() {
       </div>
     </div>
   );
+}
+
+function channelSwitchMessage(code: string): string {
+  switch (code) {
+    case "channel_full":
+      return "That channel is full.";
+    case "cooldown":
+      return "Wait a moment before switching channels.";
+    case "dead":
+      return "The dead cannot travel.";
+    case "same_channel":
+      return "You are already on that channel.";
+    default:
+      return "Could not switch channels.";
+  }
 }

@@ -232,6 +232,8 @@ export class WorldScene extends Phaser.Scene {
   private debugAccumMs = 0;
   private warping = false;
   private mapSwitchPending = false;
+  /** Room hand-off counter; a same-map channel switch must still rebind. */
+  private worldEpochSeen = 0;
 
   constructor() {
     super({ key: "World" });
@@ -239,6 +241,7 @@ export class WorldScene extends Phaser.Scene {
 
   create(): void {
     // Scene instances survive restart(); reset everything map/room-scoped.
+    this.worldEpochSeen = useUiStore.getState().worldEpoch;
     this.predictor = null;
     this.initializedFor = null;
     this.remoteRegistry = new RemoteRegistry();
@@ -368,6 +371,15 @@ export class WorldScene extends Phaser.Scene {
       this.setOwnVisible(false);
       if (this.predictor || this.initializedFor || this.pathTarget || this.pointerHeld) {
         this.resetSessionState();
+      }
+      return;
+    }
+
+    if (ui.worldEpoch !== this.worldEpochSeen) {
+      this.worldEpochSeen = ui.worldEpoch;
+      if (!this.mapSwitchPending) {
+        this.mapSwitchPending = true;
+        this.scene.restart();
       }
       return;
     }

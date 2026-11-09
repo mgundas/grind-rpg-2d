@@ -15,6 +15,8 @@ import type {
   CharacterSummary,
   InventorySnapshotPayload,
   MapId,
+  ChannelId,
+  ChannelSwitchErrorPayload,
   NpcDialogPayload,
   TeleportErrorPayload,
   PartyInvitePayload,
@@ -104,6 +106,13 @@ interface UiState {
   mapId: MapId | null;
   setSessionId: (id: string | null) => void;
   setMapId: (map: MapId | null) => void;
+  channel: ChannelId;
+  setChannel: (channel: ChannelId) => void;
+  /** Increments on every room hand-off so the scene rebinds even on the same map. */
+  worldEpoch: number;
+  bumpWorldEpoch: () => void;
+  channelSwitchError: ChannelSwitchErrorPayload | null;
+  setChannelSwitchError: (error: ChannelSwitchErrorPayload | null) => void;
 
   /** True while the React chat input has keyboard focus; scenes stop reading WASD. */
   chatFocused: boolean;
@@ -350,6 +359,12 @@ export const useUiStore = create<UiState>((set) => ({
   mapId: null,
   setSessionId: (sessionId) => set({ sessionId }),
   setMapId: (mapId) => set({ mapId }),
+  channel: 1,
+  setChannel: (channel) => set({ channel }),
+  worldEpoch: 0,
+  bumpWorldEpoch: () => set((state) => ({ worldEpoch: state.worldEpoch + 1 })),
+  channelSwitchError: null,
+  setChannelSwitchError: (channelSwitchError) => set({ channelSwitchError }),
 
   chatFocused: false,
   setChatFocused: (chatFocused) => set({ chatFocused }),

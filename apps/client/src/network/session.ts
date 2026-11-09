@@ -19,6 +19,8 @@ import {
   type InventorySnapshotPayload,
   type MapId,
   type MonsterDiedPayload,
+  type ChannelId,
+  type ChannelSwitchErrorPayload,
   type NpcDialogPayload,
   type TeleportErrorPayload,
   type PartyErrorPayload,
@@ -83,14 +85,20 @@ export function getSessionId(): string | null {
 export interface ConnectOptions {
   characterId: string;
   map: MapId;
+  channel: ChannelId;
 }
 
-async function attemptJoin(client: Client, characterId: string, map: MapId): Promise<Room> {
+async function attemptJoin(
+  client: Client,
+  characterId: string,
+  map: MapId,
+  channel: ChannelId,
+): Promise<Room> {
   const access = tokens.getAccess();
   if (access) {
     client.auth.token = access;
   }
-  return client.joinOrCreate(map, { characterId, map });
+  return client.joinOrCreate(map, { characterId, map, channel });
 }
 
 /** Join the character's saved map; one refresh/character-list retry on failure. */
@@ -108,13 +116,14 @@ export async function connect(options: ConnectOptions): Promise<Room> {
   ui.setConnectionError(null);
   ui.setChatFocused(false);
   ui.setMapId(options.map);
+  ui.setChannel(options.channel);
 
   connectPromise = (async () => {
     try {
       const client = getClient();
       let joined: Room;
       try {
-        joined = await attemptJoin(client, options.characterId, options.map);
+        joined = await attemptJoin(client, options.characterId, options.map, options.channel);
       } catch (firstError) {
         // The access token may have expired, or the character may have changed
         // maps in another tab. `/me` refreshes the token and reloads characters.
@@ -125,7 +134,8 @@ export async function connect(options: ConnectOptions): Promise<Room> {
           throw firstError;
         }
         useUiStore.getState().setMapId(character.map);
-        joined = await attemptJoin(client, character.id, character.map);
+        useUiStore.getState().setChannel(character.channel);
+        joined = await attemptJoin(client, character.id, character.map, character.channel);
       }
 
       room = joined;
@@ -165,6 +175,9 @@ export async function consumeWarp(payload: WarpPayload): Promise<Room> {
   store.setSessionKicked(null);
   store.setSessionId(next.sessionId);
   store.setMapId(payload.map);
+  store.setChannel(payload.channel);
+  store.setChannelSwitchError(null);
+  store.bumpWorldEpoch();
   store.setParty(null);
   store.setPartyInvite(null);
   store.setBuffState({ buffs: [] });
@@ -382,6 +395,10 @@ export function sendInteractNpc(npcId: string): void {
   room?.send(MSG.interactNpc, { npcId });
 }
 
+export function sendChannelSwitch(channel: ChannelId): void {
+  room?.send(MSG.channelSwitch, { channel });
+}
+
 export function sendTeleport(npcId: string, targetMap: string): void {
   room?.send(MSG.teleportRequest, { npcId, targetMap });
 }
@@ -519,6 +536,14 @@ function bindSessionEvents(current: Room): void {
 
   current.onMessage(MSG.npcDialog, (payload: NpcDialogPayload) => {
     useUiStore.getState().setNpcDialog(payload);
+  });
+
+  current.onMessage(MSG.teleportError, (payload: TeleportErrorPayload) => {
+    useUiStore.getState().setTeleportError(payload);
+  });
+
+  current.onMessage(MSG.channelSwitchError, (payload: ChannelSwitchErrorPayload) => {
+    useUiStore.getState().setChannelSwitchError(payload);
   });
 
   current.onMessage(MSG.warehouse, (payload: WarehouseSnapshotPayload) => {
