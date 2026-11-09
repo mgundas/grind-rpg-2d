@@ -296,6 +296,9 @@ const MAX_PENDING_INPUTS = 8;
 /** Unreachable path targets are not retried before this delay. */
 const PATH_FAILURE_CACHE_MS = 1000;
 
+/** Invalid messages are logged at most once per this interval per session. */
+const INVALID_LOG_INTERVAL_MS = 5000;
+
 /** A client that never leaves after a warp is disconnected after this delay. */
 const WARP_CLIENT_LEAVE_TIMEOUT_MS = 2000;
 
@@ -406,10 +409,12 @@ export class MapRoom extends Room {
       const parsed = inputMessageSchema.safeParse(raw);
       if (!parsed.success) {
         // A malformed message from a buggy/hostile client is dropped, not a
-        // reason to disconnect a legitimate session.
-        logger.warn(
-          { session: client.sessionId, issues: parsed.error.issues.map((issue) => issue.message) },
-          "dropped invalid input message",
+        // reason to disconnect a legitimate session. Logging is throttled so a
+        // flood cannot spam the log.
+        this.warnInvalidMessage(
+          client.sessionId,
+          "input",
+          parsed.error.issues.map((issue) => issue.message),
         );
         return;
       }
@@ -427,7 +432,7 @@ export class MapRoom extends Room {
     this.onMessage(MSG.chat, async (client, raw) => {
       const parsed = chatMessageSchema.safeParse(raw);
       if (!parsed.success) {
-        logger.warn({ session: client.sessionId }, "dropped invalid chat message");
+        this.warnInvalidMessage(client.sessionId, "chat");
         return;
       }
       const runtime = this.runtimes.get(client.sessionId);
@@ -1621,6 +1626,41 @@ export class MapRoom extends Room {
       sentAt: Date.now(),
     };
     this.safeSend(client, MSG.chatMsg, payload);
+  }
+
+  /** Token bucket: 12 DB-backed item commands per second, burst 20. */
+  private takeItemCommandToken(runtime: PlayerRuntime): boolean {
+    const now = Date.now();
+    const elapsed = Math.max(0, now - runtime.itemCommandTokensAtMs);
+    runtime.itemCommandTokens = Math.min(
+      20,
+      runtime.itemCommandTokens + (elapsed / 1000) * 12,
+    );
+    runtime.itemCommandTokensAtMs = now;
+    if (runtime.itemCommandTokens < 1) {
+      return false;
+    }
+    runtime.itemCommandTokens -= 1;
+    return true;
+  }
+
+  /** Throttled per-session warning so invalid-message floods cannot spam logs. */
+  private warnInvalidMessage(sessionId: string, label: string, issues?: string[]): void {
+    const runtime = this.runtimes.get(sessionId);
+    const now = Date.now();
+    if (runtime) {
+      runtime.invalidMessages++;
+      if (now - runtime.lastInvalidLogAtMs < INVALID_LOG_INTERVAL_MS) {
+        return;
+      }
+      runtime.lastInvalidLogAtMs = now;
+      logger.warn(
+        { session: sessionId, label, issues, dropped: runtime.invalidMessages },
+        "dropped invalid message",
+      );
+      return;
+    }
+    logger.warn({ session: sessionId, label, issues }, "dropped invalid message");
   }
 
   private auditGmCommand(runtime: PlayerRuntime, raw: string): void {
@@ -3002,6 +3042,10 @@ export class MapRoom extends Room {
     const run = async (): Promise<void> => {
       const current = this.runtimes.get(client.sessionId);
       if (!current || current.inventoryClosed) {
+        return;
+      }
+      if (!this.takeItemCommandToken(current)) {
+        this.sendItemError(client, "cooldown");
         return;
       }
       try {

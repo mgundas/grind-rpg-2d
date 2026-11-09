@@ -1,6 +1,9 @@
 import Phaser from "phaser";
 import {
   MSG,
+  CAMERA_ZOOM,
+  CLICK_MAX_MS,
+  HOLD_TO_STEER_MS,
   PICKUP_RADIUS_PX,
   RARITY_COLORS,
   REMOTE_INTERP_DELAY_MS,
@@ -67,8 +70,6 @@ import { ensureCharacterTexture } from "../assets/characterTextures";
 import type { CharacterLook } from "../assets/characterArt";
 
 const KEY_CHARACTER = "char.body.male";
-const HOLD_TO_STEER_MS = 200;
-const CLICK_MAX_MS = 200;
 
 interface RemotePlayerState {
   characterId: string;
@@ -345,7 +346,7 @@ export class WorldScene extends Phaser.Scene {
     this.cameras.main.fadeIn(250, 0, 0, 0);
 
     const cam = this.cameras.main;
-    cam.setZoom(2);
+    cam.setZoom(CAMERA_ZOOM);
     cam.setBounds(
       0,
       0,

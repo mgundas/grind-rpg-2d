@@ -18,15 +18,23 @@ A 2D browser MMORPG: three rival kingdoms, grinding packs of monsters, spirit st
 
 ```sh
 pnpm install
-pnpm db:migrate  # apply the committed Drizzle migrations to the dev database
-pnpm seed        # optional: admin@example.com + test player (dev only)
-pnpm dev         # DB reachability check + server :2567 + client :5173 + admin :5174
+cp .env.example .env  # set POSTGRES_PASSWORD (and TEST_DATABASE_URL for DB tests)
+pnpm dev:db           # starts local Postgres via docker compose (or probes a remote host)
+pnpm db:migrate       # apply the committed Drizzle migrations to the dev database
+pnpm seed             # optional: admin@example.com + test player (dev only)
+pnpm dev              # server :2567 + client :5173 + admin :5174
 ```
 
-Phase 2 (accounts and characters) is current: register on the client, create up to
-four characters, and the server saves/restores their position and map. `pnpm seed`
-creates an admin and a dev test player and logs their configured emails (see
-`.env.example` for the credentials).
+Fresh clone: the server also runs migrations on boot, but `pnpm seed` needs the
+schema to exist, so run `db:migrate` once after the database is up. Create the
+test database with `createdb jade_throne_test` (or
+`docker compose exec postgres createdb -U jade jade_throne_test`) and point
+`TEST_DATABASE_URL` at it before running the DB-backed suites.
+
+The game is in Phase 8 (social systems). Register on the client, create up to
+four characters, and the server saves/restores position, map and progression.
+`pnpm seed` creates an admin and a dev test player and logs their configured
+emails (see `.env.example` for the credentials).
 
 All commands must always work:
 

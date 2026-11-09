@@ -80,6 +80,12 @@ export interface PlayerRuntime {
   cachedPath: Vec2[] | null;
   /** Inputs dropped because the pending queue was full (debug/test counter). */
   droppedInputs: number;
+  /** Invalid messages seen and the last time one was logged (log flood guard). */
+  invalidMessages: number;
+  lastInvalidLogAtMs: number;
+  /** Token bucket for DB-backed item commands (12/s, burst 20). */
+  itemCommandTokens: number;
+  itemCommandTokensAtMs: number;
   /** True when authoritative state has changed since the last save. */
   dirty: boolean;
   /** Last time a non-level-up XP gain was persisted. */
@@ -197,6 +203,10 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     cachedPathKey: null,
     cachedPath: null,
     droppedInputs: 0,
+    invalidMessages: 0,
+    lastInvalidLogAtMs: 0,
+    itemCommandTokens: 20,
+    itemCommandTokensAtMs: 0,
     dirty: false,
     lastXpSaveAtMs: 0,
     saveChain: null,

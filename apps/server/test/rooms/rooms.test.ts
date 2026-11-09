@@ -1002,7 +1002,9 @@ describe("player attack", () => {
     const monster = room.state.monsters.get(targetId)!;
     const dir = dir8Towards({ x: player.x, y: player.y }, { x: monster.x, y: monster.y }) ?? 0;
     sendAttack(client, dir);
-    await waitUntil(() => events.length > 0);
+    await waitUntil(() =>
+      events.some((candidate) => (candidate as CombatEventPayload).attacker.kind === "player"),
+    );
 
     const event = events.find(
       (candidate) => (candidate as CombatEventPayload).attacker.kind === "player",

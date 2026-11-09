@@ -286,6 +286,30 @@ A single `stepMover` call with a large distance only collision-checks the endpoi
 
 `grantItemOffline`/`removeItemOffline` used to load the inventory, check the session registry, then open a separate transaction; a player joining in that gap could have a stale snapshot written over a live inventory. Both now run through `withItemTransaction` and perform the `isOnline` check inside it, so the abort happens after the owner rows are locked and the item plan's expectations are verified in the same transaction. The check result is captured and thrown after the transaction commits (an empty commit) because `withItemTransaction` deliberately rewraps unknown errors as `ItemError`; the route then retries through the live path.
 
+## D71 — Spirit stones are map landmarks, not interest-filtered
+
+Stones are deliberately outside the `StateView` interest pass: they are visible and targetable from far away so a party can see a stone's HP and coordinate before arriving. The client still culls visuals by camera bounds. If Phase 9 adds many stones per map, this becomes a per-client filter, but for the current two maps the "landmark" behaviour is the design.
+
+## D72 — Tier 3/4 gear is intentionally unobtainable until Phase 9
+
+`items.json` ships level-20/30 tier 3 and 4 gear with icons and stats, but no drop table or shop references it yet. Those tiers belong to the Phase 9 maps and level-60 content; shipping the data early lets the catalog, tooltips and upgrade tables be exercised now without adding an out-of-band power source to the 1–15 game.
+
+## D73 — Ember Fields allows PvP during Phase 8
+
+`packages/data/maps/policies.json` marks Ember Fields `pvpAllowed: true`, although the design reserves PvP for the neutral maps arriving in Phase 9. This is deliberate for Phase 8: it is the only populated map, so it is where PvP modes, kingdom hostility, party/guild exclusions and name colours can be tested end to end. Phase 9 flips Fields back to a safe leveling map and moves the flag to the neutral maps.
+
+## D74 — Parties are room-scoped until Phase 9 needs cross-map parties
+
+The party registry lives in `MapRoom` and a warp leaves the party (`leavePartyInternal`). Party chat, XP and loot therefore only work on one map. Phase 8 has no cross-map party content; Phase 9's dungeon needs it, so the registry moves to a process-wide service (like `social`) at that point rather than carrying a half-working cross-room design now.
+
+## D75 — Upgrade and trade previews stay server-driven
+
+The blacksmith preview and trade revision checks are server messages; the client renders what the server planned instead of re-implementing the upgrade table or trade state machine. That avoids stale-preview divergence at the cost of a round trip. Extracting pure `planUpgrade`/`tradeTransition` helpers into `packages/shared` is worthwhile when a second consumer (e.g. a web armory) appears, but duplicating them into the client now would create the drift the review warned about.
+
+## D76 — The client character sheet reads item and buff stat buckets separately
+
+`ITEM_STAT_KEYS` (weapon/armor stats) and `BUFF_STATS` (attack speed, evasion, move speed) are different buckets. The current character sheet shows level, stats, attack, defense and crit; Phase 9's full sheet must merge both buckets through `applyBuffModifiers` so a buffed character's displayed values match combat. Recorded here so the sheet is not built from only one bucket.
+
 ## D68 — Phase 8 social routing, guild transactions and PvP rules
 
 Chat is channel-aware server-side. Local chat keeps the 900 px radius and scrambles cross-kingdom text per recipient unless the reader is on a neutral map; shout is same-kingdom, level 15+ and 15 s; whisper/guild chat route through a process-wide `SocialDirectory` keyed by character id, while party chat stays room-local. Profanity is filtered before delivery/logging. Chat history is client-only (100 lines per tab), and `chat_log` stores the channel.

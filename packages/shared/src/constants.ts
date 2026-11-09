@@ -108,9 +108,15 @@ export const SNAP_THRESHOLD_PX = 64;
 export const ERROR_SMOOTH_MS = 100;
 export const TELEPORT_THRESHOLD_PX = 200;
 
-/** Local chat (GAME_DESIGN.md §9). */
-export const CHAT_RANGE_PX = 900;
+/** Local chat (GAME_DESIGN.md §9). Uses the interest-add radius so every
+ * recipient is visible. */
+export const CHAT_RANGE_PX = INTEREST_ADD_RADIUS_PX;
 export const CHAT_COOLDOWN_MS = 1000;
+
+/** Pointer hold/click thresholds and camera zoom (GAME_DESIGN.md §5). */
+export const HOLD_TO_STEER_MS = 200;
+export const CLICK_MAX_MS = 200;
+export const CAMERA_ZOOM = 2;
 export const SHOUT_COOLDOWN_MS = 15_000;
 export const SHOUT_LEVEL = 15;
 export const CHAT_MAX_LEN = 120;

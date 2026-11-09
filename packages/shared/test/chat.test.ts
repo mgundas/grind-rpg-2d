@@ -7,9 +7,9 @@ describe("chatRecipients", () => {
   it("includes the sender and everyone inside the range", () => {
     const participants = [
       alice,
-      { sessionId: "near", x: 100 + 899, y: 100 },
-      { sessionId: "edge", x: 100, y: 100 + 900 },
-      { sessionId: "far", x: 100 + 901, y: 100 },
+      { sessionId: "near", x: 100 + 849, y: 100 },
+      { sessionId: "edge", x: 100, y: 100 + 850 },
+      { sessionId: "far", x: 100 + 851, y: 100 },
     ];
     expect(chatRecipients(participants, alice)).toEqual(["alice", "near", "edge"]);
   });

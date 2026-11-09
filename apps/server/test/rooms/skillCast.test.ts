@@ -82,8 +82,13 @@ describe("room skill casting", () => {
     const { room, client } = await join();
     const startPromise = client.waitForMessage(MSG.skillCastStart, 2000);
     const castPromise = client.waitForMessage(MSG.skillCast, 2000);
-    const buffPromise = client.waitForMessage(MSG.buffState, 2000);
     const startErrorPromise = client.waitForMessage(MSG.skillError, 2000);
+    // Join also emits buffState, so collect them and wait for the cast's buff
+    // instead of taking whichever message arrives first.
+    const buffStates: BuffStatePayload[] = [];
+    client.onMessage(MSG.buffState, (payload: BuffStatePayload) => {
+      buffStates.push(payload);
+    });
 
     send(client, MSG.castSkill, { skillId: "warrior_blade_berserk" });
     const start = (await Promise.race([startPromise, startErrorPromise])) as
@@ -95,8 +100,11 @@ describe("room skill casting", () => {
     expect(start.skillId).toBe("warrior_blade_berserk");
     const cast = (await castPromise) as SkillCastPayload;
     expect(cast.skillId).toBe("warrior_blade_berserk");
-    const buffs = (await buffPromise) as BuffStatePayload;
-    expect(buffs.buffs.some((buff) => buff.sourceSkillId === "warrior_blade_berserk")).toBe(true);
+    await waitUntil(() =>
+      buffStates.some((payload) =>
+        payload.buffs.some((buff) => buff.sourceSkillId === "warrior_blade_berserk"),
+      ),
+    );
     const statsPromise = client.waitForMessage(MSG.selfStats, 2000);
     send(client, MSG.requestStats, {});
     const stats = (await statsPromise) as SelfStatsPayload;
