@@ -11,6 +11,9 @@ import {
   FOREST_SPAWN,
   GALE_HIGHLANDS_SPAWN,
   GALE_VILLAGE_SPAWN,
+  SPIDER_CAVE_HEIGHT,
+  SPIDER_CAVE_SPAWN,
+  SPIDER_CAVE_WIDTH,
   TIDE_HIGHLANDS_SPAWN,
   TIDE_VILLAGE_SPAWN,
   VILLAGE_HEIGHT,
@@ -20,6 +23,7 @@ import {
   generateForestMap,
   generateGaleHighlandsMap,
   generateGaleVillageMap,
+  generateSpiderCaveMap,
   generateTideHighlandsMap,
   generateTideVillageMap,
   generateValleyMap,
@@ -65,6 +69,7 @@ const galeHighlands = fixture(generateGaleHighlandsMap(), FIELDS_WIDTH, FIELDS_H
 const tideHighlands = fixture(generateTideHighlandsMap(), FIELDS_WIDTH, FIELDS_HEIGHT);
 const valley = fixture(generateValleyMap(), 180, 180);
 const forest = fixture(generateForestMap(), 180, 180);
+const cave = fixture(generateSpiderCaveMap(), SPIDER_CAVE_WIDTH, SPIDER_CAVE_HEIGHT);
 
 function tileCentre(tx: number, ty: number): { x: number; y: number } {
   return { x: tx * tile + tile / 2, y: ty * tile + tile / 2 };
@@ -448,6 +453,49 @@ describe("neutral maps", () => {
   });
 });
 
+describe("Spider Cave", () => {
+  it("is a sealed dungeon with five packs, a boss arena and one exit", () => {
+    expect(structuredClone(generateSpiderCaveMap())).toEqual(generateSpiderCaveMap());
+    expect(cave.map.width).toBe(SPIDER_CAVE_WIDTH);
+    expect(cave.map.height).toBe(SPIDER_CAVE_HEIGHT);
+    expectBorderSolid(cave);
+    expect(isWalkableAt(cave.grid, SPIDER_CAVE_SPAWN.x, SPIDER_CAVE_SPAWN.y)).toBe(true);
+    expect(cave.objects.mobZones).toHaveLength(5);
+    for (const zone of cave.objects.mobZones) {
+      expect(hasSpawnGroup(zone.spawnGroupId)).toBe(true);
+    }
+    expect(cave.objects.stoneZones).toHaveLength(0);
+    expect(cave.objects.warps).toHaveLength(1);
+    const exit = cave.objects.warps[0]!;
+    expect(exit.targetMap).toBe("map_corrupted_forest");
+    expectWarpRectWalkable(cave, exit);
+    expect(
+      canReach(
+        cave.grid,
+        SPIDER_CAVE_WIDTH,
+        SPIDER_CAVE_HEIGHT,
+        SPIDER_CAVE_SPAWN,
+        Math.floor((exit.x + exit.w / 2) / tile),
+        Math.floor((exit.y + exit.h / 2) / tile),
+      ),
+    ).toBe(true);
+    const boss = cave.objects.mobZones.find((zone) => zone.spawnGroupId === "cave_boss")!;
+    expect(
+      isWalkableAt(cave.grid, Math.floor(boss.x + boss.w / 2), Math.floor(boss.y + boss.h / 2)),
+    ).toBe(true);
+    expect(
+      canReach(
+        cave.grid,
+        SPIDER_CAVE_WIDTH,
+        SPIDER_CAVE_HEIGHT,
+        SPIDER_CAVE_SPAWN,
+        Math.floor((boss.x + boss.w / 2) / tile),
+        Math.floor((boss.y + boss.h / 2) / tile),
+      ),
+    ).toBe(true);
+  });
+});
+
 describe("writeMapFiles", () => {
   it("writes every generated map file to a target directory", () => {
     // Write to a temp directory: the committed-file comparisons above already
@@ -463,6 +511,7 @@ describe("writeMapFiles", () => {
       expect(existsSync(join(dir, "map_tide_highlands.json"))).toBe(true);
       expect(existsSync(join(dir, "map_valley_of_echoes.json"))).toBe(true);
       expect(existsSync(join(dir, "map_corrupted_forest.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_spider_cave.json"))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -324,7 +324,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 3 — Generator: Gale and Tide village variants
 - [x] Task 4 — Generator: three Highlands (15–30)
 - [x] Task 5 — Generator: Valley of Echoes and Corrupted Forest
-- [ ] Task 6 — Generator: Spider Cave dungeon map
+- [x] Task 6 — Generator: Spider Cave dungeon map
 - [ ] Task 7 — Wire every map into server, client and validation
 - [ ] Task 8 — Teleporter NPC kind and data
 - [ ] Task 9 — Server teleporter travel intent

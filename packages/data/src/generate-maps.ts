@@ -121,7 +121,9 @@ export const VALLEY_GALE_SPAWN = { x: 5 * TILE_SIZE + 16, y: 100 * TILE_SIZE + 1
 export const VALLEY_TIDE_SPAWN = { x: 5 * TILE_SIZE + 16, y: 140 * TILE_SIZE + 16 };
 /** Corrupted Forest arrival and the Spider Cave entrance point. */
 export const FOREST_SPAWN = { x: 5 * TILE_SIZE + 16, y: 90 * TILE_SIZE + 16 };
-export const SPIDER_CAVE_SPAWN = { x: 10 * TILE_SIZE + 16, y: 20 * TILE_SIZE + 16 };
+export const SPIDER_CAVE_SPAWN = { x: 10 * TILE_SIZE + 16, y: 50 * TILE_SIZE + 16 };
+export const SPIDER_CAVE_WIDTH = 100;
+export const SPIDER_CAVE_HEIGHT = 100;
 
 function emptyLayer(width: number, height: number, fill: number): number[] {
   return new Array<number>(width * height).fill(fill);
@@ -1083,6 +1085,123 @@ export function generateForestMap(): TiledMapFile {
   return buildHighlands(FOREST_SPEC);
 }
 
+/** Carved floor rects of the Spider Cave (rooms and corridors). */
+const CAVE_ROOMS: HighlandsRect[] = [
+  { x: 6, y: 44, w: 12, h: 12 },
+  { x: 24, y: 36, w: 16, h: 16 },
+  { x: 46, y: 28, w: 18, h: 20 },
+  { x: 46, y: 60, w: 18, h: 16 },
+  { x: 72, y: 36, w: 22, h: 26 },
+];
+const CAVE_CORRIDORS: HighlandsRect[] = [
+  { x: 3, y: 48, w: 11, h: 5 },
+  { x: 14, y: 48, w: 12, h: 5 },
+  { x: 38, y: 46, w: 10, h: 5 },
+  { x: 52, y: 44, w: 5, h: 18 },
+  { x: 62, y: 46, w: 12, h: 5 },
+  { x: 42, y: 66, w: 6, h: 5 },
+];
+
+/**
+ * Spider Cave (GAME_DESIGN.md §3.1): a fully enclosed dungeon carved out of
+ * solid rock, with an entrance room, three chambers and a boss arena.
+ */
+export function generateSpiderCaveMap(): TiledMapFile {
+  const w = SPIDER_CAVE_WIDTH;
+  const h = SPIDER_CAVE_HEIGHT;
+  const rng = mulberry32(seedFromString(ROOM_NAME_SPIDER_CAVE));
+
+  const ground = emptyLayer(w, h, TILE_STONE);
+  const decor = emptyLayer(w, h, 0);
+  const above = emptyLayer(w, h, 0);
+  const collision = emptyLayer(w, h, 1);
+
+  // Carve the walkable rooms and corridors out of the solid rock.
+  for (const room of [...CAVE_ROOMS, ...CAVE_CORRIDORS]) {
+    paintRect(w, h, ground, room.x, room.y, room.w, room.h, TILE_DIRT);
+    paintRect(w, h, collision, room.x, room.y, room.w, room.h, 0);
+  }
+
+  // Stalagmites: solid single tiles inside the carved floor, kept off the
+  // travel lines and mob zones so placement and pathfinding stay open.
+  for (let i = 0; i < 24; i++) {
+    const room = CAVE_ROOMS[1 + Math.floor(rng() * (CAVE_ROOMS.length - 1))]!;
+    const tx = room.x + 2 + Math.floor(rng() * Math.max(1, room.w - 4));
+    const ty = room.y + 2 + Math.floor(rng() * Math.max(1, room.h - 4));
+    if (ty >= 44 && ty <= 52) {
+      continue;
+    }
+    collision[index(w, tx, ty)] = 1;
+    decor[index(w, tx, ty)] = TILE_WALL;
+  }
+
+  // Visible rock border around the dungeon.
+  for (let ty = 0; ty < h; ty++) {
+    for (let tx = 0; tx < w; tx++) {
+      if (tx < 2 || ty < 2 || tx >= w - 2 || ty >= h - 2) {
+        decor[index(w, tx, ty)] = TILE_WALL;
+      }
+    }
+  }
+
+  const objects: TiledObject[] = [
+    {
+      id: 1,
+      name: "spawn_player",
+      x: SPIDER_CAVE_SPAWN.x,
+      y: SPIDER_CAVE_SPAWN.y,
+      width: 0,
+      height: 0,
+      point: true,
+      rotation: 0,
+      type: "",
+      visible: true,
+    },
+    {
+      id: 2,
+      name: "warp",
+      x: 3 * TILE_SIZE,
+      y: 48 * TILE_SIZE,
+      width: TILE_SIZE,
+      height: TILE_SIZE * 5,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [
+        { name: "targetMap", type: "string", value: ROOM_NAME_FOREST satisfies MapId },
+        { name: "targetX", type: "int", value: 168 * TILE_SIZE + 16 },
+        { name: "targetY", type: "int", value: 91 * TILE_SIZE + 16 },
+      ],
+    },
+    ...[
+      { groupId: "cave_spiders_a", x: 27, y: 39, w: 10, h: 10 },
+      { groupId: "cave_spiders_b", x: 49, y: 31, w: 12, h: 12 },
+      { groupId: "cave_spiders_c", x: 49, y: 63, w: 12, h: 10 },
+      { groupId: "cave_guardians", x: 73, y: 40, w: 8, h: 10 },
+      { groupId: "cave_boss", x: 84, y: 40, w: 8, h: 14 },
+    ].map((zone, i) => ({
+      id: 3 + i,
+      name: "mob_zone" as const,
+      x: zone.x * TILE_SIZE,
+      y: zone.y * TILE_SIZE,
+      width: zone.w * TILE_SIZE,
+      height: zone.h * TILE_SIZE,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "spawnGroupId", type: "string", value: zone.groupId }],
+    })),
+  ];
+
+  return baseMap(w, h, "fields", [
+    tileLayer(1, "ground", w, h, ground),
+    tileLayer(2, "decor", w, h, decor),
+    tileLayer(3, "above", w, h, above),
+    tileLayer(4, "collision", w, h, collision, false),
+    objectLayer(5, objects),
+  ]);
+}
+
 export interface MapFileDefinition {
   fileName: string;
   build: () => TiledMapFile;
@@ -1098,6 +1217,7 @@ export const MAP_FILES: readonly MapFileDefinition[] = [
   { fileName: "map_tide_highlands.json", build: generateTideHighlandsMap },
   { fileName: "map_valley_of_echoes.json", build: generateValleyMap },
   { fileName: "map_corrupted_forest.json", build: generateForestMap },
+  { fileName: "map_spider_cave.json", build: generateSpiderCaveMap },
 ];
 
 /** Write the generated map files. Run via `pnpm generate:maps`. */

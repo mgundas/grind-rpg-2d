@@ -196,5 +196,48 @@
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
     }
+    ,{
+      "id": "cave_spiders_a",
+      "members": [
+        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+      ],
+      "respawnMinMs": 30000,
+      "respawnMaxMs": 50000
+    }
+    ,{
+      "id": "cave_spiders_b",
+      "members": [
+        { "monsterId": "corrupted_deer", "count": 3 },
+        { "monsterId": "lesser_spirit", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 55000
+    }
+    ,{
+      "id": "cave_spiders_c",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 3 },
+        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 55000
+    }
+    ,{
+      "id": "cave_guardians",
+      "members": [
+        { "monsterId": "brown_bear", "count": 2 },
+        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 60000
+    }
+    ,{
+      "id": "cave_boss",
+      "members": [
+        { "monsterId": "wolf_king", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 900000,
+      "respawnMaxMs": 900000
+    }
   ]
 }
