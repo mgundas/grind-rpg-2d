@@ -257,15 +257,34 @@ async function main() {
   check("mastery cooldown set", (read.nextReadAtMs ?? 0) > Date.now());
 
   const beforeHp = second.room.state.players.get(second.room.sessionId)?.hp ?? 0;
-  const pvpEvent = nextMessage(
-    firstClient,
-    "combat",
-    (payload) => payload.hits?.some((hit) => hit.target.kind === "player"),
-  );
-  firstClient.send("attack", { dir: 0 });
-  const combat = await pvpEvent;
+  let combat = null;
+  // A live swing can miss; retry until one clean player hit lands (and give
+  // the attack cooldown time between attempts).
+  for (let attempt = 0; attempt < 6 && !combat; attempt += 1) {
+    const pvpEvent = nextMessage(
+      firstClient,
+      "combat",
+      (payload) =>
+        payload.hits?.some((hit) => hit.target.kind === "player" && !hit.miss),
+      1200,
+    );
+    firstClient.send("attack", { dir: 0 });
+    try {
+      combat = await pvpEvent;
+    } catch {
+      await wait(700);
+    }
+  }
   check("pvp attack delivered", Boolean(combat));
-  await wait(150);
+  try {
+    await waitUntil(
+      () => (second.room.state.players.get(second.room.sessionId)?.hp ?? beforeHp) < beforeHp,
+      2000,
+      "pvp damage",
+    );
+  } catch {
+    // The check below reports the failure with the observed HP.
+  }
   check(
     "pvp damage applied",
     (second.room.state.players.get(second.room.sessionId)?.hp ?? beforeHp) < beforeHp,
