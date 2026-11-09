@@ -285,3 +285,17 @@ A single `stepMover` call with a large distance only collision-checks the endpoi
 ## D70 — Offline admin item mutations re-check "online" inside the item transaction
 
 `grantItemOffline`/`removeItemOffline` used to load the inventory, check the session registry, then open a separate transaction; a player joining in that gap could have a stale snapshot written over a live inventory. Both now run through `withItemTransaction` and perform the `isOnline` check inside it, so the abort happens after the owner rows are locked and the item plan's expectations are verified in the same transaction. The check result is captured and thrown after the transaction commits (an empty commit) because `withItemTransaction` deliberately rewraps unknown errors as `ItemError`; the route then retries through the live path.
+
+## D68 — Phase 8 social routing, guild transactions and PvP rules
+
+Chat is channel-aware server-side. Local chat keeps the 900 px radius and scrambles cross-kingdom text per recipient unless the reader is on a neutral map; shout is same-kingdom, level 15+ and 15 s; whisper/guild chat route through a process-wide `SocialDirectory` keyed by character id, while party chat stays room-local. Profanity is filtered before delivery/logging. Chat history is client-only (100 lines per tab), and `chat_log` stores the channel.
+
+Guilds are DB-backed with case-insensitive unique names, one guild per character, 32-member cap and leader/officer/member permissions. Creation is a single transaction (level 30, 500k gold, guild + leader row + `guild_create` gold log); invites are runtime-only with a 30 s TTL. Guild name/id changes fan out through the social directory so live name plates and friendly-fire checks update without a room restart.
+
+Friends are one-way relationships (add/remove, no request handshake), queried from DB with online state from the social directory. Whisper/online updates are delivered cross-map.
+
+Skill mastery is stored separately from the normal rank in `character_skill_mastery` (M0–M10), because rank is capped at 20. Master levels add effective ranks for damage/heal/buff scaling only; MP cost keeps the normal rank. A generic mastery tome is consumed in the same transaction as the mastery/cooldown update; failed readings still consume the book and start the 12 h cooldown.
+
+PvP uses the shared `canAttackPlayer` matrix: safe maps block all player damage, Peaceful blocks both directions, Kingdom only hits other kingdoms, Free hits anyone non-peaceful, and party/guild members are never valid targets. Player damage reuses the existing hit/crit/defense formulas, has no PvP multiplier, no player statuses, no lifesteal and no PvP rewards; death uses the normal death path. A `pvpReady` gate prevents guildmates being attackable before the async guild lookup completes.
+
+Day/night and weather are client-only: a Phaser 4 camera colour matrix follows the absolute 20-minute shared clock, and bounded particle emitters provide per-map weather. The minimap is generated from the same collision grid, with entity dots updated at 4 Hz; the Phase 8 world map is a policy-driven two-map view until Phase 9 supplies the full world layout.

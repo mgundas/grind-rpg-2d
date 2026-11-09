@@ -281,7 +281,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 18 — Day/night and weather
 - [x] Task 19 — Minimap and world map
 - [x] Task 20 — Admin chat channel visibility
-- [ ] Task 21 — Phase 8 E2E, decisions and report
+- [x] Task 21 — Phase 8 E2E, decisions and report
 - [ ] Task 22 — Phase gate
 
 ### Phase 8 — Review follow-ups (Important, from `docs/reviews/review-2026-11-09.md`)
