@@ -15,7 +15,7 @@ import {
   type AdminMonitorStatus,
   type AdminServerStatus,
 } from "@jadethrone/shared";
-import { announcements, characters } from "../db/schema";
+import { announcements, accounts, characters } from "../db/schema";
 import {
   banAccount,
   grantItemOffline,
@@ -71,7 +71,15 @@ async function writeAuditLog(
   try {
     await writeAdminLog(deps.db, entry);
   } catch (error) {
-    logger.error({ err: error, action: entry.action }, "admin audit log write failed");
+    logger.error(
+      {
+        err: error,
+        action: entry.action,
+        actorAccountId: entry.actorAccountId,
+        targetCharacterId: entry.targetCharacterId ?? null,
+      },
+      "admin audit log write failed; reconcile admin_log manually",
+    );
   }
 }
 
@@ -199,7 +207,13 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
 
   router.post("/players/:characterId/kick", async (req, res) => {
     const characterId = parseBody(characterIdSchema, req.params.characterId);
-    await deps.sessionRegistry.kickCharacter(characterId, "admin");
+    const kicked = await deps.sessionRegistry.kickCharacter(characterId, "admin");
+    if (!kicked) {
+      res.status(409).json({
+        error: { code: "conflict", message: "That character is not online." },
+      });
+      return;
+    }
     await writeAuditLog(deps, {
       actorAccountId: authedAccount(res).id,
       action: "kick",
@@ -217,9 +231,27 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       res.status(404).json({ error: { code: "not_found", message: "Character not found." } });
       return;
     }
+    const actor = authedAccount(res);
+    if (accountId === actor.id) {
+      res.status(400).json({
+        error: { code: "validation", message: "You cannot ban your own account." },
+      });
+      return;
+    }
+    const [target] = await deps.db
+      .select({ role: accounts.role })
+      .from(accounts)
+      .where(eq(accounts.id, accountId))
+      .limit(1);
+    if (target?.role === "admin" && actor.role !== "admin") {
+      res.status(403).json({
+        error: { code: "forbidden", message: "Only an admin can ban another admin." },
+      });
+      return;
+    }
     const ban = parseBody(adminBanSchema, req.body);
     const result = await banAccount(deps.db, {
-      actorAccountId: authedAccount(res).id,
+      actorAccountId: actor.id,
       accountId,
       ban,
       ip: req.ip,
@@ -327,16 +359,24 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
       active: recurring,
       createdBy: account.id,
       createdAt: new Date(now),
-      lastSentAt: recurring ? null : new Date(now),
+      lastSentAt: null,
       expiresAt,
     });
     if (!recurring) {
-      deps.adminBus.broadcastAnnouncement({
+      const delivered = deps.adminBus.broadcastAnnouncement({
         id,
         message: input.message,
         kind: "admin",
         sentAtMs: now,
       });
+      // An immediate announcement with no recipients stays unsent in history
+      // instead of claiming it was delivered.
+      if (delivered > 0) {
+        await deps.db
+          .update(announcements)
+          .set({ lastSentAt: new Date(now) })
+          .where(eq(announcements.id, id));
+      }
     }
     await writeAuditLog(deps, {
       actorAccountId: account.id,
@@ -386,10 +426,17 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
   router.post("/server/spawn", async (req, res) => {
     const input = parseBody(adminSpawnSchema, req.body);
     const players = deps.adminBus.list();
-    const target = players[0];
+    const target = input.mapId
+      ? players.find((player) => player.mapId === input.mapId)
+      : players[0];
     if (!target) {
       res.status(409).json({
-        error: { code: "conflict", message: "At least one player must be online to spawn." },
+        error: {
+          code: "conflict",
+          message: input.mapId
+            ? `No player is online on map ${input.mapId}.`
+            : "At least one player must be online to spawn.",
+        },
       });
       return;
     }

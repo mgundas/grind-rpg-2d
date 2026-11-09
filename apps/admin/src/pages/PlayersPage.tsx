@@ -299,7 +299,7 @@ export function PlayersPage() {
               )}
             </div>
             <PlayerActions
-              key={`${detail.character.id}:${detail.character.level}:${detail.character.gold}:${detail.character.stats.vit}:${detail.character.stats.int}:${detail.character.stats.str}:${detail.character.stats.dex}:${detail.account.bannedUntil ?? "0"}`}
+              key={detail.character.id}
               detail={detail}
               onChanged={() => setRefresh((value) => value + 1)}
             />

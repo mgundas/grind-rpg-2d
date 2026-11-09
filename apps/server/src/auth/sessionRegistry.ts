@@ -118,11 +118,13 @@ export class SessionRegistry {
     }
   }
 
-  async kickCharacter(characterId: string, reason: SessionKickReason): Promise<void> {
+  async kickCharacter(characterId: string, reason: SessionKickReason): Promise<boolean> {
     const handle = this.byCharacter.get(characterId);
-    if (handle) {
-      await this.kickHandle(handle, reason);
+    if (!handle) {
+      return false;
     }
+    await this.kickHandle(handle, reason);
+    return true;
   }
 
   clear(): void {

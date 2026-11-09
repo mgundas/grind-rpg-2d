@@ -93,13 +93,16 @@ export function createAdminRuntime(options: AdminRuntimeOptions): AdminRuntime {
         if (row.lastSentAt && row.lastSentAt.getTime() + (row.intervalMs ?? 0) > now) {
           continue;
         }
-        options.bus.broadcastAnnouncement({
+        const delivered = options.bus.broadcastAnnouncement({
           id: row.id,
           message: row.message,
           kind: "scheduled",
           sentAtMs: now,
         });
-        await markSent(options.db, row.id, now);
+        // Do not consume the slot when nobody was online; retry on the next scan.
+        if (delivered > 0) {
+          await markSent(options.db, row.id, now);
+        }
       }
     } catch (error) {
       logger.error({ error }, "recurring announcement scan failed");

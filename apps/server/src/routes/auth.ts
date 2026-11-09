@@ -73,6 +73,8 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
     await deps.sessionRegistry.kickAccount(payload.account.id, "login");
     if (isAdminRole(payload.account.role)) {
       setAdminCookie(res, payload.tokens.accessToken, deps.authDeps.accessTtlSeconds);
+    } else {
+      clearAdminCookie(res);
     }
     res.json(payload);
   });
@@ -86,6 +88,8 @@ export function createAuthRouter(deps: AuthRouteDeps): Router {
     deps.sessionRegistry.noteAccount(payload.account.id, tokenVersion);
     if (isAdminRole(payload.account.role)) {
       setAdminCookie(res, payload.tokens.accessToken, deps.authDeps.accessTtlSeconds);
+    } else {
+      clearAdminCookie(res);
     }
     res.json(payload);
   });

@@ -65,6 +65,8 @@ export const adminSpawnSchema = z
   .object({
     typeId: z.string().min(1).max(64),
     count: z.number().int().min(1).max(MAX_ADMIN_SPAWN).default(1),
+    /** Target map; omitted means "the first online player's map". */
+    mapId: z.string().min(1).max(64).optional(),
     /** Optional world position; defaults to the admin's current position. */
     x: z.number().finite().min(0).max(65_535).optional(),
     y: z.number().finite().min(0).max(65_535).optional(),

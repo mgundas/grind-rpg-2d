@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Defense-in-depth: the panel renders only React-escaped text and talks to
+         the API with Bearer tokens; inline scripts are not used. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http: https: ws: wss:; frame-src 'self' http: https:;"
+    />
     <title>Jade Throne — Admin</title>
   </head>
   <body>

@@ -313,6 +313,10 @@ export async function listGoldLogs(db: Db, query: AdminLogQuery): Promise<AdminL
 export async function listAdminLogs(db: Db, query: AdminLogQuery): Promise<AdminLogRow[]> {
   const conditions: Array<ReturnType<typeof eq> | undefined> = [];
   if (query.characterId) conditions.push(eq(adminLog.targetCharacterId, query.characterId));
+  if (query.itemId) {
+    // Item grants/removals store the instance or definition id in `detail`.
+    conditions.push(sql`${adminLog.detail}->>'itemId' = ${query.itemId}`);
+  }
   if (query.from) conditions.push(gte(adminLog.createdAt, new Date(query.from)));
   if (query.to) conditions.push(lte(adminLog.createdAt, new Date(query.to)));
   if (query.q) {

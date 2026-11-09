@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AdminCharacterDetail, ItemInstanceDto } from "@jadethrone/shared";
+import { BONUS_TYPES } from "@jadethrone/shared";
 import { getItem, hasItem, ITEMS } from "@jadethrone/data/items";
 import { adminApi } from "../network/api";
 
@@ -31,10 +32,32 @@ export function PlayerActions({
   const [int, setInt] = useState(String(character.stats.int));
   const [str, setStr] = useState(String(character.stats.str));
   const [dex, setDex] = useState(String(character.stats.dex));
+  const [x, setX] = useState(String(character.x));
+  const [y, setY] = useState(String(character.y));
+  const loadedCharacterId = useRef(character.id);
+
+  // Reset the form only when the selected character changes; a refresh after an
+  // action must not wipe edits in other fields.
+  useEffect(() => {
+    if (loadedCharacterId.current === character.id) {
+      return;
+    }
+    loadedCharacterId.current = character.id;
+    setLevel(String(character.level));
+    setGold(String(character.gold));
+    setVit(String(character.stats.vit));
+    setInt(String(character.stats.int));
+    setStr(String(character.stats.str));
+    setDex(String(character.stats.dex));
+    setX(String(character.x));
+    setY(String(character.y));
+  }, [character]);
 
   const [itemId, setItemId] = useState("sword_ember_t1");
   const [quantity, setQuantity] = useState("1");
   const [upgrade, setUpgrade] = useState("5");
+  const [bonusType, setBonusType] = useState<string>(BONUS_TYPES[0]);
+  const [bonusValue, setBonusValue] = useState("0");
 
   const [banMinutes, setBanMinutes] = useState("60");
   const [banReason, setBanReason] = useState("");
@@ -101,6 +124,8 @@ export function PlayerActions({
             ["INT", int, setInt],
             ["STR", str, setStr],
             ["DEX", dex, setDex],
+            ["X", x, setX],
+            ["Y", y, setY],
           ] as const).map(([label, value, setter]) => (
             <label key={label}>
               {label}
@@ -126,12 +151,16 @@ export function PlayerActions({
               const nextInt = numberValue(int, character.stats.int);
               const nextStr = numberValue(str, character.stats.str);
               const nextDex = numberValue(dex, character.stats.dex);
+              const nextX = numberValue(x, character.x);
+              const nextY = numberValue(y, character.y);
               if (nextLevel !== character.level) body.level = nextLevel;
               if (nextGold !== character.gold) body.gold = nextGold;
               if (nextVit !== character.stats.vit) body.statVit = nextVit;
               if (nextInt !== character.stats.int) body.statInt = nextInt;
               if (nextStr !== character.stats.str) body.statStr = nextStr;
               if (nextDex !== character.stats.dex) body.statDex = nextDex;
+              if (nextX !== character.x) body.x = nextX;
+              if (nextY !== character.y) body.y = nextY;
               if (Object.keys(body).length === 0) {
                 setFeedback("No changes to save.");
                 return;
@@ -159,14 +188,14 @@ export function PlayerActions({
           </button>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || !detail.online}
             onClick={() => {
               if (!window.confirm("Kick this character from the game?")) {
                 return;
               }
               void run("Kick", () => adminApi.kick(character.id));
             }}
-            className="rounded border border-[#7a3b36] px-3 py-1 text-[#ff8f84]"
+            className="rounded border border-[#7a3b36] px-3 py-1 text-[#ff8f84] disabled:opacity-40"
           >
             Kick
           </button>
@@ -204,6 +233,30 @@ export function PlayerActions({
             />
           </label>
         </div>
+        <div className="grid gap-2 sm:grid-cols-[1fr_100px]">
+          <label>
+            Bonus type
+            <select
+              value={bonusType}
+              onChange={(event) => setBonusType(event.target.value)}
+              className="mt-1 w-full rounded border border-[var(--jade-soft)] bg-[#0e1311] px-2 py-1"
+            >
+              {BONUS_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Bonus value
+            <input
+              value={bonusValue}
+              onChange={(event) => setBonusValue(event.target.value)}
+              className="mt-1 w-full rounded border border-[var(--jade-soft)] bg-[#0e1311] px-2 py-1"
+            />
+          </label>
+        </div>
         <button
           type="button"
           disabled={busy}
@@ -213,7 +266,15 @@ export function PlayerActions({
                 definitionId: itemId,
                 quantity: Math.max(1, numberValue(quantity, 1)),
                 upgradeLevel: Math.min(9, Math.max(0, numberValue(upgrade, 0))),
-                bonuses: [],
+                bonuses:
+                  numberValue(bonusValue, 0) !== 0
+                    ? [
+                        {
+                          type: bonusType as (typeof BONUS_TYPES)[number],
+                          value: numberValue(bonusValue, 0),
+                        },
+                      ]
+                    : [],
               }),
             )
           }
@@ -231,14 +292,19 @@ export function PlayerActions({
           </span>
         </div>
         {banned ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void run("Unban", () => adminApi.unban(account.id))}
-            className="w-fit rounded bg-[var(--jade)] px-3 py-1 font-semibold text-[#0f1210]"
-          >
-            Unban account
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void run("Unban", () => adminApi.unban(account.id))}
+              className="w-fit rounded bg-[var(--jade)] px-3 py-1 font-semibold text-[#0f1210]"
+            >
+              Unban account
+            </button>
+            <p className="text-[10px] text-[#7d8a84]">
+              The player must log in again after an unban (existing tokens stay revoked).
+            </p>
+          </>
         ) : (
           <div className="grid gap-2 sm:grid-cols-[150px_1fr_auto]">
             <select

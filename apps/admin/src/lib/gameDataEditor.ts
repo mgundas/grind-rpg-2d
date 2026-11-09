@@ -96,8 +96,7 @@ export function applyFieldValues(
     const raw = values[field.key] ?? "";
     if (field.kind === "number") {
       if (raw.trim() === "") {
-        next[field.key] = 0;
-        continue;
+        return { ok: false, error: `${field.label} is required.` };
       }
       const value = Number(raw);
       if (!Number.isFinite(value)) {
