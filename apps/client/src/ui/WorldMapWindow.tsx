@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { MAP_POLICIES, getMapPolicy } from "@jadethrone/data/mapPolicies";
 import { useUiStore } from "./store";
+import { matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 import { worldMapNodes } from "./worldMap";
@@ -22,7 +23,7 @@ export function WorldMapWindow() {
       if (store.chatFocused) {
         return;
       }
-      if (event.key.toLowerCase() === "m") {
+      if (matchesKeybind(store.settings.keybinds, event, "worldMap")) {
         event.preventDefault();
         store.setWorldMapOpen(!store.worldMapOpen);
       } else if (event.key === "Escape" && store.worldMapOpen) {

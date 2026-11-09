@@ -10,6 +10,7 @@ import {
 } from "../network/session";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { audio } from "../audio/service";
+import { matchesKeybind } from "./keybinds";
 import { ItemGrid, type DragState } from "./ItemGrid";
 import { ItemTooltip } from "./ItemTooltip";
 import { useUiStore } from "./store";
@@ -265,7 +266,7 @@ export function useInventoryHotkey(): void {
       if (store.chatFocused) {
         return;
       }
-      if (event.key.toLowerCase() === "i") {
+      if (matchesKeybind(store.settings.keybinds, event, "inventory")) {
         event.preventDefault();
         store.toggleInventory();
       } else if (event.key === "Escape" && store.scrollTarget.active) {

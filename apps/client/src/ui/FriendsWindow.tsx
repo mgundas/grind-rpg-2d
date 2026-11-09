@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FriendView } from "@jadethrone/shared";
 import { sendFriendAdd, sendFriendRemove } from "../network/session";
 import { useUiStore } from "./store";
+import { matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 import { friendLevel, friendStatus } from "./social";
@@ -65,7 +66,7 @@ export function FriendsWindow() {
       if (store.chatFocused) {
         return;
       }
-      if (event.key.toLowerCase() === "f") {
+      if (matchesKeybind(store.settings.keybinds, event, "friends")) {
         event.preventDefault();
         store.setFriendsOpen(!store.friendsOpen);
       } else if (event.key === "Escape" && store.friendsOpen) {

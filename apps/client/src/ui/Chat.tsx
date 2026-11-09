@@ -7,6 +7,7 @@ import {
   type ChatTab,
 } from "./chatTabs";
 import { useUiStore } from "./store";
+import { matchesKeybind } from "./keybinds";
 
 function kingdomColor(kingdom: string): string {
   return KINGDOMS.find((candidate) => candidate.id === kingdom)?.color ?? "#cfd8d3";
@@ -66,7 +67,7 @@ export function Chat() {
       if (useUiStore.getState().connectionPhase !== "connected") {
         return;
       }
-      if (event.key === "Enter" && !useUiStore.getState().chatFocused) {
+      if (matchesKeybind(useUiStore.getState().settings.keybinds, event, "chat") && !useUiStore.getState().chatFocused) {
         event.preventDefault();
         inputRef.current?.focus();
       }

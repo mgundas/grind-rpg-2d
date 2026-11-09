@@ -73,8 +73,8 @@ export class EnvironmentController {
 
   update(now: number): void {
     const state = useUiStore.getState();
-    if (this.dayNightEnabled !== state.dayNightEnabled) {
-      this.dayNightEnabled = state.dayNightEnabled;
+    if (this.dayNightEnabled !== state.settings.dayNightEnabled) {
+      this.dayNightEnabled = state.settings.dayNightEnabled;
       this.lastDarkness = -1;
       if (!this.dayNightEnabled) {
         this.filter.colorMatrix.reset();
@@ -88,7 +88,7 @@ export class EnvironmentController {
       }
     }
 
-    const shouldEmit = state.weatherEnabled && this.weather !== "none";
+    const shouldEmit = state.settings.weatherEnabled && this.weather !== "none";
     if (shouldEmit && !this.emitter) {
       this.emitter = this.createEmitter();
     }

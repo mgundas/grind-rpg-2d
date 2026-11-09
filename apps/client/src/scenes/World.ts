@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import {
   MSG,
-  CAMERA_ZOOM,
   CLICK_MAX_MS,
   HOLD_TO_STEER_MS,
   MOUNT_SPEED_MULT,
@@ -40,6 +39,7 @@ import { getMonster } from "../data/catalog";
 import { getClass } from "@jadethrone/data/classes";
 import { getItem, hasItem } from "../data/catalog";
 import { getNpc } from "../data/catalog";
+import { isTypingTarget, matchesKeybind, normalizeKey } from "../ui/keybinds";
 import { createPlaceholder } from "../assets/placeholders";
 import { musicKeyForMap } from "../assets/audioManifest";
 import { audio } from "../audio/service";
@@ -205,13 +205,14 @@ export class WorldScene extends Phaser.Scene {
   private initializedFor: string | null = null;
   private environment: EnvironmentController | null = null;
   private lastMinimapAt = 0;
-  private cursors: Phaser.Types.Input.Keyboard.CursorKeys | null = null;
-  private wasd: Record<string, Phaser.Input.Keyboard.Key> | null = null;
   private pointerHeld = false;
   private pointerDownAt = 0;
   private pointerWorld: Vec2 | null = null;
   private pathTarget: Vec2 | null = null;
   private facing: Dir8 = 2;
+  /** Normalized keys currently held (rebindable), excluding typing targets. */
+  private readonly pressedKeys = new Set<string>();
+  private attackRequested = false;
 
   private remoteRegistry = new RemoteRegistry();
   private remoteVisuals = new Map<string, RemoteVisual>();
@@ -300,76 +301,19 @@ export class WorldScene extends Phaser.Scene {
     this.events.off("shutdown", this.handleSceneShutdown, this);
     this.events.once("shutdown", this.handleSceneShutdown, this);
 
-    this.input.keyboard?.off("keydown-F9");
-    this.input.keyboard?.on("keydown-F9", (event: KeyboardEvent) => {
-      event.preventDefault();
-      useUiStore.getState().toggleDebug();
-    });
-    // Spec §11 calls the overlay F3; accept both so manual checks match either.
-    this.input.keyboard?.off("keydown-F3");
-    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
-      event.preventDefault();
-      useUiStore.getState().toggleDebug();
-    });
-
-    this.input.keyboard?.off("keydown-TAB");
-    this.input.keyboard?.on("keydown-TAB", (event: KeyboardEvent) => {
-      if (useUiStore.getState().chatFocused) {
-        return;
-      }
-      event.preventDefault();
-      this.cycleTarget();
-    });
-
-    this.input.keyboard?.off("keydown-Z");
-    this.input.keyboard?.on("keydown-Z", (event: KeyboardEvent) => {
-      if (useUiStore.getState().chatFocused) {
-        return;
-      }
-      event.preventDefault();
-      this.pickupNearestOwned();
-    });
-    this.input.keyboard?.off("keydown-ALT");
-    this.input.keyboard?.on("keydown-ALT", (event: KeyboardEvent) => {
-      event.preventDefault();
-      this.altHeld = true;
-      this.refreshGroundLabels();
-    });
-    this.input.keyboard?.off("keyup-ALT");
-    this.input.keyboard?.on("keyup-ALT", () => {
-      this.altHeld = false;
-      this.refreshGroundLabels();
-    });
-
-    const keyboard = this.input.keyboard;
-    this.cursors = keyboard
-      ? {
-          up: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP, false),
-          down: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN, false),
-          left: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.LEFT, false),
-          right: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.RIGHT, false),
-          space: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE, false),
-          shift: keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT, false),
-        }
-      : null;
-    // `false` = do not preventDefault: typing WASD/space in chat/name inputs
-    // must reach the DOM input.
-    this.wasd = keyboard
-      ? (keyboard.addKeys(
-          {
-            up: Phaser.Input.Keyboard.KeyCodes.W,
-            down: Phaser.Input.Keyboard.KeyCodes.S,
-            left: Phaser.Input.Keyboard.KeyCodes.A,
-            right: Phaser.Input.Keyboard.KeyCodes.D,
-          },
-          false,
-        ) as Record<string, Phaser.Input.Keyboard.Key>)
-      : null;
+    // Rebindable keys are handled through one DOM listener pair so the
+    // Settings window can change them without rebuilding Phaser keys.
+    window.removeEventListener("keydown", this.handleDomKeyDown);
+    window.removeEventListener("keyup", this.handleDomKeyUp);
+    window.addEventListener("keydown", this.handleDomKeyDown);
+    window.addEventListener("keyup", this.handleDomKeyUp);
+    this.pressedKeys.clear();
+    this.attackRequested = false;
 
     this.cameras.main.fadeIn(250, 0, 0, 0);
 
     const cam = this.cameras.main;
-    cam.setZoom(CAMERA_ZOOM);
+    cam.setZoom(useUiStore.getState().settings.zoom);
     cam.setBounds(
       0,
       0,
@@ -381,6 +325,13 @@ export class WorldScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     const ui = useUiStore.getState();
+    if (ui.chatFocused) {
+      // Typing in chat must never leave a movement key stuck down.
+      this.pressedKeys.clear();
+    }
+    if (this.cameras.main.zoom !== ui.settings.zoom) {
+      this.cameras.main.setZoom(ui.settings.zoom);
+    }
     this.environment?.update(this.time.now);
     this.updateMinimap(this.time.now);
     const room = getRoom();
@@ -468,14 +419,11 @@ export class WorldScene extends Phaser.Scene {
       }
     }
 
-    if (
-      !autoWalk &&
-      !ui.dead &&
-      !ui.chatFocused &&
-      this.cursors &&
-      Phaser.Input.Keyboard.JustDown(this.cursors.space)
-    ) {
+    if (!autoWalk && !ui.dead && !ui.chatFocused && this.attackRequested) {
+      this.attackRequested = false;
       this.tryAttack(own);
+    } else if (autoWalk || ui.dead || ui.chatFocused) {
+      this.attackRequested = false;
     }
 
     this.shadow.setPosition(this.character.x, this.character.y + 6);
@@ -640,7 +588,17 @@ export class WorldScene extends Phaser.Scene {
     this.damageTextIndex = 0;
   }
 
-  private showDamageNumber(x: number, y: number, label: string, color: string, size: number): void {
+  private showDamageNumber(
+    x: number,
+    y: number,
+    label: string,
+    color: string,
+    size: number,
+    gated = false,
+  ): void {
+    if (gated && !useUiStore.getState().settings.showDamageNumbers) {
+      return;
+    }
     const text = this.damageTexts[this.damageTextIndex % this.damageTexts.length];
     if (!text) {
       return;
@@ -684,7 +642,7 @@ export class WorldScene extends Phaser.Scene {
     for (const hit of payload.hits) {
       if (hit.miss) {
         audio.playSfx("sfx.miss");
-        this.showDamageNumber(hit.x, hit.y - 34, "MISS", "#9aa5a0", 11);
+        this.showDamageNumber(hit.x, hit.y - 34, "MISS", "#9aa5a0", 11, true);
       } else {
         if (hit.target.kind === "player" && hit.target.sessionId === ownSessionId) {
           audio.playSfx("sfx.recv_hit");
@@ -699,6 +657,7 @@ export class WorldScene extends Phaser.Scene {
           `${takingDamage ? "-" : ""}${hit.damage}`,
           color,
           hit.crit ? 18 : 12,
+          true,
         );
       }
 
@@ -1176,7 +1135,8 @@ export class WorldScene extends Phaser.Scene {
         stroke: "#0b0f0d",
         strokeThickness: 3,
       })
-      .setOrigin(0.5, 1);
+      .setOrigin(0.5, 1)
+      .setVisible(useUiStore.getState().settings.showNames);
     const mount = this.add.ellipse(pos.x, pos.y + 4, 40, 16, 0x7a5a3a, 0.9).setVisible(false);
     this.remoteVisuals.set(entity.sessionId, { sprite, shadow, label, mount });
   }
@@ -1209,6 +1169,7 @@ export class WorldScene extends Phaser.Scene {
       }
       visual.label.setPosition(pos.x, pos.y - 52);
       visual.label.setDepth(pos.y + 2);
+      visual.label.setVisible(useUiStore.getState().settings.showNames);
     }
   }
 
@@ -1365,7 +1326,7 @@ export class WorldScene extends Phaser.Scene {
 
   /** Camera shake gated by the accessibility setting (also prefers-reduced-motion). */
   private shake(durationMs: number, intensity: number): void {
-    if (!useUiStore.getState().screenShakeEnabled) {
+    if (!useUiStore.getState().settings.screenShakeEnabled) {
       return;
     }
     this.cameras.main.shake(durationMs, intensity);
@@ -1676,7 +1637,7 @@ export class WorldScene extends Phaser.Scene {
       });
     }
     for (const heal of payload.heals) {
-      this.showDamageNumber(heal.x, heal.y - 34, `+${heal.amount}`, "#7ee08a", 13);
+      this.showDamageNumber(heal.x, heal.y - 34, `+${heal.amount}`, "#7ee08a", 13, true);
     }
     if (payload.heals.length > 0) {
       audio.playSfx("sfx.heal");
@@ -1820,7 +1781,8 @@ export class WorldScene extends Phaser.Scene {
         strokeThickness: 3,
       })
       .setOrigin(0.5, 1)
-      .setDepth(pos.y + 3);
+      .setDepth(pos.y + 3)
+      .setVisible(useUiStore.getState().settings.showNames);
 
     const barWidth = 34 * scale;
     const barBackground = this.add
@@ -1883,6 +1845,7 @@ export class WorldScene extends Phaser.Scene {
       visual.label.setPosition(renderX, renderY - 52 * scale);
       visual.label.setDepth(renderY + 3);
       visual.label.setColor(monsterNameColor(entity.level, level));
+      visual.label.setVisible(useUiStore.getState().settings.showNames);
 
       const ratio = entity.maxHp > 0 ? Math.max(0, Math.min(1, entity.hp / entity.maxHp)) : 0;
       const showBar = ratio < 1;
@@ -1936,16 +1899,64 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private keyDown(name: "up" | "down" | "left" | "right"): boolean {
-    const numeric = {
-      up: this.cursors?.up.isDown ?? false,
-      down: this.cursors?.down.isDown ?? false,
-      left: this.cursors?.left.isDown ?? false,
-      right: this.cursors?.right.isDown ?? false,
+    const binds = useUiStore.getState().settings.keybinds;
+    const bound = {
+      up: binds.moveUp,
+      down: binds.moveDown,
+      left: binds.moveLeft,
+      right: binds.moveRight,
     }[name];
-    return numeric || (this.wasd?.[name]?.isDown ?? false);
+    // Arrow keys are a permanent alternate so rebinding cannot trap a player.
+    const arrow = {
+      up: "arrowup",
+      down: "arrowdown",
+      left: "arrowleft",
+      right: "arrowright",
+    }[name];
+    return this.pressedKeys.has(bound) || this.pressedKeys.has(arrow);
   }
 
+  private readonly handleDomKeyDown = (event: KeyboardEvent): void => {
+    if (!isTypingTarget(event.target)) {
+      this.pressedKeys.add(normalizeKey(event.key));
+    }
+    if (event.key === "Alt") {
+      this.altHeld = true;
+      this.refreshGroundLabels();
+    }
+    const ui = useUiStore.getState();
+    if (event.repeat || ui.chatFocused || isTypingTarget(event.target)) {
+      return;
+    }
+    const binds = ui.settings.keybinds;
+    if (matchesKeybind(binds, event, "attack")) {
+      event.preventDefault();
+      this.attackRequested = true;
+    } else if (matchesKeybind(binds, event, "pickup")) {
+      event.preventDefault();
+      this.pickupNearestOwned();
+    } else if (matchesKeybind(binds, event, "targetNext")) {
+      event.preventDefault();
+      this.cycleTarget();
+    } else if (matchesKeybind(binds, event, "debug")) {
+      event.preventDefault();
+      ui.toggleDebug();
+    }
+  };
+
+  private readonly handleDomKeyUp = (event: KeyboardEvent): void => {
+    this.pressedKeys.delete(normalizeKey(event.key));
+    if (event.key === "Alt") {
+      this.altHeld = false;
+      this.refreshGroundLabels();
+    }
+  };
+
   private handleSceneShutdown(): void {
+    window.removeEventListener("keydown", this.handleDomKeyDown);
+    window.removeEventListener("keyup", this.handleDomKeyUp);
+    this.pressedKeys.clear();
+    this.attackRequested = false;
     this.audioUnlockDetach?.();
     this.audioUnlockDetach = null;
   }

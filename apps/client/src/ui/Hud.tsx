@@ -80,6 +80,24 @@ export function Hud() {
           Lv {self.level} {character?.name ?? account?.username ?? ""}
         </span>
         <span style={{ color: theme.muted, display: "flex", alignItems: "center", gap: 6 }}>
+          <button
+            type="button"
+            aria-label="Settings"
+            onClick={() => useUiStore.getState().toggleSettings()}
+            style={{
+              pointerEvents: "auto",
+              background: "transparent",
+              border: "1px solid rgba(93,168,143,0.35)",
+              borderRadius: 5,
+              color: theme.jade,
+              fontSize: 10,
+              lineHeight: 1,
+              padding: "2px 4px",
+              cursor: "pointer",
+            }}
+          >
+            ⚙
+          </button>
           <select
             aria-label="Channel"
             value={channel}

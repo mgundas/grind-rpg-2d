@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { sendAllocStat, sendSetPvpMode } from "../network/session";
+import { matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 import { Window } from "./Window";
@@ -15,12 +16,10 @@ export function CharacterWindow() {
   const open = useUiStore((state) => state.characterOpen);
   const self = useUiStore((state) => state.selfStats);
   const vitals = useUiStore((state) => state.vitals);
-  const dayNightEnabled = useUiStore((state) => state.dayNightEnabled);
-  const setDayNightEnabled = useUiStore((state) => state.setDayNightEnabled);
-  const weatherEnabled = useUiStore((state) => state.weatherEnabled);
-  const setWeatherEnabled = useUiStore((state) => state.setWeatherEnabled);
-  const screenShakeEnabled = useUiStore((state) => state.screenShakeEnabled);
-  const setScreenShakeEnabled = useUiStore((state) => state.setScreenShakeEnabled);
+  const dayNightEnabled = useUiStore((state) => state.settings.dayNightEnabled);
+  const weatherEnabled = useUiStore((state) => state.settings.weatherEnabled);
+  const screenShakeEnabled = useUiStore((state) => state.settings.screenShakeEnabled);
+  const updateSettings = useUiStore((state) => state.updateSettings);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -29,7 +28,7 @@ export function CharacterWindow() {
         store.setCharacterOpen(false);
         return;
       }
-      if (!store.chatFocused && event.key.toLowerCase() === "c") {
+      if (!store.chatFocused && matchesKeybind(store.settings.keybinds, event, "character")) {
         store.toggleCharacter();
       }
     };
@@ -96,7 +95,7 @@ export function CharacterWindow() {
           <input
             type="checkbox"
             checked={dayNightEnabled}
-            onChange={(event) => setDayNightEnabled(event.target.checked)}
+            onChange={(event) => updateSettings({ dayNightEnabled: event.target.checked })}
           />
           Day/night
         </label>
@@ -104,7 +103,7 @@ export function CharacterWindow() {
           <input
             type="checkbox"
             checked={weatherEnabled}
-            onChange={(event) => setWeatherEnabled(event.target.checked)}
+            onChange={(event) => updateSettings({ weatherEnabled: event.target.checked })}
           />
           Weather
         </label>
@@ -112,7 +111,7 @@ export function CharacterWindow() {
           <input
             type="checkbox"
             checked={screenShakeEnabled}
-            onChange={(event) => setScreenShakeEnabled(event.target.checked)}
+            onChange={(event) => updateSettings({ screenShakeEnabled: event.target.checked })}
           />
           Screen shake
         </label>

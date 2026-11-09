@@ -26,6 +26,7 @@ import { PlayerContextMenu } from "./PlayerContextMenu";
 import { FriendsWindow } from "./FriendsWindow";
 import { Minimap } from "./Minimap";
 import { WorldMapWindow } from "./WorldMapWindow";
+import { SettingsWindow } from "./SettingsWindow";
 import { GuildInvitePrompt, GuildWindow } from "./GuildWindow";
 import { TradeWindow } from "./TradeWindow";
 import { ShopWindow } from "./ShopWindow";
@@ -52,7 +53,17 @@ export function App() {
   const account = useUiStore((state) => state.account);
   const connectionPhase = useUiStore((state) => state.connectionPhase);
   const sessionKickedReason = useUiStore((state) => state.sessionKickedReason);
+  const settings = useUiStore((state) => state.settings);
   useInventoryHotkey();
+
+  useEffect(() => {
+    audio.setSettings({
+      masterVolume: settings.masterVolume,
+      musicVolume: settings.musicVolume,
+      sfxVolume: settings.sfxVolume,
+      muted: settings.muted,
+    });
+  }, [settings.masterVolume, settings.musicVolume, settings.sfxVolume, settings.muted]);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,6 +204,7 @@ export function App() {
           <PlayerContextMenu />
           <ShopWindow />
           <WarehouseWindow />
+          <SettingsWindow />
           <Chat />
           <DebugOverlay />
           <DeathScreen />

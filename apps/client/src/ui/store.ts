@@ -44,6 +44,7 @@ import {
   type ChatTabsState,
 } from "./chatTabs";
 import { IDLE_SKILL_BOOK_TARGET, skillBookTargetReducer, type SkillBookTarget } from "./skillBook";
+import { defaultSettings, loadSettings, saveSettings, type GameSettings } from "./settings";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -246,13 +247,13 @@ interface UiState {
   worldMapOpen: boolean;
   setWorldMapOpen: (open: boolean) => void;
 
-  dayNightEnabled: boolean;
-  setDayNightEnabled: (enabled: boolean) => void;
-  weatherEnabled: boolean;
-  setWeatherEnabled: (enabled: boolean) => void;
-  /** Accessibility: disable camera shake (also honours prefers-reduced-motion). */
-  screenShakeEnabled: boolean;
-  setScreenShakeEnabled: (enabled: boolean) => void;
+  /** Persisted client settings: audio, display toggles, zoom and keybinds. */
+  settings: GameSettings;
+  updateSettings: (patch: Partial<GameSettings>) => void;
+  resetSettings: () => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (open: boolean) => void;
+  toggleSettings: () => void;
 
   skillBookTarget: SkillBookTarget;
   beginSkillBook: (bookInstanceId: string) => void;
@@ -512,14 +513,22 @@ export const useUiStore = create<UiState>((set) => ({
   worldMapOpen: false,
   setWorldMapOpen: (worldMapOpen) => set({ worldMapOpen }),
 
-  dayNightEnabled: true,
-  setDayNightEnabled: (dayNightEnabled) => set({ dayNightEnabled }),
-  weatherEnabled: true,
-  setWeatherEnabled: (weatherEnabled) => set({ weatherEnabled }),
-  screenShakeEnabled:
-    typeof window === "undefined" ||
-    !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
-  setScreenShakeEnabled: (screenShakeEnabled) => set({ screenShakeEnabled }),
+  settings: loadSettings(),
+  updateSettings: (patch) =>
+    set((state) => {
+      const settings = { ...state.settings, ...patch };
+      saveSettings(settings);
+      return { settings };
+    }),
+  resetSettings: () =>
+    set(() => {
+      const settings = defaultSettings();
+      saveSettings(settings);
+      return { settings };
+    }),
+  settingsOpen: false,
+  setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
+  toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
 
   skillBookTarget: IDLE_SKILL_BOOK_TARGET,
   beginSkillBook: (bookInstanceId) =>

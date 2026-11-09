@@ -11,12 +11,26 @@ import {
   type HotbarBindings,
 } from "./hotbarStorage";
 import { useUiStore } from "./store";
+import { displayKey, normalizeKey } from "./keybinds";
 import { theme } from "./theme";
 
-const KEY_LABELS = ["1", "2", "3", "4", "F1", "F2", "F3", "F4"];
+const HOTBAR_ACTIONS = [
+  "hotbar1",
+  "hotbar2",
+  "hotbar3",
+  "hotbar4",
+  "hotbar5",
+  "hotbar6",
+  "hotbar7",
+  "hotbar8",
+] as const;
 
-function keyForSlot(index: number): string {
-  return KEY_LABELS[index] ?? "";
+function keyForSlot(index: number, keybinds: Record<string, string>): string {
+  const action = HOTBAR_ACTIONS[index];
+  if (!action) {
+    return "";
+  }
+  return displayKey(keybinds[action] ?? "");
 }
 
 function castRequest(binding: HotbarBinding): CastSkillMessage | null {
@@ -65,6 +79,7 @@ export function Hotbar() {
   const [now, setNow] = useState(0);
   const draggedItemId = useUiStore((state) => state.draggedItemId);
   const draggedSkillId = useUiStore((state) => state.draggedSkillId);
+  const keybinds = useUiStore((state) => state.settings.keybinds);
   const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
   const setDraggedSkillId = useUiStore((state) => state.setDraggedSkillId);
   const bindings = useMemo(
@@ -145,7 +160,9 @@ export function Hotbar() {
       if (store.chatFocused || store.dead) {
         return;
       }
-      const index = KEY_LABELS.indexOf(event.key.toUpperCase());
+      const index = HOTBAR_ACTIONS.findIndex(
+        (action) => normalizeKey(event.key) === store.settings.keybinds[action],
+      );
       if (index >= 0) {
         event.preventDefault();
         triggerSlot(index);
@@ -244,7 +261,7 @@ export function Hotbar() {
                 ? `${itemDefinition.name} (${count})`
                 : skill
                   ? `${skill.name} · rank ${rank} · ${skill.mpCost.base} MP`
-                  : `Hotbar ${keyForSlot(index)}`
+                  : `Hotbar ${keyForSlot(index, keybinds)}`
             }
           >
             <span
@@ -258,7 +275,7 @@ export function Hotbar() {
                 zIndex: 2,
               }}
             >
-              {keyForSlot(index)}
+              {keyForSlot(index, keybinds)}
             </span>
             <span style={{ fontSize: 10, fontWeight: 700, zIndex: 2 }}>
               {itemDefinition

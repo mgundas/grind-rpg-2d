@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { getClass } from "@jadethrone/data/classes";
 import { skillsForDoctrine } from "../data/catalog";
 import { audio } from "../audio/service";
+import { matchesKeybind } from "./keybinds";
 import {
   sendChooseDoctrine,
   sendReadSkillBook,
@@ -38,7 +39,7 @@ export function SkillWindow() {
         store.setSkillWindowOpen(false);
         return;
       }
-      if (!store.chatFocused && event.key.toLowerCase() === "k") {
+      if (!store.chatFocused && matchesKeybind(store.settings.keybinds, event, "skills")) {
         store.toggleSkillWindow();
       }
     };

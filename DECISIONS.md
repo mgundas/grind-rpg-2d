@@ -375,3 +375,18 @@ client can draw the mount. Speed is the existing shared
 identically on both sides, so the predictor never diverges. Any attack, death
 or warp dismounts server-side, which keeps combat and travel from inheriting
 mounted speed.
+
+## D82 — Client settings are one persisted object and keybinds are centralized
+
+`apps/client/src/ui/settings.ts` stores audio volumes, display toggles, camera
+zoom and the whole key map under one `jt.settings.v1` localStorage entry;
+corrupt or older values fall back field by field. The previous spelling of the
+day/night, weather and screen-shake flags moved into that object, so there is a
+single source of truth instead of parallel setters. `ui/keybinds.ts` owns the
+normalized key format (`KeyboardEvent.key`, lower-case, `space`/`arrowup`/`f1`
+names), conflict detection and defaults; every window and the World scene read
+bindings through it. The World scene tracks pressed keys in one DOM listener
+pair rather than Phaser `addKey` objects so a rebind applies immediately without
+rebuilding input state; arrow keys always remain a movement alternate. `F9` is
+the debug overlay default because `F3` now belongs to hotbar slot 7 (§5); the
+old F3 alias was dropped to remove the pre-existing double binding.

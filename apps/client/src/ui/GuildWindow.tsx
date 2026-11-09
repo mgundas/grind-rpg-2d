@@ -10,6 +10,7 @@ import {
   sendGuildSetRank,
 } from "../network/session";
 import { useUiStore } from "./store";
+import { matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 import {
@@ -92,7 +93,7 @@ export function GuildWindow() {
       if (store.chatFocused) {
         return;
       }
-      if (event.key.toLowerCase() === "g") {
+      if (matchesKeybind(store.settings.keybinds, event, "guild")) {
         event.preventDefault();
         store.setGuildOpen(!store.guildOpen);
       } else if (event.key === "Escape" && store.guildOpen) {
