@@ -20,6 +20,7 @@ import {
   type MapId,
   type MonsterDiedPayload,
   type NpcDialogPayload,
+  type TeleportErrorPayload,
   type PartyErrorPayload,
   type PartyInvitePayload,
   type PartyStatePayload,
@@ -379,6 +380,10 @@ export function sendPickup(dropId: string): void {
 
 export function sendInteractNpc(npcId: string): void {
   room?.send(MSG.interactNpc, { npcId });
+}
+
+export function sendTeleport(npcId: string, targetMap: string): void {
+  room?.send(MSG.teleportRequest, { npcId, targetMap });
 }
 
 export function sendShopBuy(shopId: string, itemId: string, quantity = 1): void {

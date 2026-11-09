@@ -16,6 +16,7 @@ import type {
   InventorySnapshotPayload,
   MapId,
   NpcDialogPayload,
+  TeleportErrorPayload,
   PartyInvitePayload,
   PartyStatePayload,
   SelfStatsPayload,
@@ -274,6 +275,8 @@ interface UiState {
 
   npcDialog: NpcDialogPayload | null;
   setNpcDialog: (dialog: NpcDialogPayload | null) => void;
+  teleportError: TeleportErrorPayload | null;
+  setTeleportError: (error: TeleportErrorPayload | null) => void;
   shopId: string | null;
   setShopId: (shopId: string | null) => void;
   warehouse: WarehouseSnapshotPayload | null;
@@ -552,7 +555,9 @@ export const useUiStore = create<UiState>((set) => ({
   setPlayerContext: (playerContext) => set({ playerContext }),
 
   npcDialog: null,
-  setNpcDialog: (npcDialog) => set({ npcDialog }),
+  setNpcDialog: (npcDialog) => set({ npcDialog, teleportError: null }),
+  teleportError: null,
+  setTeleportError: (teleportError) => set({ teleportError }),
   shopId: null,
   setShopId: (shopId) => set({ shopId }),
   warehouse: null,

@@ -328,7 +328,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 7 — Wire every map into server, client and validation
 - [x] Task 8 — Teleporter NPC kind and data
 - [x] Task 9 — Server teleporter travel intent
-- [ ] Task 10 — Client teleporter dialog and real world map
+- [x] Task 10 — Client teleporter dialog and real world map
 - [ ] Task 11 — Channels core: filterBy, metadata, auth and warp tokens
 - [ ] Task 12 — Channel picker UI
 - [ ] Task 13 — Monsters, spawn groups and drops to level 60
