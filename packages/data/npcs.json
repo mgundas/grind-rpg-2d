@@ -29,6 +29,12 @@
       "greeting": "Plate, leather, or cloth. Better to leave with more than skin."
     },
     {
+      "id": "waykeeper",
+      "name": "Waykeeper Ilya",
+      "kind": "teleporter",
+      "greeting": "The old roads still remember their names. Tell me where you mean to walk."
+    },
+    {
       "id": "warehouse_keeper",
       "name": "Keeper Sol",
       "kind": "warehouse",

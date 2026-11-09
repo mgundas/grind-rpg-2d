@@ -327,6 +327,7 @@ const VILLAGE_NPCS: ReadonlyArray<{ id: string; dx: number; dy: number }> = [
   { id: "weaponsmith", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE },
   { id: "armorer", dx: 2 * TILE_SIZE, dy: 2 * TILE_SIZE },
   { id: "warehouse_keeper", dx: -2 * TILE_SIZE, dy: 2 * TILE_SIZE },
+  { id: "waykeeper", dx: 0, dy: -2 * TILE_SIZE },
 ];
 
 function buildVillage(spec: VillageSpec): TiledMapFile {
@@ -627,6 +628,8 @@ export interface HighlandsSpec {
   treeChance: number;
   mobZones: Array<{ groupId: string; x: number; y: number; w: number; h: number }>;
   stoneZones: Array<{ zoneId: string; x: number; y: number; w: number; h: number }>;
+  /** NPCs placed relative to the default spawn (px offsets). */
+  npcs?: Array<{ npcId: string; dx: number; dy: number }>;
   warps: HighlandsWarp[];
 }
 
@@ -784,6 +787,19 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
       visible: true,
       properties: [{ name: "zoneId", type: "string", value: zone.zoneId }],
     })),
+    ...(spec.npcs ?? []).map((npc) => ({
+      id: nextId++,
+      name: "npc" as const,
+      x: spec.spawn.x + npc.dx,
+      y: spec.spawn.y + npc.dy,
+      width: 0,
+      height: 0,
+      point: true,
+      rotation: 0,
+      type: "",
+      visible: true,
+      properties: [{ name: "npcId", type: "string", value: npc.npcId }],
+    })),
   ];
 
   return baseMap(w, h, "fields", [
@@ -821,6 +837,7 @@ const EMBER_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "field_boss", x: 130, y: 124, w: 12, h: 10 },
   ],
   stoneZones: [{ zoneId: "fields_stones", x: 92, y: 116, w: 14, h: 10 }],
+  npcs: [{ npcId: "waykeeper", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE }],
   warps: [
     {
       x: 2 * TILE_SIZE,
@@ -867,6 +884,7 @@ const GALE_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "gale_highlands_boss", x: 134, y: 128, w: 12, h: 10 },
   ],
   stoneZones: [{ zoneId: "gale_highlands_stones", x: 94, y: 120, w: 12, h: 10 }],
+  npcs: [{ npcId: "waykeeper", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE }],
   warps: [
     {
       x: 2 * TILE_SIZE,
@@ -913,6 +931,7 @@ const TIDE_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "tide_highlands_boss", x: 136, y: 124, w: 12, h: 10 },
   ],
   stoneZones: [{ zoneId: "tide_highlands_stones", x: 94, y: 120, w: 12, h: 10 }],
+  npcs: [{ npcId: "waykeeper", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE }],
   warps: [
     {
       x: 2 * TILE_SIZE,
@@ -973,6 +992,7 @@ const VALLEY_SPEC: HighlandsSpec = {
     { zoneId: "valley_stones_west", x: 38, y: 108, w: 12, h: 10 },
     { zoneId: "valley_stones_east", x: 132, y: 80, w: 12, h: 10 },
   ],
+  npcs: [{ npcId: "waykeeper", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE }],
   warps: [
     {
       x: 2 * TILE_SIZE,
@@ -1045,6 +1065,7 @@ const FOREST_SPEC: HighlandsSpec = {
     { zoneId: "forest_stones_west", x: 60, y: 72, w: 12, h: 10 },
     { zoneId: "forest_stones_east", x: 140, y: 112, w: 12, h: 10 },
   ],
+  npcs: [{ npcId: "waykeeper", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE }],
   warps: [
     {
       x: 2 * TILE_SIZE,

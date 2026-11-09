@@ -697,7 +697,7 @@ export interface PickupResultPayload {
   quantity?: number;
 }
 
-export type NpcDialogKind = "shop" | "warehouse" | "blacksmith";
+export type NpcDialogKind = "shop" | "warehouse" | "blacksmith" | "teleporter";
 
 export interface NpcDialogPayload {
   npcId: string;

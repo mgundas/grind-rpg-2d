@@ -7,7 +7,7 @@ import raw from "../npcs.json";
  * objects; this file holds the name, dialog and which shop/warehouse the NPC
  * opens.
  */
-export const NPC_KINDS = ["shop", "warehouse", "blacksmith"] as const;
+export const NPC_KINDS = ["shop", "warehouse", "blacksmith", "teleporter"] as const;
 export type NpcKind = (typeof NPC_KINDS)[number];
 
 export interface NpcInfo {

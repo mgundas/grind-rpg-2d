@@ -10,7 +10,7 @@
   "tileheight": 32,
   "infinite": false,
   "nextlayerid": 6,
-  "nextobjectid": 10,
+  "nextobjectid": 11,
   "layers": [
     {
       "id": 1,
@@ -102629,6 +102629,25 @@
               "name": "zoneId",
               "type": "string",
               "value": "fields_stones"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "name": "npc",
+          "x": 240,
+          "y": 2512,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "waykeeper"
             }
           ]
         }

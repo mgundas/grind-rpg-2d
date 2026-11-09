@@ -180,8 +180,8 @@ describe("generateVillageMap", () => {
   });
 
   it("places every town NPC on walkable ground, in reach of the spawn", () => {
-    expect(village.objects.npcs).toHaveLength(5);
-    expect(new Set(village.objects.npcs.map((npc) => npc.npcId)).size).toBe(5);
+    expect(village.objects.npcs).toHaveLength(6);
+    expect(new Set(village.objects.npcs.map((npc) => npc.npcId)).size).toBe(6);
     for (const npc of village.objects.npcs) {
       expect(hasNpc(npc.npcId)).toBe(true);
       expect(isWalkableAt(village.grid, npc.x, npc.y)).toBe(true);
@@ -317,7 +317,7 @@ function expectKingdomVillage(
   ]);
   expectBorderSolid(current);
   expect(isWalkableAt(current.grid, spawn.x, spawn.y)).toBe(true);
-  expect(current.objects.npcs).toHaveLength(5);
+  expect(current.objects.npcs).toHaveLength(6);
   for (const npc of current.objects.npcs) {
     expect(hasNpc(npc.npcId)).toBe(true);
     expect(isWalkableAt(current.grid, npc.x, npc.y)).toBe(true);
@@ -377,6 +377,11 @@ function expectOutdoorMap(
   for (const zone of current.objects.stoneZones) {
     const zoneId = zone.properties?.find((property) => property.name === "zoneId")?.value;
     expect(typeof zoneId).toBe("string");
+  }
+  expect(current.objects.npcs).toHaveLength(1);
+  for (const npc of current.objects.npcs) {
+    expect(hasNpc(npc.npcId)).toBe(true);
+    expect(isWalkableAt(current.grid, npc.x, npc.y)).toBe(true);
   }
   expect(current.objects.warps).toHaveLength(expected.warps);
   for (const warp of current.objects.warps) {

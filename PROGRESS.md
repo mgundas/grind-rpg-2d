@@ -326,7 +326,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 5 — Generator: Valley of Echoes and Corrupted Forest
 - [x] Task 6 — Generator: Spider Cave dungeon map
 - [x] Task 7 — Wire every map into server, client and validation
-- [ ] Task 8 — Teleporter NPC kind and data
+- [x] Task 8 — Teleporter NPC kind and data
 - [ ] Task 9 — Server teleporter travel intent
 - [ ] Task 10 — Client teleporter dialog and real world map
 - [ ] Task 11 — Channels core: filterBy, metadata, auth and warp tokens

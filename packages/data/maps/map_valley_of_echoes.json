@@ -10,7 +10,7 @@
   "tileheight": 32,
   "infinite": false,
   "nextlayerid": 6,
-  "nextobjectid": 14,
+  "nextobjectid": 15,
   "layers": [
     {
       "id": 1,
@@ -129921,6 +129921,25 @@
               "name": "zoneId",
               "type": "string",
               "value": "valley_stones_east"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "name": "npc",
+          "x": 2960,
+          "y": 2832,
+          "width": 0,
+          "height": 0,
+          "point": true,
+          "rotation": 0,
+          "type": "",
+          "visible": true,
+          "properties": [
+            {
+              "name": "npcId",
+              "type": "string",
+              "value": "waykeeper"
             }
           ]
         }
