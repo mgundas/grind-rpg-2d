@@ -11,6 +11,10 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ROOM_NAME_FIELDS,
+  ROOM_NAME_GALE_HIGHLANDS,
+  ROOM_NAME_GALE_VILLAGE,
+  ROOM_NAME_TIDE_HIGHLANDS,
+  ROOM_NAME_TIDE_VILLAGE,
   ROOM_NAME_VILLAGE,
   TILE_SIZE,
   mulberry32,
@@ -102,6 +106,12 @@ export const FIELDS_HEIGHT = 160;
 export const VILLAGE_SPAWN = { x: 40 * TILE_SIZE + 16, y: 40 * TILE_SIZE + 16 };
 /** Spawn used by the fields map and arrivals from the village. */
 export const FIELDS_SPAWN = { x: 5 * TILE_SIZE + 16, y: 80 * TILE_SIZE + 16 };
+/** Kingdom village spawns (all use the central plaza). */
+export const GALE_VILLAGE_SPAWN = { x: 40 * TILE_SIZE + 16, y: 40 * TILE_SIZE + 16 };
+export const TIDE_VILLAGE_SPAWN = { x: 40 * TILE_SIZE + 16, y: 40 * TILE_SIZE + 16 };
+/** Highlands arrival points (western gate, same shape as the Ember fields). */
+export const GALE_HIGHLANDS_SPAWN = { x: 5 * TILE_SIZE + 16, y: 80 * TILE_SIZE + 16 };
+export const TIDE_HIGHLANDS_SPAWN = { x: 5 * TILE_SIZE + 16, y: 80 * TILE_SIZE + 16 };
 
 function emptyLayer(width: number, height: number, fill: number): number[] {
   return new Array<number>(width * height).fill(fill);
@@ -242,8 +252,37 @@ function baseMap(
   };
 }
 
-/** Houses of the village: solid footprints painted with wall tiles. */
-const VILLAGE_HOUSES = [
+/** Axis-aligned tile rectangle used by the village specs. */
+export interface VillageRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Declarative description of a kingdom village (GAME_DESIGN.md §3.2). */
+export interface VillageSpec {
+  mapId: MapId;
+  spawn: { x: number; y: number };
+  plaza: VillageRect;
+  roads: VillageRect[];
+  water: VillageRect[];
+  bridge: VillageRect | null;
+  pond: { x: number; y: number; r: number } | null;
+  houses: VillageRect[];
+  groves: Array<{ x: number; y: number }>;
+  fences: VillageRect[];
+  dirtPatches: number;
+  stonePatches: number;
+  /** Dirt approach to the warp rectangle. */
+  exit: VillageRect;
+  warp: VillageRect;
+  targetMap: MapId;
+  targetSpawn: { x: number; y: number };
+}
+
+/** Houses of the Ember village: solid footprints painted with wall tiles. */
+const VILLAGE_HOUSES: VillageRect[] = [
   { x: 10, y: 8, w: 8, h: 6 },
   { x: 10, y: 52, w: 8, h: 6 },
   { x: 56, y: 8, w: 9, h: 6 },
@@ -263,35 +302,65 @@ const VILLAGE_GROVES = [
 ];
 
 /** Fences: short solid segments in the open areas. */
-const VILLAGE_FENCES = [
+const VILLAGE_FENCES: VillageRect[] = [
   { x: 46, y: 22, w: 8, h: 1 },
   { x: 54, y: 22, w: 1, h: 5 },
   { x: 26, y: 56, w: 8, h: 1 },
 ];
 
-export function generateVillageMap(): TiledMapFile {
+/** NPCs stand around the plaza; offsets are px relative to the spawn. */
+const VILLAGE_NPCS: ReadonlyArray<{ id: string; dx: number; dy: number }> = [
+  { id: "blacksmith", dx: -4 * TILE_SIZE, dy: -4 },
+  { id: "general_goods", dx: -2 * TILE_SIZE, dy: -2 * TILE_SIZE },
+  { id: "weaponsmith", dx: 2 * TILE_SIZE, dy: -2 * TILE_SIZE },
+  { id: "armorer", dx: 2 * TILE_SIZE, dy: 2 * TILE_SIZE },
+  { id: "warehouse_keeper", dx: -2 * TILE_SIZE, dy: 2 * TILE_SIZE },
+];
+
+function buildVillage(spec: VillageSpec): TiledMapFile {
   const w = VILLAGE_WIDTH;
   const h = VILLAGE_HEIGHT;
-  const rng = mulberry32(seedFromString(ROOM_NAME_VILLAGE));
+  const rng = mulberry32(seedFromString(spec.mapId));
 
   const ground = emptyLayer(w, h, TILE_GRASS);
   const decor = emptyLayer(w, h, 0);
   const above = emptyLayer(w, h, 0);
   const collision = emptyLayer(w, h, 0);
 
-  // Plaza and the two main roads.
-  paintRect(w, h, ground, 34, 34, 12, 12, TILE_DIRT);
-  paintRect(w, h, ground, 10, 39, 65, 3, TILE_DIRT);
-  paintRect(w, h, ground, 39, 10, 3, 65, TILE_DIRT);
+  // Kingdom-specific organic ground variation, kept off the roads below.
+  for (let i = 0; i < spec.dirtPatches; i++) {
+    const cx = 4 + Math.floor(rng() * (w - 8));
+    const cy = 4 + Math.floor(rng() * (h - 8));
+    paintDisc(w, h, ground, cx, cy, 2 + Math.floor(rng() * 3), TILE_DIRT);
+  }
+  for (let i = 0; i < spec.stonePatches; i++) {
+    const cx = 4 + Math.floor(rng() * (w - 8));
+    const cy = 4 + Math.floor(rng() * (h - 8));
+    paintDisc(w, h, ground, cx, cy, 1 + Math.floor(rng() * 2), TILE_STONE);
+  }
 
-  // River with a three-tile bridge on the east-west road.
-  paintRect(w, h, ground, 23, 6, 3, 69, TILE_WATER);
-  paintRect(w, h, ground, 23, 39, 3, 3, TILE_DIRT);
-  paintRect(w, h, collision, 23, 6, 3, 33, 1);
-  paintRect(w, h, collision, 23, 42, 3, 33, 1);
+  // Plaza and the main roads.
+  paintRect(w, h, ground, spec.plaza.x, spec.plaza.y, spec.plaza.w, spec.plaza.h, TILE_DIRT);
+  for (const road of spec.roads) {
+    paintRect(w, h, ground, road.x, road.y, road.w, road.h, TILE_DIRT);
+  }
+
+  // River segments with a bridge on the crossing road (and an optional pond).
+  for (const water of spec.water) {
+    paintRect(w, h, ground, water.x, water.y, water.w, water.h, TILE_WATER);
+    paintRect(w, h, collision, water.x, water.y, water.w, water.h, 1);
+  }
+  if (spec.bridge) {
+    paintRect(w, h, ground, spec.bridge.x, spec.bridge.y, spec.bridge.w, spec.bridge.h, TILE_DIRT);
+    paintRect(w, h, collision, spec.bridge.x, spec.bridge.y, spec.bridge.w, spec.bridge.h, 0);
+  }
+  if (spec.pond) {
+    paintDisc(w, h, ground, spec.pond.x, spec.pond.y, spec.pond.r, TILE_WATER);
+    paintDisc(w, h, collision, spec.pond.x, spec.pond.y, spec.pond.r, 1);
+  }
 
   // Houses.
-  for (const house of VILLAGE_HOUSES) {
+  for (const house of spec.houses) {
     paintRect(w, h, ground, house.x, house.y, house.w, house.h, TILE_WALL);
     paintRect(w, h, collision, house.x, house.y, house.w, house.h, 1);
   }
@@ -307,7 +376,7 @@ export function generateVillageMap(): TiledMapFile {
   }
 
   // Interior tree groves (seeded jitter decides whether each tile sprouts).
-  for (const grove of VILLAGE_GROVES) {
+  for (const grove of spec.groves) {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         const tx = grove.x + dx;
@@ -327,23 +396,21 @@ export function generateVillageMap(): TiledMapFile {
   }
 
   // Fences.
-  for (const fence of VILLAGE_FENCES) {
+  for (const fence of spec.fences) {
     paintRect(w, h, collision, fence.x, fence.y, fence.w, fence.h, 1);
     paintRect(w, h, decor, fence.x, fence.y, fence.w, fence.h, TILE_WALL);
   }
 
-  // East exit: a clear dirt approach to the warp tile, then the warp itself.
-  paintRect(w, h, ground, 72, 38, 5, 5, TILE_DIRT);
-  paintRect(w, h, collision, 72, 38, 5, 5, 0);
-  const warpX = 74 * TILE_SIZE;
-  const warpY = 38 * TILE_SIZE;
+  // Clear dirt approach to the warp tile, then the warp itself.
+  paintRect(w, h, ground, spec.exit.x, spec.exit.y, spec.exit.w, spec.exit.h, TILE_DIRT);
+  paintRect(w, h, collision, spec.exit.x, spec.exit.y, spec.exit.w, spec.exit.h, 0);
 
   const objects: TiledObject[] = [
     {
       id: 1,
       name: "spawn_player",
-      x: VILLAGE_SPAWN.x,
-      y: VILLAGE_SPAWN.y,
+      x: spec.spawn.x,
+      y: spec.spawn.y,
       width: 0,
       height: 0,
       point: true,
@@ -354,84 +421,32 @@ export function generateVillageMap(): TiledMapFile {
     {
       id: 2,
       name: "warp",
-      x: warpX,
-      y: warpY,
-      width: TILE_SIZE * 2,
-      height: TILE_SIZE * 5,
+      x: spec.warp.x,
+      y: spec.warp.y,
+      width: spec.warp.w,
+      height: spec.warp.h,
       rotation: 0,
       type: "",
       visible: true,
       properties: [
-        { name: "targetMap", type: "string", value: ROOM_NAME_FIELDS satisfies MapId },
-        { name: "targetX", type: "int", value: FIELDS_SPAWN.x },
-        { name: "targetY", type: "int", value: FIELDS_SPAWN.y },
+        { name: "targetMap", type: "string", value: spec.targetMap satisfies MapId },
+        { name: "targetX", type: "int", value: spec.targetSpawn.x },
+        { name: "targetY", type: "int", value: spec.targetSpawn.y },
       ],
     },
-    {
-      id: 3,
-      name: "npc",
-      x: 36 * TILE_SIZE + 16,
-      y: 40 * TILE_SIZE + 12,
+    ...VILLAGE_NPCS.map((npc, i) => ({
+      id: 3 + i,
+      name: "npc" as const,
+      x: spec.spawn.x + npc.dx,
+      y: spec.spawn.y + npc.dy,
       width: 0,
       height: 0,
       point: true,
       rotation: 0,
       type: "",
       visible: true,
-      properties: [{ name: "npcId", type: "string", value: "blacksmith" }],
-    },
-    {
-      id: 4,
-      name: "npc",
-      x: 38 * TILE_SIZE + 16,
-      y: 38 * TILE_SIZE + 16,
-      width: 0,
-      height: 0,
-      point: true,
-      rotation: 0,
-      type: "",
-      visible: true,
-      properties: [{ name: "npcId", type: "string", value: "general_goods" }],
-    },
-    {
-      id: 5,
-      name: "npc",
-      x: 42 * TILE_SIZE + 16,
-      y: 38 * TILE_SIZE + 16,
-      width: 0,
-      height: 0,
-      point: true,
-      rotation: 0,
-      type: "",
-      visible: true,
-      properties: [{ name: "npcId", type: "string", value: "weaponsmith" }],
-    },
-    {
-      id: 6,
-      name: "npc",
-      x: 42 * TILE_SIZE + 16,
-      y: 42 * TILE_SIZE + 16,
-      width: 0,
-      height: 0,
-      point: true,
-      rotation: 0,
-      type: "",
-      visible: true,
-      properties: [{ name: "npcId", type: "string", value: "armorer" }],
-    },
-    {
-      id: 7,
-      name: "npc",
-      x: 38 * TILE_SIZE + 16,
-      y: 42 * TILE_SIZE + 16,
-      width: 0,
-      height: 0,
-      point: true,
-      rotation: 0,
-      type: "",
-      visible: true,
-      properties: [{ name: "npcId", type: "string", value: "warehouse_keeper" }],
-    },
+      properties: [{ name: "npcId", type: "string", value: npc.id }],
+    })),
   ];
 
   return baseMap(w, h, "village", [
@@ -441,6 +456,132 @@ export function generateVillageMap(): TiledMapFile {
     tileLayer(4, "collision", w, h, collision, false),
     objectLayer(5, objects),
   ]);
+}
+
+/** Ember's spawn is the original village plaza; kept for saved characters. */
+const EMBER_VILLAGE_SPEC: VillageSpec = {
+  mapId: ROOM_NAME_VILLAGE,
+  spawn: VILLAGE_SPAWN,
+  plaza: { x: 34, y: 34, w: 12, h: 12 },
+  roads: [
+    { x: 10, y: 39, w: 65, h: 3 },
+    { x: 39, y: 10, w: 3, h: 65 },
+  ],
+  water: [
+    { x: 23, y: 6, w: 3, h: 33 },
+    { x: 23, y: 42, w: 3, h: 33 },
+  ],
+  bridge: { x: 23, y: 39, w: 3, h: 3 },
+  pond: null,
+  houses: VILLAGE_HOUSES,
+  groves: VILLAGE_GROVES,
+  fences: VILLAGE_FENCES,
+  dirtPatches: 0,
+  stonePatches: 0,
+  exit: { x: 72, y: 38, w: 5, h: 5 },
+  warp: { x: 74 * TILE_SIZE, y: 38 * TILE_SIZE, w: TILE_SIZE * 2, h: TILE_SIZE * 5 },
+  targetMap: ROOM_NAME_FIELDS,
+  targetSpawn: FIELDS_SPAWN,
+};
+
+/** Open, wind-swept plains town with a northern gate and a horizontal river. */
+const GALE_VILLAGE_SPEC: VillageSpec = {
+  mapId: ROOM_NAME_GALE_VILLAGE,
+  spawn: GALE_VILLAGE_SPAWN,
+  plaza: { x: 34, y: 34, w: 12, h: 12 },
+  roads: [
+    { x: 10, y: 39, w: 65, h: 3 },
+    { x: 39, y: 10, w: 3, h: 65 },
+  ],
+  water: [
+    { x: 6, y: 22, w: 33, h: 3 },
+    { x: 42, y: 22, w: 33, h: 3 },
+  ],
+  bridge: { x: 39, y: 22, w: 3, h: 3 },
+  pond: null,
+  houses: [
+    { x: 12, y: 10, w: 9, h: 5 },
+    { x: 12, y: 54, w: 8, h: 6 },
+    { x: 56, y: 10, w: 8, h: 6 },
+    { x: 58, y: 56, w: 7, h: 5 },
+  ],
+  groves: [
+    { x: 16, y: 28 },
+    { x: 64, y: 32 },
+    { x: 18, y: 48 },
+    { x: 62, y: 48 },
+    { x: 28, y: 68 },
+    { x: 52, y: 66 },
+    { x: 8, y: 34 },
+    { x: 70, y: 34 },
+  ],
+  fences: [
+    { x: 46, y: 18, w: 8, h: 1 },
+    { x: 54, y: 18, w: 1, h: 5 },
+    { x: 26, y: 58, w: 6, h: 1 },
+  ],
+  dirtPatches: 3,
+  stonePatches: 1,
+  exit: { x: 38, y: 4, w: 5, h: 6 },
+  warp: { x: 38 * TILE_SIZE, y: 4 * TILE_SIZE, w: TILE_SIZE * 5, h: TILE_SIZE * 2 },
+  targetMap: ROOM_NAME_GALE_HIGHLANDS,
+  targetSpawn: GALE_HIGHLANDS_SPAWN,
+};
+
+/** Coastal shrine town with an eastern river, a pond and a western gate. */
+const TIDE_VILLAGE_SPEC: VillageSpec = {
+  mapId: ROOM_NAME_TIDE_VILLAGE,
+  spawn: TIDE_VILLAGE_SPAWN,
+  plaza: { x: 34, y: 34, w: 12, h: 12 },
+  roads: [
+    { x: 10, y: 39, w: 65, h: 3 },
+    { x: 39, y: 10, w: 3, h: 65 },
+  ],
+  water: [
+    { x: 64, y: 6, w: 3, h: 33 },
+    { x: 64, y: 42, w: 3, h: 31 },
+  ],
+  bridge: { x: 64, y: 39, w: 3, h: 3 },
+  pond: { x: 24, y: 60, r: 7 },
+  houses: [
+    { x: 10, y: 8, w: 8, h: 6 },
+    { x: 10, y: 52, w: 6, h: 5 },
+    { x: 52, y: 8, w: 9, h: 5 },
+    { x: 54, y: 54, w: 8, h: 6 },
+  ],
+  groves: [
+    { x: 18, y: 20 },
+    { x: 20, y: 34 },
+    { x: 46, y: 20 },
+    { x: 48, y: 68 },
+    { x: 30, y: 20 },
+    { x: 30, y: 60 },
+    { x: 68, y: 20 },
+    { x: 72, y: 50 },
+  ],
+  fences: [
+    { x: 46, y: 26, w: 8, h: 1 },
+    { x: 54, y: 26, w: 1, h: 5 },
+    { x: 28, y: 52, w: 6, h: 1 },
+  ],
+  dirtPatches: 4,
+  stonePatches: 2,
+  exit: { x: 4, y: 38, w: 6, h: 5 },
+  warp: { x: 4 * TILE_SIZE, y: 38 * TILE_SIZE, w: TILE_SIZE * 2, h: TILE_SIZE * 5 },
+  targetMap: ROOM_NAME_TIDE_HIGHLANDS,
+  targetSpawn: TIDE_HIGHLANDS_SPAWN,
+};
+
+export function generateVillageMap(): TiledMapFile {
+  return buildVillage(EMBER_VILLAGE_SPEC);
+}
+
+export function generateGaleVillageMap(): TiledMapFile {
+  return buildVillage(GALE_VILLAGE_SPEC);
+}
+
+export function generateTideVillageMap(): TiledMapFile {
+  return buildVillage(TIDE_VILLAGE_SPEC);
 }
 
 /** Clearings where the fields generator keeps trees and rocks out. */
@@ -633,20 +774,28 @@ export function generateFieldsMap(): TiledMapFile {
   ]);
 }
 
+export interface MapFileDefinition {
+  fileName: string;
+  build: () => TiledMapFile;
+}
+
+/** Every generated map file, in stable write order. */
+export const MAP_FILES: readonly MapFileDefinition[] = [
+  { fileName: "map_ember_village.json", build: generateVillageMap },
+  { fileName: "map_ember_fields.json", build: generateFieldsMap },
+  { fileName: "map_gale_village.json", build: generateGaleVillageMap },
+  { fileName: "map_tide_village.json", build: generateTideVillageMap },
+];
+
 /** Write the generated map files. Run via `pnpm generate:maps`. */
 export function writeMapFiles(dir?: string): void {
   const mapsDir = dir ?? fileURLToPath(new URL("../maps/", import.meta.url));
   mkdirSync(mapsDir, { recursive: true });
-  writeFileSync(
-    join(mapsDir, "map_ember_village.json"),
-    `${JSON.stringify(generateVillageMap(), null, 2)}\n`,
-  );
-  writeFileSync(
-    join(mapsDir, "map_ember_fields.json"),
-    `${JSON.stringify(generateFieldsMap(), null, 2)}\n`,
-  );
-  console.info(`Wrote ${join(mapsDir, "map_ember_village.json")}`);
-  console.info(`Wrote ${join(mapsDir, "map_ember_fields.json")}`);
+  for (const map of MAP_FILES) {
+    const target = join(mapsDir, map.fileName);
+    writeFileSync(target, `${JSON.stringify(map.build(), null, 2)}\n`);
+    console.info(`Wrote ${target}`);
+  }
 }
 
 const isMain =

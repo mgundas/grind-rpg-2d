@@ -8,10 +8,14 @@ import {
   FIELDS_HEIGHT,
   FIELDS_SPAWN,
   FIELDS_WIDTH,
+  GALE_VILLAGE_SPAWN,
+  TIDE_VILLAGE_SPAWN,
   VILLAGE_HEIGHT,
   VILLAGE_SPAWN,
   VILLAGE_WIDTH,
   generateFieldsMap,
+  generateGaleVillageMap,
+  generateTideVillageMap,
   generateVillageMap,
   writeMapFiles,
 } from "../src/generate-maps";
@@ -48,6 +52,8 @@ function fixture(raw: unknown, width: number, height: number): MapFixture {
 
 const village = fixture(generateVillageMap(), VILLAGE_WIDTH, VILLAGE_HEIGHT);
 const fields = fixture(generateFieldsMap(), FIELDS_WIDTH, FIELDS_HEIGHT);
+const galeVillage = fixture(generateGaleVillageMap(), VILLAGE_WIDTH, VILLAGE_HEIGHT);
+const tideVillage = fixture(generateTideVillageMap(), VILLAGE_WIDTH, VILLAGE_HEIGHT);
 
 function tileCentre(tx: number, ty: number): { x: number; y: number } {
   return { x: tx * tile + tile / 2, y: ty * tile + tile / 2 };
@@ -274,8 +280,57 @@ describe("cross-map warps", () => {
   });
 });
 
+/** Shared invariants every kingdom village must satisfy. */
+function expectKingdomVillage(
+  current: MapFixture,
+  build: () => unknown,
+  spawn: { x: number; y: number },
+): void {
+  expect(structuredClone(build())).toEqual(build());
+  expect(current.map.layers.map((layer) => layer.name)).toEqual([
+    "ground",
+    "decor",
+    "above",
+    "collision",
+    "objects",
+  ]);
+  expectBorderSolid(current);
+  expect(isWalkableAt(current.grid, spawn.x, spawn.y)).toBe(true);
+  expect(current.objects.npcs).toHaveLength(5);
+  for (const npc of current.objects.npcs) {
+    expect(hasNpc(npc.npcId)).toBe(true);
+    expect(isWalkableAt(current.grid, npc.x, npc.y)).toBe(true);
+    expect(Math.hypot(npc.x - spawn.x, npc.y - spawn.y)).toBeLessThan(220);
+  }
+  expect(current.objects.warps).toHaveLength(1);
+  const warp = current.objects.warps[0]!;
+  expectWarpRectWalkable(current, warp);
+  expect(
+    canReach(
+      current.grid,
+      current.width,
+      current.height,
+      spawn,
+      Math.floor((warp.x + warp.w / 2) / tile),
+      Math.floor((warp.y + warp.h / 2) / tile),
+    ),
+  ).toBe(true);
+}
+
+describe("kingdom villages", () => {
+  it("generates a reachable Gale Village that leads to Gale Highlands", () => {
+    expectKingdomVillage(galeVillage, generateGaleVillageMap, GALE_VILLAGE_SPAWN);
+    expect(galeVillage.objects.warps[0]!.targetMap).toBe("map_gale_highlands");
+  });
+
+  it("generates a reachable Tide Village that leads to Tide Highlands", () => {
+    expectKingdomVillage(tideVillage, generateTideVillageMap, TIDE_VILLAGE_SPAWN);
+    expect(tideVillage.objects.warps[0]!.targetMap).toBe("map_tide_highlands");
+  });
+});
+
 describe("writeMapFiles", () => {
-  it("writes both map files to a target directory", () => {
+  it("writes every generated map file to a target directory", () => {
     // Write to a temp directory: the committed-file comparisons above already
     // prove the writer output, and tests must not mutate the working tree.
     const dir = mkdtempSync(join(tmpdir(), "jade-maps-"));
@@ -283,6 +338,8 @@ describe("writeMapFiles", () => {
       writeMapFiles(dir);
       expect(existsSync(join(dir, "map_ember_village.json"))).toBe(true);
       expect(existsSync(join(dir, "map_ember_fields.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_gale_village.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_tide_village.json"))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
