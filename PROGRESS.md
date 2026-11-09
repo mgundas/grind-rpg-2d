@@ -315,6 +315,35 @@ Remaining Minor/Improvement items from the review are recorded in
 `docs/reviews/review-2026-11-09.md`; the architectural ones are decisions
 D71–D76.
 
+## Phase 9 — The wider world
+
+Plan: `docs/plans/phase-9.md`.
+
+- [ ] Task 1 — Shared map ids and labels for the final 9 maps
+- [ ] Task 2 — Map policies for all maps
+- [ ] Task 3 — Generator: Gale and Tide village variants
+- [ ] Task 4 — Generator: three Highlands (15–30)
+- [ ] Task 5 — Generator: Valley of Echoes and Corrupted Forest
+- [ ] Task 6 — Generator: Spider Cave dungeon map
+- [ ] Task 7 — Wire every map into server, client and validation
+- [ ] Task 8 — Teleporter NPC kind and data
+- [ ] Task 9 — Server teleporter travel intent
+- [ ] Task 10 — Client teleporter dialog and real world map
+- [ ] Task 11 — Channels core: filterBy, metadata, auth and warp tokens
+- [ ] Task 12 — Channel picker UI
+- [ ] Task 13 — Monsters, spawn groups and drops to level 60
+- [ ] Task 14 — Items and shops to level 60
+- [ ] Task 15 — Spirit stones for the new maps
+- [ ] Task 16 — Boss coverage and 1→60 balance simulation
+- [ ] Task 17 — Cross-map party registry
+- [ ] Task 18 — Spider Cave instanced dungeon room
+- [ ] Task 19 — Dungeon client flow
+- [ ] Task 20 — Mounts: item effect, state and speed
+- [ ] Task 21 — Mount client visuals and predictor sync
+- [ ] Task 22 — Admin updates for new maps and channels
+- [ ] Task 23 — Phase 9 E2E script, assets and docs
+- [ ] Task 24 — Phase gate
+
 ## Later phases (from GAME_DESIGN.md §12)
 
 - [x] Phase 4 — Items and economy → see the Phase 4 section above
