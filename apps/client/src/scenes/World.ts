@@ -40,6 +40,7 @@ import { getClass } from "@jadethrone/data/classes";
 import { getItem, hasItem } from "../data/catalog";
 import { getNpc } from "../data/catalog";
 import { isTypingTarget, matchesKeybind, normalizeKey } from "../ui/keybinds";
+import { CURSOR_BAG, CURSOR_DEFAULT, CURSOR_HAND, CURSOR_SWORD } from "../world/cursors";
 import { createPlaceholder } from "../assets/placeholders";
 import { musicKeyForMap } from "../assets/audioManifest";
 import { audio } from "../audio/service";
@@ -181,7 +182,7 @@ interface StonesCollection {
 }
 
 interface GroundVisual {
-  sprite: Phaser.GameObjects.GameObject & { destroy: () => void };
+  sprite: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
   beam: Phaser.GameObjects.Rectangle;
   label: Phaser.GameObjects.Text;
 }
@@ -632,6 +633,18 @@ export class WorldScene extends Phaser.Scene {
     visual.sprite.setTint(0xffffff);
     visual.sprite.setTintFill();
     this.time.delayedCall(60, () => visual.sprite.clearTint());
+    // Hurt punch: a quick squash that reads as a hit on placeholder sprites,
+    // on top of the white flash and the visual knockback offset.
+    const baseX = visual.scale;
+    const baseY = visual.scale;
+    visual.sprite.setScale(baseX * 1.08, baseY * 0.92);
+    this.tweens.add({
+      targets: visual.sprite,
+      scaleX: baseX,
+      scaleY: baseY,
+      duration: 90,
+      ease: "Quad.easeOut",
+    });
   }
 
   private showCombatEvent(payload: CombatEventPayload): void {
@@ -1295,12 +1308,22 @@ export class WorldScene extends Phaser.Scene {
       .setVisible(this.altHeld);
 
     this.tweens.add({ targets: beam, alpha: 0.32, duration: 180 });
+    const targetScaleX = sprite.scaleX;
+    const targetScaleY = sprite.scaleY;
+    sprite.setScale(targetScaleX * 0.2, targetScaleY * 0.2).setY(item.y - 20);
     this.tweens.add({
       targets: sprite,
       alpha: 1,
       y: item.y,
-      duration: 320,
+      duration: 340,
       ease: "Back.easeOut",
+    });
+    this.tweens.add({
+      targets: sprite,
+      scaleX: targetScaleX,
+      scaleY: targetScaleY,
+      duration: 420,
+      ease: "Bounce.easeOut",
     });
     this.groundVisuals.set(item.dropId, { sprite, beam, label });
   }
@@ -2008,18 +2031,17 @@ export class WorldScene extends Phaser.Scene {
         return;
       }
       if (this.npcAtPointer(pointer.worldX, pointer.worldY)) {
-        this.input.setDefaultCursor("pointer");
-      } else if (this.stoneAtPointer(pointer.worldX, pointer.worldY)) {
-        this.input.setDefaultCursor("crosshair");
+        this.input.setDefaultCursor(CURSOR_HAND);
       } else if (
+        this.stoneAtPointer(pointer.worldX, pointer.worldY) ||
         this.monsterAtPointer(pointer.worldX, pointer.worldY) ||
         this.remoteAtPointer(pointer.worldX, pointer.worldY)
       ) {
-        this.input.setDefaultCursor("crosshair");
+        this.input.setDefaultCursor(CURSOR_SWORD);
       } else if (this.groundItemAtPointer(pointer.worldX, pointer.worldY)) {
-        this.input.setDefaultCursor("pointer");
+        this.input.setDefaultCursor(CURSOR_BAG);
       } else {
-        this.input.setDefaultCursor("default");
+        this.input.setDefaultCursor(CURSOR_DEFAULT);
       }
     });
     this.input.on("pointerup", (pointer: Phaser.Input.Pointer) => {

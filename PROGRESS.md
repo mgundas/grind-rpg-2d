@@ -353,7 +353,7 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 3 — Wire SFX to existing events
 - [x] Task 4 — Settings window and key rebinding
 - [x] Task 5 — Credits screen and loading-tips pass
-- [ ] Task 6 — Game-feel sweep (§11 leftovers)
+- [x] Task 6 — Game-feel sweep (§11 leftovers)
 - [ ] Task 7 — Client perf: lazy maps and pool audit
 - [ ] Task 8 — Server tick instrumentation
 - [ ] Task 9 — Server perf fixes

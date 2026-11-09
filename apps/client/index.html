@@ -22,6 +22,18 @@
         inset: 0;
         pointer-events: none;
       }
+      /* §11: buttons have hover and press states (loaded once, theme-agnostic). */
+      button {
+        transition:
+          transform 80ms ease,
+          filter 80ms ease;
+      }
+      button:hover:not(:disabled) {
+        filter: brightness(1.15);
+      }
+      button:active:not(:disabled) {
+        transform: translateY(1px) scale(0.98);
+      }
     </style>
   </head>
   <body>
