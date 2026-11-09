@@ -409,6 +409,11 @@ export class WorldScene extends Phaser.Scene {
       return;
     }
 
+    // Throttled inside the audio gate (300 ms), so calling every frame is fine.
+    if (this.wantsMovement() && !this.warping) {
+      audio.playSfx("sfx.step");
+    }
+
     this.ensurePredictor();
 
     let autoWalk = ui.autoWalk;
@@ -672,10 +677,20 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private showCombatEvent(payload: CombatEventPayload): void {
+    const ownSessionId = useUiStore.getState().sessionId;
+    if (payload.attacker.kind === "player" && payload.attacker.sessionId === ownSessionId) {
+      audio.playSfx("sfx.swing");
+    }
     for (const hit of payload.hits) {
       if (hit.miss) {
+        audio.playSfx("sfx.miss");
         this.showDamageNumber(hit.x, hit.y - 34, "MISS", "#9aa5a0", 11);
       } else {
+        if (hit.target.kind === "player" && hit.target.sessionId === ownSessionId) {
+          audio.playSfx("sfx.recv_hit");
+        } else {
+          audio.playSfx(hit.crit ? "sfx.crit" : "sfx.hit");
+        }
         const takingDamage = hit.target.kind === "player";
         const color = takingDamage ? "#ff6b5f" : hit.crit ? "#ffd34a" : "#f5f7f2";
         this.showDamageNumber(
@@ -750,6 +765,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private showLevelUp(payload: LevelUpPayload): void {
+    audio.playSfx("sfx.levelup");
     const text = this.add
       .text(payload.x, payload.y - 72, "LEVEL UP", {
         fontFamily: "system-ui, sans-serif",
@@ -1420,6 +1436,7 @@ export class WorldScene extends Phaser.Scene {
     this.failedDrops.delete(payload.dropId);
     const own = this.ownPosition();
     if (payload.gold) {
+      audio.playSfx("sfx.gold");
       this.showDamageNumber(
         own.x,
         own.y - 58,
@@ -1428,6 +1445,7 @@ export class WorldScene extends Phaser.Scene {
         13,
       );
     } else if (payload.itemId) {
+      audio.playSfx("sfx.pickup");
       const name = hasItem(payload.itemId) ? getItem(payload.itemId).name : "Item";
       this.showDamageNumber(own.x, own.y - 58, `+${payload.quantity ?? 1} ${name}`, "#8fd3b6", 12);
     }
@@ -1660,6 +1678,9 @@ export class WorldScene extends Phaser.Scene {
     for (const heal of payload.heals) {
       this.showDamageNumber(heal.x, heal.y - 34, `+${heal.amount}`, "#7ee08a", 13);
     }
+    if (payload.heals.length > 0) {
+      audio.playSfx("sfx.heal");
+    }
 
     const palette: Record<string, number> = {
       slash_arc: 0xc9a227,
@@ -1731,6 +1752,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private showStoneDestroyed(payload: StoneDestroyedPayload): void {
+    audio.playSfx("sfx.crit");
     this.shake(220, 0.008);
     const shards = 14;
     for (let index = 0; index < shards; index++) {

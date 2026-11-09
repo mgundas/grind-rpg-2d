@@ -9,6 +9,7 @@ import {
   sendUseItem,
 } from "../network/session";
 import { EquipmentPanel } from "./EquipmentPanel";
+import { audio } from "../audio/service";
 import { ItemGrid, type DragState } from "./ItemGrid";
 import { ItemTooltip } from "./ItemTooltip";
 import { useUiStore } from "./store";
@@ -53,6 +54,7 @@ export function InventoryWindow() {
     if (!bonusScrollResult) {
       return;
     }
+    audio.playSfx("sfx.upgrade_success");
     const timer = setTimeout(() => setBonusScrollResult(null), 5000);
     return () => clearTimeout(timer);
   }, [bonusScrollResult, setBonusScrollResult]);

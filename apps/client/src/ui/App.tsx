@@ -3,6 +3,7 @@ import { GAME_NAME } from "@jadethrone/shared";
 import { api } from "../network/api";
 import { getHealth } from "../network/http";
 import { logout } from "../network/session";
+import { audio } from "../audio/service";
 import { AnnouncementBanner } from "./AnnouncementBanner";
 import { BlacksmithWindow } from "./BlacksmithWindow";
 import { BossTimer } from "./BossTimer";
@@ -94,6 +95,18 @@ export function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // One delegated click sound for every interactive button in the overlay.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("button")) {
+        audio.playSfx("sfx.ui_click");
+      }
+    };
+    document.addEventListener("pointerdown", onClick);
+    return () => document.removeEventListener("pointerdown", onClick);
   }, []);
 
   // A login elsewhere invalidates this session's tokens; return to the login

@@ -350,7 +350,7 @@ Plan: `docs/plans/phase-10.md`.
 
 - [x] Task 1 — Audio manifest and placeholder synth
 - [x] Task 2 — AudioService and Preload wiring
-- [ ] Task 3 — Wire SFX to existing events
+- [x] Task 3 — Wire SFX to existing events
 - [ ] Task 4 — Settings window and key rebinding
 - [ ] Task 5 — Credits screen and loading-tips pass
 - [ ] Task 6 — Game-feel sweep (§11 leftovers)

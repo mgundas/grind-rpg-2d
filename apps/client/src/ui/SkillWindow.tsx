@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getClass } from "@jadethrone/data/classes";
 import { skillsForDoctrine } from "../data/catalog";
+import { audio } from "../audio/service";
 import {
   sendChooseDoctrine,
   sendReadSkillBook,
@@ -56,6 +57,9 @@ export function SkillWindow() {
     if (!skillBookResult) {
       return;
     }
+    audio.playSfx(
+      skillBookResult.ok && skillBookResult.success ? "sfx.upgrade_success" : "sfx.upgrade_fail",
+    );
     const timer = setTimeout(() => setSkillBookResult(null), 5000);
     return () => clearTimeout(timer);
   }, [skillBookResult, setSkillBookResult]);

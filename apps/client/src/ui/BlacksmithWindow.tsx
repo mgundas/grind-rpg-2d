@@ -1,6 +1,7 @@
 import { useEffect, useReducer, useRef } from "react";
 import type { ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "../data/catalog";
+import { audio } from "../audio/service";
 import { sendRequestUpgradePreview, sendUpgradeItem } from "../network/session";
 import { useUiStore } from "./store";
 import { theme } from "./theme";
@@ -54,6 +55,7 @@ export function BlacksmithWindow() {
     if (!serverResult) {
       return;
     }
+    audio.playSfx(serverResult.success ? "sfx.upgrade_success" : "sfx.upgrade_fail");
     const remaining = Math.max(0, ROLL_ANIMATION_MS - (Date.now() - rollStartedAt.current));
     const timer = setTimeout(() => dispatch({ type: "result", result: serverResult }), remaining);
     return () => clearTimeout(timer);

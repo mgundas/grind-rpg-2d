@@ -44,6 +44,7 @@ import {
   type WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
 import { refreshClientCatalog } from "../data/catalog";
+import { audio } from "../audio/service";
 import { useUiStore } from "../ui/store";
 import { ApiError, api } from "./api";
 import { tokens } from "./tokens";
@@ -497,6 +498,7 @@ function bindSessionEvents(current: Room): void {
   });
 
   current.onMessage(MSG.death, (payload: DeathPayload) => {
+    audio.playSfx("sfx.death");
     const store = useUiStore.getState();
     store.setDeath(true, payload.respawnHereAtMs);
     store.setAutoWalk(false);
