@@ -360,7 +360,7 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 10 — Load test: 150 bots on one channel
 - [x] Task 11 — Production Docker and nginx
 - [x] Task 12 — Production server behaviour
-- [ ] Task 13 — DEPLOY.md and production env example
+- [x] Task 13 — DEPLOY.md and production env example
 - [ ] Task 14 — Phase gate
 
 ## Later phases (from GAME_DESIGN.md §12)
