@@ -418,3 +418,15 @@ attaches room/map/channel/player data and skips rooms without instrumentation
 worst p95 and `GET /api/admin/server` carries the result, so no room imports
 HTTP or the admin runtime. Snapshot is documented as single-poller to keep the
 scratch reuse safe.
+
+## D85 — Interest visibility inputs are snapshotted once per pass
+
+`updateInterest` previously recomputed stealth buffs and party lookups inside the
+per-client × per-player loop — O(n²) buff scans and map lookups every 250 ms,
+which matters once a channel holds ~150 players. Each pass now builds one
+`sessionId -> {invisible, stealthed, partyId}` map from the runtimes, and the
+inner loop only compares distances and the precomputed flags. Behaviour is
+unchanged (GM invisibility hides, stealthed allies stay visible to their party,
+missing runtimes default to visible). The spawn pass also reuses a per-room
+`Vec2[]` buffer instead of allocating `filter().map()` every tick. These are
+hoisting-only fixes; the tick ordering and combat/AI code were not touched.

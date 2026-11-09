@@ -364,6 +364,8 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   private readonly tickStats = new TickStats();
   /** Auto-walk repaths consume this per tick (reset in `tick`). */
   private autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
+  /** Reused by the spawn pass; avoids a filter+map allocation every tick. */
+  private readonly livePlayerPositions: Vec2[] = [];
   /** Next 1 Hz update of the coarse server clock exposed in state. */
   private nextServerClockAtMs = 0;
 
@@ -2343,16 +2345,27 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     const removeSquared = INTEREST_RADIUS_PX * INTEREST_RADIUS_PX;
     const now = Date.now();
 
+    // Snapshot per-player visibility inputs once per pass. At 150 players the
+    // naive version recomputed stealth buffs and party lookups O(n²) times.
+    const info = new Map<
+      string,
+      { invisible: boolean; stealthed: boolean; partyId: string | undefined }
+    >();
+    for (const [sessionId, runtime] of this.runtimes) {
+      info.set(sessionId, {
+        invisible: runtime.invisible,
+        stealthed: hasStealth(runtime.buffs, now),
+        partyId: this.parties.getByCharacter(runtime.characterId)?.id,
+      });
+    }
+
     for (const client of this.clients) {
       const view = client.view;
       const own = this.state.players.get(client.sessionId);
       if (!view || !own) {
         continue;
       }
-      const ownRuntime = this.runtimes.get(client.sessionId);
-      const ownParty = ownRuntime
-        ? this.parties.getByCharacter(ownRuntime.characterId)?.id
-        : undefined;
+      const ownParty = info.get(client.sessionId)?.partyId;
       for (const [sessionId, player] of this.state.players) {
         if (sessionId === client.sessionId) {
           if (!view.has(player)) {
@@ -2360,15 +2373,13 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
           }
           continue;
         }
-        const otherRuntime = this.runtimes.get(sessionId);
+        const otherInfo = info.get(sessionId);
         // GM invisibility and stealth both hide a player from other clients.
         // Party members can still see a stealthed ally (needed for party frames).
-        const stealthed = otherRuntime ? hasStealth(otherRuntime.buffs, now) : false;
+        const stealthed = otherInfo?.stealthed ?? false;
         const sharesParty =
-          stealthed &&
-          ownParty !== undefined &&
-          this.parties.getByCharacter(otherRuntime!.characterId)?.id === ownParty;
-        if (otherRuntime?.invisible || (stealthed && !sharesParty)) {
+          stealthed && ownParty !== undefined && otherInfo?.partyId === ownParty;
+        if (otherInfo?.invisible || (stealthed && !sharesParty)) {
           if (view.has(player)) {
             view.remove(player);
           }
@@ -2441,6 +2452,13 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     this.tickPvp = null;
     this.autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
     const players = this.playerSnapshots(now);
+    const livePositions = this.livePlayerPositions;
+    livePositions.length = 0;
+    for (const player of players) {
+      if (!player.dead) {
+        livePositions.push(player.pos);
+      }
+    }
     for (const client of this.clients) {
       const runtime = this.runtimes.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
@@ -2458,11 +2476,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     this.tickSkillEffects(now);
     this.applyRegen(now);
     this.processRespawns(now);
-    const spawned = tickSpawns(
-      this.spawns,
-      now,
-      players.filter((player) => !player.dead).map((player) => player.pos),
-    );
+    const spawned = tickSpawns(this.spawns, now, this.livePlayerPositions);
     if (spawned > 0) {
       this.updateInterest();
       this.broadcastBossTimers();

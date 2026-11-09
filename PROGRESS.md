@@ -356,7 +356,7 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 6 — Game-feel sweep (§11 leftovers)
 - [x] Task 7 — Client perf: lazy maps and pool audit
 - [x] Task 8 — Server tick instrumentation
-- [ ] Task 9 — Server perf fixes
+- [x] Task 9 — Server perf fixes
 - [ ] Task 10 — Load test: 150 bots on one channel
 - [ ] Task 11 — Production Docker and nginx
 - [ ] Task 12 — Production server behaviour
