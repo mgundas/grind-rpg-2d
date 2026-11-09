@@ -57,6 +57,7 @@ export type ItemEffect =
   | { kind: "heal_hp"; amount: number }
   | { kind: "heal_mp"; amount: number }
   | { kind: "warp_town" }
+  | { kind: "summon_mount" }
   | { kind: "skill_book" };
 
 /** Bonus-scroll definition ids shared by server planning and client UX. */

@@ -2310,6 +2310,27 @@
       "iconKey": "icon.item.armor_mystic_t4",
       "spriteLayerKey": "armor.mystic.t4",
       "rarity": "rare"
+    },
+    {
+      "id": "mount_jade_wolf",
+      "name": "Jade Wolf Whistle",
+      "description": "Summons a jade-coated wolf mount. Use again to dismiss it.",
+      "type": "consumable",
+      "subtype": "mount",
+      "classes": "all",
+      "levelReq": 10,
+      "size": 1,
+      "stackable": false,
+      "maxStack": 1,
+      "buyPrice": 25000,
+      "sellPrice": 7500,
+      "baseStats": {},
+      "iconKey": "icon.item.mount_jade_wolf",
+      "spriteLayerKey": "mount.jade_wolf",
+      "rarity": "fine",
+      "effect": {
+        "kind": "summon_mount"
+      }
     }
   ]
 }

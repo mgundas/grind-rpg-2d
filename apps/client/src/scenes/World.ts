@@ -4,6 +4,7 @@ import {
   CAMERA_ZOOM,
   CLICK_MAX_MS,
   HOLD_TO_STEER_MS,
+  MOUNT_SPEED_MULT,
   PICKUP_RADIUS_PX,
   RARITY_COLORS,
   REMOTE_INTERP_DELAY_MS,
@@ -83,6 +84,7 @@ interface RemotePlayerState {
   hairColor: number;
   weaponLayer?: string;
   armorLayer?: string;
+  mounted?: boolean;
   helmetLayer?: string;
   shieldLayer?: string;
   level: number;
@@ -135,6 +137,7 @@ interface RemoteVisual {
   sprite: Phaser.GameObjects.Sprite;
   shadow: Phaser.GameObjects.Ellipse;
   label: Phaser.GameObjects.Text;
+  mount: Phaser.GameObjects.Ellipse;
 }
 
 interface MonsterVisual {
@@ -234,6 +237,7 @@ export class WorldScene extends Phaser.Scene {
   private mapSwitchPending = false;
   /** Room hand-off counter; a same-map channel switch must still rebind. */
   private worldEpochSeen = 0;
+  private ownMount: Phaser.GameObjects.Ellipse | null = null;
 
   constructor() {
     super({ key: "World" });
@@ -242,6 +246,7 @@ export class WorldScene extends Phaser.Scene {
   create(): void {
     // Scene instances survive restart(); reset everything map/room-scoped.
     this.worldEpochSeen = useUiStore.getState().worldEpoch;
+    this.ownMount = this.add.ellipse(0, 0, 40, 16, 0x7a5a3a, 0.9).setVisible(false);
     this.predictor = null;
     this.initializedFor = null;
     this.remoteRegistry = new RemoteRegistry();
@@ -417,18 +422,32 @@ export class WorldScene extends Phaser.Scene {
         const visual = this.ownWalkBuffer.sample(this.time.now - REMOTE_INTERP_DELAY_MS);
         if (visual) {
           this.character.setPosition(visual.x, visual.y);
+          this.ownMount
+            ?.setPosition(visual.x, visual.y + 4)
+            .setDepth(visual.y - 1)
+            .setVisible(Boolean(own?.mounted));
         }
       } else {
         const desired = this.resolveInput();
         const inventory = useUiStore.getState().inventory;
         const moveBonus = equippedBonusValue(inventory?.equipment ?? [], "move_speed");
-        this.predictor.setSpeedMultiplier(moveSpeedMultiplier(moveBonus));
+        const store = useUiStore.getState();
+        if (store.mounted !== Boolean(own?.mounted)) {
+          store.setMounted(Boolean(own?.mounted));
+        }
+        this.predictor.setSpeedMultiplier(
+          moveSpeedMultiplier(moveBonus) * (own?.mounted ? MOUNT_SPEED_MULT : 1),
+        );
         this.predictor.update(delta, desired);
         if (this.pathTarget && !this.predictor.isFollowingPath) {
           this.pathTarget = null;
         }
         const visual = this.predictor.visualPosition;
         this.character.setPosition(visual.x, visual.y);
+        this.ownMount
+          ?.setPosition(visual.x, visual.y + 4)
+          .setDepth(visual.y - 1)
+          .setVisible(Boolean(own?.mounted));
       }
     }
 
@@ -1130,7 +1149,8 @@ export class WorldScene extends Phaser.Scene {
         strokeThickness: 3,
       })
       .setOrigin(0.5, 1);
-    this.remoteVisuals.set(entity.sessionId, { sprite, shadow, label });
+    const mount = this.add.ellipse(pos.x, pos.y + 4, 40, 16, 0x7a5a3a, 0.9).setVisible(false);
+    this.remoteVisuals.set(entity.sessionId, { sprite, shadow, label, mount });
   }
 
   private updateRemotes(): void {
@@ -1152,6 +1172,9 @@ export class WorldScene extends Phaser.Scene {
       visual.sprite.setDepth(pos.y);
       visual.shadow.setPosition(pos.x, pos.y + 6);
       visual.shadow.setDepth(pos.y - 1);
+      visual.mount.setPosition(pos.x, pos.y + 4);
+      visual.mount.setDepth(pos.y - 1);
+      visual.mount.setVisible(Boolean(entity.mounted));
       const label = this.remoteLabel(entity);
       if (visual.label.text !== label) {
         visual.label.setText(label);

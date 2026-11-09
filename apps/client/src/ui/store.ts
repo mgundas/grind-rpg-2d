@@ -108,6 +108,8 @@ interface UiState {
   setMapId: (map: MapId | null) => void;
   channel: ChannelId;
   setChannel: (channel: ChannelId) => void;
+  mounted: boolean;
+  setMounted: (mounted: boolean) => void;
   /** Increments on every room hand-off so the scene rebinds even on the same map. */
   worldEpoch: number;
   bumpWorldEpoch: () => void;
@@ -361,6 +363,8 @@ export const useUiStore = create<UiState>((set) => ({
   setMapId: (mapId) => set({ mapId }),
   channel: 1,
   setChannel: (channel) => set({ channel }),
+  mounted: false,
+  setMounted: (mounted) => set({ mounted }),
   worldEpoch: 0,
   bumpWorldEpoch: () => set((state) => ({ worldEpoch: state.worldEpoch + 1 })),
   channelSwitchError: null,

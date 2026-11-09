@@ -297,6 +297,8 @@ export function createPartyRegistry(
     if (!member) {
       return;
     }
+    // Empty session id marks a member who warped away; the target room rebinds it.
+    if (update.sessionId !== undefined) member.sessionId = update.sessionId;
     if (update.level !== undefined) member.level = Math.max(1, Math.floor(update.level));
     if (update.maxHp !== undefined) member.maxHp = Math.max(0, Math.floor(update.maxHp));
     if (update.maxMp !== undefined) member.maxMp = Math.max(0, Math.floor(update.maxMp));

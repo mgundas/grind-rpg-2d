@@ -364,3 +364,14 @@ which is how cross-map party frames stay populated. XP and loot eligibility are
 still decided per room by looking up `this.runtimes.get(member.sessionId)`, so a
 member standing on another map simply contributes nothing. Party chat remains
 room-local (the Phase-8 rule); only guild/whisper chat is process-wide.
+
+## D81 — Mounts are a reusable item toggle, not a pet entity
+
+The Jade Wolf Whistle is an ordinary consumable instance whose effect is
+`summon_mount`; using it toggles `PlayerRuntime.mounted` without consuming the
+item, and the server mirrors `mounted`/`mountLayer` into `PlayerState` so every
+client can draw the mount. Speed is the existing shared
+`moveSpeedMultiplier(equipment) * MOUNT_SPEED_MULT` (1.5 → 300 px/s) computed
+identically on both sides, so the predictor never diverges. Any attack, death
+or warp dismounts server-side, which keeps combat and travel from inheriting
+mounted speed.

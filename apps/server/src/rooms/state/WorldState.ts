@@ -42,6 +42,9 @@ export class PlayerState extends Schema {
   @type("string") armorLayer!: string;
   @type("string") helmetLayer!: string;
   @type("string") shieldLayer!: string;
+  /** Mounted players render a mount under the character. */
+  @type("boolean") mounted!: boolean;
+  @type("string") mountLayer!: string;
 }
 
 /**

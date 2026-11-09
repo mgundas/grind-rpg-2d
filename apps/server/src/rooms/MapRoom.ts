@@ -24,6 +24,7 @@ import {
   MAX_GOLD,
   MAX_MESSAGES_PER_SECOND,
   MAX_PLAYERS_PER_CHANNEL,
+  MOUNT_SPEED_MULT,
   MSG,
   NPC_INTERACT_RADIUS_PX,
   PICKUP_RADIUS_PX,
@@ -156,6 +157,7 @@ import {
   type WarpPayload,
   type WarpZone,
   MAP_LABELS,
+  ROOM_NAME_FOREST,
 } from "@jadethrone/shared";
 import { getClass } from "@jadethrone/data/classes";
 import type { SkillInfo } from "@jadethrone/data/skills";
@@ -311,6 +313,8 @@ const AUTOSAVE_INTERVAL_MS = 60_000;
 interface MapRoomMetadata {
   mapId: MapId;
   channel: ChannelId;
+  /** Dungeon rooms only: the party instance this room serves. */
+  partyId?: string;
 }
 
 /**
@@ -379,7 +383,11 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     // so a reservation without a channel still creates a CH1 room.
     this.channel = clampChannelId(options.channel ?? this.metadata?.channel);
     if (this.metadata?.channel !== this.channel || this.metadata?.mapId !== this.mapId) {
-      void this.setMetadata({ mapId: this.mapId, channel: this.channel });
+      void this.setMetadata({
+        mapId: this.mapId,
+        channel: this.channel,
+        ...(this.metadata?.partyId ? { partyId: this.metadata.partyId } : {}),
+      });
     }
     this.assets = loadMapAssets(this.mapId);
     this.rng = getServerServices().createRandomSource();
@@ -2460,6 +2468,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
         continue;
       }
       runtime.pendingAttack = null;
+      this.dismount(runtime);
       const outcome = resolvePlayerSwing(context, sessionId, pending.dir);
       if (outcome) {
         this.emitSwing(sessionId, outcome, now);
@@ -2974,12 +2983,14 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     runtime.diedAtMs = now;
     runtime.pending.length = 0;
     runtime.pendingAttack = null;
+    this.dismount(runtime);
     if (runtime.pendingCast) {
       this.cancelPendingCast(runtime, sessionId, "dead");
     }
     runtime.pendingCast = null;
     runtime.buffs.clear();
     runtime.healOverTime = [];
+    this.dismount(runtime);
     this.sendBuffState(sessionId);
     runtime.lastIntent = { kind: "none" };
     runtime.mover.path = [];
@@ -3338,6 +3349,11 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     }
     if (effect.kind === "skill_book") {
       throw new ItemError("not_usable", "Read mastery books from the Skill window.");
+    }
+
+    if (effect.kind === "summon_mount") {
+      this.toggleMount(runtime, definition.spriteLayerKey ?? "mount.jade_wolf");
+      return;
     }
 
     const before = runtime.inventory;
@@ -3833,8 +3849,11 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     player.hp = runtime.progression.hp;
     player.mp = runtime.progression.mp;
 
-    const village = defaultSpawn();
-    const accepted = await this.beginWarp(client, village);
+    const policy = getMapPolicy(this.mapId);
+    const destination = policy.dungeon
+      ? { mapId: ROOM_NAME_FOREST as MapId, ...loadMapAssets(ROOM_NAME_FOREST).spawn }
+      : defaultSpawn();
+    const accepted = await this.beginWarp(client, destination);
     if (!accepted) {
       const delay = getServerServices().combatTuning.respawnHereDelayMs ?? RESPAWN_HERE_DELAY_MS;
       this.safeSend(client, MSG.death, { respawnHereAtMs: runtime.diedAtMs + delay });
@@ -6039,12 +6058,22 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     runtime.pendingCast = null;
     runtime.buffs.clear();
     runtime.healOverTime = [];
+    this.dismount(runtime);
     // A return scroll calls beginWarp from inside the inventory chain. Awaiting
     // that same chain here would deadlock, so the caller that owns it skips it.
     if (options.awaitInventory !== false) {
       await runtime.inventoryChain?.catch(() => undefined);
     }
     const services = getServerServices();
+    const dungeon = getMapPolicy(destination.mapId).dungeon;
+    const partyId = dungeon ? this.parties.getByCharacter(runtime.characterId)?.id : undefined;
+    if (dungeon && !partyId) {
+      runtime.warping = false;
+      runtime.inventoryClosed = false;
+      runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
+      this.sendSystemMessage(client, "The Spider Cave can only be entered with a party.");
+      return false;
+    }
     const channel = destination.channel ?? runtime.channel;
     const source = {
       mapId: this.mapId,
@@ -6089,6 +6118,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
         map: destination.mapId,
         channel,
         warpToken: token,
+        partyId,
       });
       if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
         // Client left before receiving the reservation; undo the destination
@@ -6175,7 +6205,13 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
    */
   reserveSeat(
     map: MapId,
-    options: { characterId: string; map: MapId; channel: ChannelId; warpToken: string },
+    options: {
+      characterId: string;
+      map: MapId;
+      channel: ChannelId;
+      warpToken: string;
+      partyId?: string;
+    },
   ): ReturnType<typeof matchMaker.joinOrCreate> {
     return matchMaker.joinOrCreate(map, options, {
       headers: new Headers(),
@@ -6184,10 +6220,32 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   }
 
   private playerSpeed(runtime: PlayerRuntime): number {
-    return (
+    const base =
       WALK_SPEED *
-      moveSpeedMultiplier(equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()))
-    );
+      moveSpeedMultiplier(equipmentBonusValue(runtime.inventory, "move_speed", this.catalog()));
+    return base * (runtime.mounted ? MOUNT_SPEED_MULT : 1);
+  }
+
+  private toggleMount(runtime: PlayerRuntime, mountLayer: string): void {
+    runtime.mounted = !runtime.mounted;
+    const player = this.state.players.get(runtime.sessionId);
+    if (player) {
+      player.mounted = runtime.mounted;
+      player.mountLayer = runtime.mounted ? mountLayer : "";
+    }
+    runtime.dirty = true;
+  }
+
+  private dismount(runtime: PlayerRuntime): void {
+    if (!runtime.mounted) {
+      return;
+    }
+    runtime.mounted = false;
+    const player = this.state.players.get(runtime.sessionId);
+    if (player) {
+      player.mounted = false;
+      player.mountLayer = "";
+    }
   }
 
   private stepPlayer(

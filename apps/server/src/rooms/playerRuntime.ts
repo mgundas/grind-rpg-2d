@@ -33,6 +33,8 @@ export interface PlayerRuntime {
   role: AccountRole;
   /** Map channel (CH1–CH4). */
   channel: ChannelId;
+  /** Mounted players walk at MOUNT_SPEED_MULT until they fight, die or warp. */
+  mounted: boolean;
   /** GM invisibility: excluded from monster targeting and other clients' views. */
   invisible: boolean;
   /** Account token generation captured at authentication. */
@@ -178,6 +180,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     characterId: identity.characterId,
     role: identity.role ?? "player",
     channel: clampChannelId(identity.channel),
+    mounted: false,
     invisible: false,
     tokenVersion: identity.tokenVersion,
     mover: createMover(spawn),

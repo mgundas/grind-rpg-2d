@@ -88,6 +88,7 @@ export interface FakeServices {
   }) => void;
   setGold: (characterId: string, gold: number) => void;
   goldOf: (characterId: string) => number;
+  itemCount: (characterId: string) => number;
   identities: Map<string, JoinIdentity>;
   saved: BulkCharacterSave[];
   prepare: (options?: FakeJoinOptions) => JoinIdentity;
@@ -598,6 +599,9 @@ export function createFakeServices(): FakeServices {
     },
     goldOf(characterId) {
       return goldByCharacter.get(characterId) ?? 0;
+    },
+    itemCount(characterId) {
+      return [...itemRows.values()].filter((row) => row.ownerCharacterId === characterId).length;
     },
     identities,
     saved,

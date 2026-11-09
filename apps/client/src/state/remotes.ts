@@ -112,6 +112,7 @@ export interface RemoteEntity {
   hairColor: number;
   weaponLayer?: string;
   armorLayer?: string;
+  mounted?: boolean;
   helmetLayer?: string;
   shieldLayer?: string;
   facing: number;

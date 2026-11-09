@@ -3,6 +3,7 @@ import { defineRoom, defineServer } from "@colyseus/core";
 import { monitor } from "@colyseus/monitor";
 import {
   MAP_IDS,
+  ROOM_NAME_SPIDER_CAVE,
   type MapId,
   type RandomSource,
 } from "@jadethrone/shared";
@@ -44,6 +45,7 @@ import { createDbGameDataStore } from "./gameData/dbStore";
 import type { GameDataStore } from "./gameData/store";
 import { createSocialDirectory } from "./social/bus";
 import { createPartyRegistry } from "./rooms/party";
+import { DungeonRoom } from "./rooms/DungeonRoom";
 import { createGuildInviteRegistry } from "./social/guildInvites";
 import type { SocialDirectory } from "./social/bus";
 import type { PartyRegistry } from "./rooms/party";
@@ -190,7 +192,12 @@ export function createGameServer(deps: ServerDeps = {}) {
 
   const server = defineServer({
     rooms: Object.fromEntries(
-      MAP_IDS.map((mapId) => [mapId, defineRoom(MapRoom).filterBy(["channel"])]),
+      MAP_IDS.map((mapId) => [
+        mapId,
+        mapId === ROOM_NAME_SPIDER_CAVE
+          ? defineRoom(DungeonRoom).filterBy(["partyId"])
+          : defineRoom(MapRoom).filterBy(["channel"]),
+      ]),
     ),
     express: (app) => {
       app.disable("x-powered-by");

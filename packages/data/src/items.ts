@@ -32,6 +32,7 @@ const effectSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("heal_hp"), amount: z.number().int().positive() }),
   z.object({ kind: z.literal("heal_mp"), amount: z.number().int().positive() }),
   z.object({ kind: z.literal("warp_town") }),
+  z.object({ kind: z.literal("summon_mount") }),
   z.object({ kind: z.literal("skill_book") }),
 ]);
 

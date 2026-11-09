@@ -338,8 +338,8 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 17 — Cross-map party registry
 - [ ] Task 18 — Spider Cave instanced dungeon room
 - [ ] Task 19 — Dungeon client flow
-- [ ] Task 20 — Mounts: item effect, state and speed
-- [ ] Task 21 — Mount client visuals and predictor sync
+- [x] Task 20 — Mounts: item effect, state and speed
+- [x] Task 21 — Mount client visuals and predictor sync
 - [ ] Task 22 — Admin updates for new maps and channels
 - [ ] Task 23 — Phase 9 E2E script, assets and docs
 - [ ] Task 24 — Phase gate
