@@ -38,9 +38,9 @@ describe("TickStats", () => {
 
   it("counts overruns against the tick budget", () => {
     const stats = new TickStats(10);
-    stats.record(49);
-    stats.record(50);
-    stats.record(51);
+    stats.record(19);
+    stats.record(20);
+    stats.record(21);
     expect(stats.snapshot().overruns).toBe(1);
   });
 

@@ -203,7 +203,7 @@ export function createGameServer(deps: ServerDeps = {}) {
       app.disable("x-powered-by");
       // Only trust a forwarded address when the deployment says there is one
       // proxy hop in front; otherwise a client could spoof rate-limit IPs.
-      app.set("trust proxy", config.trustProxy ? 1 : false);
+      app.set("trust proxy", config.trustProxy > 0 ? config.trustProxy : false);
       app.get("/api/health", healthHandler);
 
       // The monitor iframe cannot send a bearer header; the admin login cookie

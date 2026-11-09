@@ -10,7 +10,7 @@ import {
 } from "../network/session";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { audio } from "../audio/service";
-import { matchesKeybind } from "./keybinds";
+import { isTypingTarget, matchesKeybind } from "./keybinds";
 import { ItemGrid, type DragState } from "./ItemGrid";
 import { ItemTooltip } from "./ItemTooltip";
 import { useUiStore } from "./store";
@@ -263,7 +263,7 @@ export function useInventoryHotkey(): void {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const store = useUiStore.getState();
-      if (store.chatFocused) {
+      if (store.chatFocused || isTypingTarget(event.target)) {
         return;
       }
       if (matchesKeybind(store.settings.keybinds, event, "inventory")) {

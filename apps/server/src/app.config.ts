@@ -46,6 +46,9 @@ function assertProductionConfig(): void {
   if (config.usingDefaultDbPassword) {
     problems.push("POSTGRES_PASSWORD must not be the dev default");
   }
+  if (config.seedAdminPassword.length < 12) {
+    problems.push("SEED_ADMIN_PASSWORD must be at least 12 characters");
+  }
   if (problems.length > 0) {
     for (const problem of problems) {
       logger.error(problem);
@@ -93,13 +96,14 @@ function registerShutdownHandlers(): void {
     shuttingDown = true;
     logger.info({ signal }, "graceful shutdown started");
     try {
-      const rooms = getServerServices().adminBus.roomHandles();
-      await Promise.allSettled(rooms.map((room) => room.saveAllForShutdown()));
+      // Tell players first: saving every dirty character can take seconds.
       getServerServices().adminBus.broadcastAnnouncement({
-        message: "Server is shutting down. Your progress has been saved.",
+        message: "Server is shutting down. Saving your progress now.",
         kind: "shutdown",
         sentAtMs: Date.now(),
       });
+      const rooms = getServerServices().adminBus.roomHandles();
+      await Promise.allSettled(rooms.map((room) => room.saveAllForShutdown()));
       await server.gracefullyShutdown(false);
     } catch (error) {
       logger.error({ error }, "graceful shutdown failed");

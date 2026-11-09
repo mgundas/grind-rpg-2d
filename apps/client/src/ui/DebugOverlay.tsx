@@ -10,6 +10,7 @@ export function DebugOverlay() {
 
   const rows: Array<[string, string]> = [
     ["fps", stats.fps.toFixed(0)],
+    ["frame", stats.fps > 0 ? `${(1000 / stats.fps).toFixed(1)} ms` : "-"],
     ["ping", `${stats.pingMs} ms`],
     ["map", stats.mapId ?? "-"],
     ["pos", `${stats.x.toFixed(1)}, ${stats.y.toFixed(1)}`],

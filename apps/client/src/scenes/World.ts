@@ -315,8 +315,10 @@ export class WorldScene extends Phaser.Scene {
     // Settings window can change them without rebuilding Phaser keys.
     window.removeEventListener("keydown", this.handleDomKeyDown);
     window.removeEventListener("keyup", this.handleDomKeyUp);
+    window.removeEventListener("blur", this.handleWindowBlur);
     window.addEventListener("keydown", this.handleDomKeyDown);
     window.addEventListener("keyup", this.handleDomKeyUp);
+    window.addEventListener("blur", this.handleWindowBlur);
     this.pressedKeys.clear();
     this.attackRequested = false;
 
@@ -1990,7 +1992,15 @@ export class WorldScene extends Phaser.Scene {
     this.mapSwitchPending = true;
     try {
       await ensureMapTilemap(this, mapId);
-      if (useUiStore.getState().mapId === mapId && this.scene.isActive()) {
+      const desired = useUiStore.getState().mapId;
+      if (desired && desired !== mapId) {
+        // A newer warp arrived while this chunk loaded; request it immediately
+        // instead of waiting for the retry timer.
+        this.mapSwitchPending = false;
+        void this.requestMapSwitch(desired);
+        return;
+      }
+      if (desired === mapId && this.scene.isActive()) {
         this.scene.restart();
       } else {
         this.mapSwitchPending = false;
@@ -2002,9 +2012,18 @@ export class WorldScene extends Phaser.Scene {
     }
   }
 
+  private readonly handleWindowBlur = (): void => {
+    this.pressedKeys.clear();
+    this.pointerHeld = false;
+    this.pointerWorld = null;
+    this.attackRequested = false;
+    this.altHeld = false;
+  };
+
   private handleSceneShutdown(): void {
     window.removeEventListener("keydown", this.handleDomKeyDown);
     window.removeEventListener("keyup", this.handleDomKeyUp);
+    window.removeEventListener("blur", this.handleWindowBlur);
     this.pressedKeys.clear();
     this.attackRequested = false;
     this.audioUnlockDetach?.();

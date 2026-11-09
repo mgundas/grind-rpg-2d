@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { FriendView } from "@jadethrone/shared";
 import { sendFriendAdd, sendFriendRemove } from "../network/session";
 import { useUiStore } from "./store";
-import { matchesKeybind } from "./keybinds";
+import { isTypingTarget, matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 import { friendLevel, friendStatus } from "./social";
@@ -63,7 +63,7 @@ export function FriendsWindow() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const store = useUiStore.getState();
-      if (store.chatFocused) {
+      if (store.chatFocused || isTypingTarget(event.target)) {
         return;
       }
       if (matchesKeybind(store.settings.keybinds, event, "friends")) {

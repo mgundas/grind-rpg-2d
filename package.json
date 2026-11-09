@@ -34,6 +34,7 @@
   "devDependencies": {
     "@colyseus/sdk": "catalog:",
     "@types/node": "catalog:",
+    "drizzle-orm": "catalog:",
     "concurrently": "catalog:",
     "eslint": "catalog:",
     "eslint-config-prettier": "catalog:",

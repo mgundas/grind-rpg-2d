@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { sendAllocStat, sendSetPvpMode } from "../network/session";
-import { matchesKeybind } from "./keybinds";
+import { isTypingTarget, matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { useUiStore } from "./store";
 import { Window } from "./Window";
@@ -28,7 +28,11 @@ export function CharacterWindow() {
         store.setCharacterOpen(false);
         return;
       }
-      if (!store.chatFocused && matchesKeybind(store.settings.keybinds, event, "character")) {
+      if (
+        !store.chatFocused &&
+        !isTypingTarget(event.target) &&
+        matchesKeybind(store.settings.keybinds, event, "character")
+      ) {
         store.toggleCharacter();
       }
     };

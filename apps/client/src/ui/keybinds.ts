@@ -176,10 +176,27 @@ export function parseKeybinds(value: unknown): Keybinds {
     return result;
   }
   const record = value as Record<string, unknown>;
+  const used = new Set<string>();
   for (const action of KEYBIND_ACTIONS) {
     const candidate = record[action];
-    if (typeof candidate === "string" && candidate.length > 0) {
-      result[action] = normalizeKey(candidate);
+    const normalized =
+      typeof candidate === "string" && candidate.length > 0
+        ? normalizeKey(candidate)
+        : DEFAULT_KEYBINDS[action];
+    // Hand-edited storage can contain duplicates; first action wins and later
+    // ones fall back to their default so one key never fires two actions.
+    if (used.has(normalized)) {
+      // Prefer this action's default; if that is taken too, reuse the first
+      // free default key so the result is always collision-free.
+      const fallback =
+        !used.has(DEFAULT_KEYBINDS[action])
+          ? DEFAULT_KEYBINDS[action]
+          : (Object.values(DEFAULT_KEYBINDS).find((key) => !used.has(key)) ?? normalized);
+      result[action] = fallback;
+      used.add(fallback);
+    } else {
+      result[action] = normalized;
+      used.add(normalized);
     }
   }
   return result;

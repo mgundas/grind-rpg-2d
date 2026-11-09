@@ -386,10 +386,19 @@ export class AudioService {
     if (cached) {
       return cached;
     }
-    const promise = this.decodeEntry(key).catch((error: unknown) => {
-      this.options.warn(`audio "${key}" could not be decoded: ${String(error)}`);
-      return null;
-    });
+    const promise = this.decodeEntry(key)
+      .catch((error: unknown) => {
+        this.options.warn(`audio "${key}" could not be decoded: ${String(error)}`);
+        return null;
+      })
+      .then((buffer) => {
+        // A transient failure (no context yet, fetch error) must not poison the
+        // key for the whole session; evict nulls so a later play retries.
+        if (buffer === null) {
+          this.buffers.delete(key);
+        }
+        return buffer;
+      });
     this.buffers.set(key, promise);
     return promise;
   }

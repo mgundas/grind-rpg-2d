@@ -13,11 +13,8 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   /** Dev-only artificial latency (applied in both directions by the transport). */
   SIMULATE_LATENCY_MS: z.coerce.number().int().min(0).max(5000).default(0),
-  /** Trust X-Forwarded-For from the first proxy hop (set behind nginx). */
-  TRUST_PROXY: z
-    .enum(["0", "1", "true", "false"])
-    .default("0")
-    .transform((value) => value === "1" || value === "true"),
+  /** Trust X-Forwarded-For from this many proxy hops (0 = direct). */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
 
   POSTGRES_HOST: z.string().min(1).default("localhost"),
   POSTGRES_PORT: z.coerce.number().int().min(1).max(65535).default(5432),
@@ -54,8 +51,8 @@ export interface Config {
   port: number;
   logLevel: "debug" | "info" | "warn" | "error";
   simulateLatencyMs: number;
-  /** True when the app may trust X-Forwarded-For (behind a reverse proxy). */
-  trustProxy: boolean;
+  /** Number of trusted proxy hops (0 = direct, 1 = bundled nginx, 2 = NPM + nginx). */
+  trustProxy: number;
   databaseUrl: string;
   /** True when a dev placeholder POSTGRES_PASSWORD is configured. */
   usingDefaultDbPassword: boolean;
@@ -106,7 +103,15 @@ function parseConfig(): Config {
         database: env.POSTGRES_DB,
       }),
     usingDefaultDbPassword:
-      env.DATABASE_URL === undefined && DEFAULT_DB_PASSWORDS.has(env.POSTGRES_PASSWORD),
+      env.DATABASE_URL === undefined
+        ? DEFAULT_DB_PASSWORDS.has(env.POSTGRES_PASSWORD)
+        : (() => {
+            try {
+              return DEFAULT_DB_PASSWORDS.has(decodeURIComponent(new URL(env.DATABASE_URL).password));
+            } catch {
+              return false;
+            }
+          })(),
     jwtAccessSecret: env.JWT_ACCESS_SECRET,
     jwtRefreshSecret: env.JWT_REFRESH_SECRET,
     jwtAccessTtlSeconds: env.JWT_ACCESS_TTL_SECONDS,

@@ -413,8 +413,9 @@ that every dynamic import equals its static entry byte-for-byte.
 `snapshot()` by sorting a reused scratch buffer, so the 20 Hz hot path only pays
 two clock reads. `MapRoom` exposes `tickStatsSnapshot()` through an optional
 `tickStats()` method on the existing `AdminRoomHandle`; `AdminBus.tickSummary()`
-attaches room/map/channel/player data and skips rooms without instrumentation
-(including old test fakes and `DungeonRoom`). `AdminRuntime.status()` derives the
+attaches room/map/channel/player data and skips rooms whose handle has no
+`tickStats` method (old test fakes). `DungeonRoom` extends `MapRoom`, so dungeon
+ticks are instrumented and included automatically. `AdminRuntime.status()` derives the
 worst p95 and `GET /api/admin/server` carries the result, so no room imports
 HTTP or the admin runtime. Snapshot is documented as single-poller to keep the
 scratch reuse safe.
@@ -454,10 +455,10 @@ migrations are awaited before `server.listen`, so a broken schema fails fast
 instead of serving auth 503s; development keeps the background migrate/reload
 path. Second, JWT secrets must be ≥32 characters and not one of the documented
 dev placeholders, and the dev database password is rejected — the log names the
-offending variable without printing its value. Third, `TRUST_PROXY` (default 0)
-sets Express `trust proxy` to one hop only when explicitly enabled, so a direct
-deployment cannot be IP-spoofed for rate limits while nginx deployments get the
-real client address. Fourth, `SIGTERM`/`SIGINT` save every registered room via
+offending variable without printing its value. Third, `TRUST_PROXY` is a hop
+count (default 0): one for the bundled nginx, two when nginx-proxy-manager sits
+in front of it, so rate limits see the real client address without trusting a
+direct spoofed header. Fourth, `SIGTERM`/`SIGINT` save every registered room via
 `AdminBus.roomHandles()`, broadcast a shutdown notice, call
 `server.gracefullyShutdown(false)`, close the pool and exit 0; the existing
 admin-scheduled shutdown still uses the same `saveAllForShutdown` contract.

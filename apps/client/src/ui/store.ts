@@ -518,7 +518,11 @@ export const useUiStore = create<UiState>((set) => ({
   settings: loadSettings(),
   updateSettings: (patch) =>
     set((state) => {
-      const settings = { ...state.settings, ...patch };
+      const safePatch = { ...patch };
+      if (safePatch.zoom !== undefined && ![1, 2, 3].includes(safePatch.zoom)) {
+        delete safePatch.zoom;
+      }
+      const settings = { ...state.settings, ...safePatch };
       saveSettings(settings);
       return { settings };
     }),

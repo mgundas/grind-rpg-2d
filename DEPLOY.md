@@ -91,7 +91,7 @@ every setting.
 | `SEED_ADMIN_PASSWORD` | yes | Used by the seed command. |
 | `WEB_PORT` | no | Host port for nginx, default `8080`. |
 | `PUBLIC_SERVER_URL` | no | Default `same-origin`: the browser talks to the nginx host. Set a full `wss://game.example.com` URL only if the game server is exposed on its own hostname. |
-| `TRUST_PROXY` | no | Default `1` in the compose file when nginx is in front. Set `0` only if clients reach the server directly. |
+| `TRUST_PROXY` | no | Number of proxy hops: `1` for the bundled nginx, `2` behind nginx-proxy-manager (default `2` in the compose file). Set `0` only if clients reach the server directly. |
 | `LOG_LEVEL` | no | `info` by default. |
 | `POSTGRES_USER` / `POSTGRES_DB` | no | Default `jade` / `jade_throne`. |
 

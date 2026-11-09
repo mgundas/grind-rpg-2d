@@ -10,7 +10,7 @@ import {
   sendGuildSetRank,
 } from "../network/session";
 import { useUiStore } from "./store";
-import { matchesKeybind } from "./keybinds";
+import { isTypingTarget, matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 import {
@@ -90,7 +90,7 @@ export function GuildWindow() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const store = useUiStore.getState();
-      if (store.chatFocused) {
+      if (store.chatFocused || isTypingTarget(event.target)) {
         return;
       }
       if (matchesKeybind(store.settings.keybinds, event, "guild")) {

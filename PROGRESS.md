@@ -361,7 +361,18 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 11 — Production Docker and nginx
 - [x] Task 12 — Production server behaviour
 - [x] Task 13 — DEPLOY.md and production env example
-- [ ] Task 14 — Phase gate
+- [x] Task 14 — Phase gate
+
+**Gate verification (2026-11-09):** `pnpm typecheck`, `pnpm lint` and
+`pnpm build` pass. Full suite against `jade_throne_test`: **143 files / 1052
+tests pass**. `pnpm verify:phase10-load` joined 150/150 bots on one channel
+with worst tick p95 **13.45 ms**, 0 overruns above 20 ms, 0 disconnects and
+143/150 bots moved — PASS. The real `tsx` server boots on a free port with
+`db: "up"`; the production `dist/seed.cjs` runs idempotently. Docker was not
+installed in the development environment, so the production images are
+documented and reviewed but must be built once on the deployment host.
+`@reviewer` findings were fixed before this gate. Report:
+`docs/reports/phase-10.md`.
 
 ## Later phases (from GAME_DESIGN.md §12)
 
@@ -370,5 +381,5 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Phase 6 — Spirit stones, skills, parties (see the Phase 6 section above)
 - [x] Phase 7 — Upgrades, bonuses, trading
 - [x] Phase 8 — Social and progression depth (see section above)
-- [ ] Phase 9 — The wider world
-- [ ] Phase 10 — Polish, performance and deployment
+- [x] Phase 9 — The wider world (see the Phase 9 section above)
+- [x] Phase 10 — Polish, performance and deployment (see the Phase 10 section above)

@@ -107,7 +107,9 @@ export function SettingsWindow() {
     const onKey = (event: KeyboardEvent) => {
       const store = useUiStore.getState();
       if (event.key === "Escape" && store.settingsOpen) {
-        store.setSettingsOpen(false);
+        if (!isTypingTarget(event.target)) {
+          store.setSettingsOpen(false);
+        }
         return;
       }
       if (
@@ -136,6 +138,10 @@ export function SettingsWindow() {
         return;
       }
       const key = normalizeKey(event.key);
+      if (key.startsWith("arrow") && !capturing.startsWith("move")) {
+        setConflict("Arrow keys are reserved as movement alternates. Choose another key.");
+        return;
+      }
       const conflictAction = findKeyConflict(settings.keybinds, key, capturing);
       if (conflictAction) {
         setConflict(

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { sendPartyInvite, sendPartyLeave, sendPartyRespond, sendPartySetLoot } from "../network/session";
 import { useUiStore } from "./store";
-import { matchesKeybind } from "./keybinds";
+import { isTypingTarget, matchesKeybind } from "./keybinds";
 import { theme } from "./theme";
 import { Window } from "./Window";
 
@@ -23,7 +23,11 @@ export function PartyWindow() {
         store.setPartyWindowOpen(false);
         return;
       }
-      if (!store.chatFocused && matchesKeybind(store.settings.keybinds, event, "party")) {
+      if (
+        !store.chatFocused &&
+        !isTypingTarget(event.target) &&
+        matchesKeybind(store.settings.keybinds, event, "party")
+      ) {
         store.togglePartyWindow();
       }
     };

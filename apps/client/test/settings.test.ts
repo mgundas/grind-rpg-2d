@@ -63,6 +63,14 @@ describe("parseKeybinds", () => {
     expect(Object.keys(parsed).sort()).toEqual([...KEYBIND_ACTIONS].sort());
   });
 
+  it("dedupes hand-edited bindings", () => {
+    const parsed = parseKeybinds({ moveUp: "i", inventory: "i", attack: "w" });
+    const values = Object.values(parsed);
+    expect(new Set(values).size).toBe(values.length);
+    expect(parsed.moveUp).toBe("i");
+    expect(parsed.inventory).not.toBe("i");
+  });
+
   it("falls back entirely for non-objects", () => {
     expect(parseKeybinds(null)).toEqual(DEFAULT_KEYBINDS);
     expect(parseKeybinds("nope")).toEqual(DEFAULT_KEYBINDS);

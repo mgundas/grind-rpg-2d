@@ -16,7 +16,7 @@
  */
 import process from "node:process";
 import { randomUUID } from "node:crypto";
-import { eq, like } from "../apps/server/node_modules/drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { Client, type Room } from "@colyseus/sdk";
 import { MAP_JSON } from "../packages/data/src/maps";
 import { extractMapObjects, parseTiledMap } from "../packages/shared/src/tiled";
@@ -59,7 +59,7 @@ interface Args {
 }
 
 function parseArgs(): Args {
-  const args: Args = { bots: 150, duration: 45, warmup: 8, joinRate: 25 };
+  const args: Args = { bots: 150, duration: 45, warmup: 65, joinRate: 25 };
   for (const raw of process.argv.slice(2)) {
     const [key, value] = raw.split("=");
     const numeric = Number(value);
@@ -84,6 +84,7 @@ interface MonsterLike {
 interface PlayerLike {
   x: number;
   y: number;
+  dead?: boolean;
 }
 
 interface RoomStateLike {
@@ -103,6 +104,8 @@ interface Bot {
   nextAttackMs: number;
   lastTargetAt: number;
   left: boolean;
+  sendErrors: number;
+  spawn: { x: number; y: number };
 }
 
 interface StatusSample {
@@ -164,13 +167,19 @@ async function status(token: string): Promise<{
   return { rooms: body.tick?.rooms ?? [] };
 }
 
-async function seedAccounts(bots: number): Promise<{
-  prefix: string;
-  rows: Array<{ accountId: string; characterId: string; token: string }>;
+async function seedAccounts(
+  prefix: string,
+  bots: number,
+): Promise<{
+  rows: Array<{
+    accountId: string;
+    characterId: string;
+    token: string;
+    spawn: { x: number; y: number };
+  }>;
 }> {
   const db = getDb();
-  const runId = Date.now().toString(36).slice(-5);
-  const prefix = `loadbot_${runId}`;
+  const runId = prefix.slice("loadbot_".length);
   const passwordHash = await hashPassword("load-bot-password");
   const accountRows = Array.from({ length: bots }, (_, index) => ({
     id: randomUUID(),
@@ -187,7 +196,13 @@ async function seedAccounts(bots: number): Promise<{
   }
   process.stdout.write(`seeded ${bots} accounts\n`);
 
-  const rows: Array<{ accountId: string; characterId: string; token: string }> = [];
+  const rows: Array<{
+    accountId: string;
+    characterId: string;
+    token: string;
+    spawn: { x: number; y: number };
+  }> = [];
+  const spawns = botSpawns(accountRows.length);
   const characterIds: string[] = [];
   for (let index = 0; index < accountRows.length; index++) {
     const account = accountRows[index]!;
@@ -208,23 +223,27 @@ async function seedAccounts(bots: number): Promise<{
         secret: config.jwtAccessSecret,
         ttlSeconds: 3600,
       }),
+      spawn: spawns[index]!,
     });
     if ((index + 1) % 25 === 0) {
       process.stdout.write(`created ${index + 1}/${bots} characters\n`);
     }
   }
 
-  const spawns = botSpawns(characterIds.length);
   for (let index = 0; index < characterIds.length; index++) {
     await db
       .update(characters)
       .set({ mapId: MAP, channel: CHANNEL, x: spawns[index]!.x, y: spawns[index]!.y })
       .where(eq(characters.id, characterIds[index]!));
   }
-  return { prefix, rows };
+  return { rows };
 }
 
-async function joinBot(row: { characterId: string; token: string }): Promise<Bot> {
+async function joinBot(row: {
+  characterId: string;
+  token: string;
+  spawn: { x: number; y: number };
+}): Promise<Bot> {
   const client = new Client(WS_URL);
   client.auth.token = row.token;
   const room = await client.joinOrCreate(MAP, {
@@ -242,11 +261,18 @@ async function joinBot(row: { characterId: string; token: string }): Promise<Bot
     nextAttackMs: 850 + Math.random() * 400,
     lastTargetAt: 0,
     left: false,
+    sendErrors: 0,
+    spawn: row.spawn,
   };
   room.onLeave(() => {
     bot.left = true;
   });
   return bot;
+}
+
+function ownPosition(bot: Bot): PlayerLike | null {
+  const state = bot.room.state as unknown as RoomStateLike;
+  return state.players?.get(bot.room.sessionId) ?? null;
 }
 
 function nearestMonster(bot: Bot): MonsterLike | null {
@@ -288,6 +314,7 @@ function driveBots(bots: Bot[], now: number): void {
         bot.room.send("input", { seq: bot.seq, kind: "dir", dir: randomDir() });
       } catch {
         // A bot that died or left is skipped; the metric only needs the rest.
+        bot.sendErrors++;
       }
     }
     if (now - bot.lastAttackAt >= bot.nextAttackMs) {
@@ -346,11 +373,10 @@ async function main(): Promise<number> {
   const token = await adminToken();
 
   const bots: Bot[] = [];
-  let prefix = "";
+  const prefix = `loadbot_${Date.now().toString(36).slice(-5)}`;
   let joinFailures = 0;
   try {
-    const seeded = await seedAccounts(args.bots);
-    prefix = seeded.prefix;
+    const seeded = await seedAccounts(prefix, args.bots);
     const rows = seeded.rows;
     process.stdout.write(`joining ${args.bots} bots at ${args.joinRate}/s on ${MAP} CH${CHANNEL}\n`);
     const joinDelay = 1000 / args.joinRate;
@@ -374,7 +400,6 @@ async function main(): Promise<number> {
     }
     const roomId = bots[0]!.room.roomId;
     process.stdout.write(`room ${roomId}\n`);
-
     const drive = setInterval(() => driveBots(bots, Date.now()), 100);
     const samples: StatusSample[] = [];
     const poll = setInterval(() => {
@@ -399,6 +424,9 @@ async function main(): Promise<number> {
     process.stdout.write(
       `warmup ${args.warmup}s, measuring ${args.duration}s...\n`,
     );
+    while (Date.now() < measureStart) {
+      await wait(250);
+    }
     while (Date.now() < measureEnd) {
       await wait(250);
     }
@@ -413,7 +441,11 @@ async function main(): Promise<number> {
         ? measured.reduce((sum, sample) => sum + sample.p95Ms, 0) / measured.length
         : 0;
     const peakPlayers = measured.reduce((max, sample) => Math.max(max, sample.players), 0);
-    const totalOverruns = measured.reduce((sum, sample) => sum + sample.overruns, 0);
+    // `overruns` is monotonic; compare the window's endpoints, never sum it.
+    const firstSample = measured[0];
+    const lastSample = measured[measured.length - 1];
+    const totalOverruns =
+      firstSample && lastSample ? Math.max(0, lastSample.overruns - firstSample.overruns) : 0;
     const avgTick =
       measured.length > 0
         ? measured.reduce((sum, sample) => sum + sample.avgMs, 0) / measured.length
@@ -426,12 +458,23 @@ async function main(): Promise<number> {
     console.log(`tick avg          ${avgTick.toFixed(2)} ms`);
     console.log(`tick p95 mean     ${meanP95.toFixed(2)} ms`);
     console.log(`tick p95 worst    ${worstP95.toFixed(2)} ms`);
-    console.log(`overruns (>50ms)  ${totalOverruns}`);
+    console.log(`overruns (>20ms)  ${totalOverruns}`);
     console.log(`monsters visible  ${bots.length > 0 ? monstersInState(bots[0]!) : 0}`);
     console.log(`bots that left    ${bots.filter((bot) => bot.left).length}`);
     const firstState = bots[0]!.room.state as unknown as RoomStateLike;
     const own = firstState.players?.get(bots[0]!.room.sessionId);
     console.log(`bot[0] position   ${own ? `${own.x.toFixed(0)},${own.y.toFixed(0)}` : "unknown"}`);
+    const dead = bots.filter((bot) => ownPosition(bot)?.dead).length;
+    const moved = bots.filter((bot) => {
+      const current = ownPosition(bot);
+      if (!current) {
+        return false;
+      }
+      return Math.hypot(current.x - bot.spawn.x, current.y - bot.spawn.y) > 2;
+    }).length;
+    console.log(`bots dead         ${dead}`);
+    console.log(`send errors       ${bots.reduce((sum, bot) => sum + bot.sendErrors, 0)}`);
+    console.log(`bots moved        ${moved}/${bots.length}`);
 
     let failures = 0;
     const fail = (label: string): void => {
@@ -445,6 +488,12 @@ async function main(): Promise<number> {
     if (worstP95 >= PASS_P95_MS) fail(`worst tick p95 ${worstP95.toFixed(2)} ms >= ${PASS_P95_MS}`);
     if (peakPlayers < Math.ceil(args.bots * PASS_JOIN_RATE)) {
       fail(`peak room players ${peakPlayers} below ${Math.ceil(args.bots * PASS_JOIN_RATE)}`);
+    }
+    if (bots.filter((bot) => bot.left).length > 0) {
+      fail(`${bots.filter((bot) => bot.left).length} bots disconnected mid-run`);
+    }
+    if (moved < Math.floor(bots.length * 0.7)) {
+      fail(`only ${moved}/${bots.length} bots moved`);
     }
     if (failures === 0) {
       console.log("\nPhase-10 load test passed.");

@@ -15,7 +15,7 @@ export interface TickStatsSnapshot {
 }
 
 const DEFAULT_CAPACITY = 1200; // 60 s at 20 Hz
-const DEFAULT_BUDGET_MS = 50;
+const DEFAULT_BUDGET_MS = 20;
 
 const EMPTY: TickStatsSnapshot = {
   count: 0,
