@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { MapId } from "@jadethrone/shared";
+import { DEFAULT_CHANNEL, type ChannelId, type MapId } from "@jadethrone/shared";
 
 /**
  * Short-lived, single-use warp tokens. The joining client cannot choose its
@@ -14,6 +14,7 @@ export interface WarpTokenBinding {
   accountId: string;
   characterId: string;
   tokenVersion: number;
+  channel?: ChannelId;
 }
 
 export interface WarpTokenPayload {
@@ -23,6 +24,7 @@ export interface WarpTokenPayload {
   accountId?: string;
   characterId?: string;
   tokenVersion?: number;
+  channel: ChannelId;
 }
 
 interface WarpTokenData extends WarpTokenPayload {
@@ -56,6 +58,7 @@ export function issueWarpToken(
     accountId: binding?.accountId,
     characterId: binding?.characterId,
     tokenVersion: binding?.tokenVersion,
+    channel: binding?.channel ?? DEFAULT_CHANNEL,
     expiresAt: Date.now() + WARP_TOKEN_TTL_MS,
   });
   return token;
@@ -88,6 +91,7 @@ export function checkWarpToken(
     accountId: data.accountId,
     characterId: data.characterId,
     tokenVersion: data.tokenVersion,
+    channel: data.channel,
   };
 }
 

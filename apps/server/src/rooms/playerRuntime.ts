@@ -1,7 +1,9 @@
 import {
+  clampChannelId,
   createMover,
   emptyInventory,
   type AccountRole,
+  type ChannelId,
   type Dir8,
   type InputMessage,
   type InventoryState,
@@ -29,8 +31,8 @@ export interface PlayerRuntime {
   characterId: string;
   /** Account role captured at authentication (GM commands/admin bus). */
   role: AccountRole;
-  /** Character channel (always 1 until Phase 9 channels). */
-  channel: number;
+  /** Map channel (CH1–CH4). */
+  channel: ChannelId;
   /** GM invisibility: excluded from monster targeting and other clients' views. */
   invisible: boolean;
   /** Account token generation captured at authentication. */
@@ -146,7 +148,7 @@ export interface PlayerIdentity {
   characterId: string;
   tokenVersion: number;
   role?: AccountRole;
-  channel?: number;
+  channel?: ChannelId;
   progression?: PlayerProgression;
   skillMastery?: SkillMasteryMap;
   pvpMode?: PvpMode;
@@ -175,7 +177,7 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     accountId: identity.accountId,
     characterId: identity.characterId,
     role: identity.role ?? "player",
-    channel: identity.channel ?? 1,
+    channel: clampChannelId(identity.channel),
     invisible: false,
     tokenVersion: identity.tokenVersion,
     mover: createMover(spawn),

@@ -6,6 +6,7 @@ import {
   ROOM_NAME_VILLAGE,
   emptyInventory,
   type ClassId,
+  type ChannelId,
   type Gender,
   type InventoryState,
   type ItemBonus,
@@ -30,7 +31,7 @@ import {
   assignReceivedSlots,
   TradeExecutionError,
 } from "../../src/items/tradeTransaction";
-import { consumeWarpTokenPayload, type WarpTokenPayload } from "../../src/rooms/warpTokens";
+import { checkWarpToken, type WarpTokenPayload } from "../../src/rooms/warpTokens";
 
 /**
  * Room-test fake services. The real auth is covered by `joinAuth.test.ts` and
@@ -58,6 +59,7 @@ export interface FakeJoinOptions {
   y?: number;
   spawnX?: number;
   spawnY?: number;
+  channel?: ChannelId;
   warpToken?: string;
 }
 
@@ -232,6 +234,7 @@ export function createFakeServices(): FakeServices {
       account,
       character: makeCharacter(account.id, map, x, y, options),
       warpSpawn: null,
+      channel: options.channel ?? 1,
     };
     identities.set(identity.character.id, identity);
     return identity;
@@ -246,8 +249,8 @@ export function createFakeServices(): FakeServices {
     let warp: WarpTokenPayload | null = null;
     if (options.warpToken) {
       warp =
-        consumeWarpTokenPayload(options.warpToken, ROOM_NAME_VILLAGE) ??
-        consumeWarpTokenPayload(options.warpToken, ROOM_NAME_FIELDS);
+        checkWarpToken(options.warpToken, ROOM_NAME_VILLAGE) ??
+        checkWarpToken(options.warpToken, ROOM_NAME_FIELDS);
       if (!warp) {
         return null;
       }
@@ -259,17 +262,22 @@ export function createFakeServices(): FakeServices {
     const spawn = spawnFor(map);
     const x = warp?.x ?? options.spawnX ?? existing?.character.x ?? spawn.x;
     const y = warp?.y ?? options.spawnY ?? existing?.character.y ?? spawn.y;
+    const channel = warp?.channel ?? options.channel ?? existing?.channel ?? 1;
 
     const identity: JoinIdentity = existing
       ? {
           ...existing,
-          character: { ...existing.character, map, x, y },
+          character: { ...existing.character, map, x, y, channel },
           warpSpawn: warp ? { mapId: warp.map, x, y } : null,
+          channel,
+          warpToken: options.warpToken,
         }
       : {
           account: makeAccount(options),
-          character: makeCharacter(characterId, map, x, y, { ...options, characterId }),
+          character: makeCharacter(characterId, map, x, y, { ...options, characterId, channel }),
           warpSpawn: warp ? { mapId: warp.map, x, y } : null,
+          channel,
+          warpToken: options.warpToken,
         };
 
     identities.set(identity.character.id, identity);

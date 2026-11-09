@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { ColyseusTestServer } from "@colyseus/testing";
 import {
   MSG,
-  ROOM_NAME_FIELDS,
+  ROOM_NAME_VALLEY,
   ROOM_NAME_VILLAGE,
   type CombatEventPayload,
   type PvpMode,
@@ -132,9 +132,9 @@ afterAll(async () => {
 
 describe("room pvp combat", () => {
   it("damages a hostile player in a PvP-allowed map", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const firstIdentity = fake.prepare({ name: "PvpOne", map: ROOM_NAME_FIELDS, kingdom: "ember" });
-    const secondIdentity = fake.prepare({ name: "PvpTwo", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
+    const firstIdentity = fake.prepare({ name: "PvpOne", map: ROOM_NAME_VALLEY, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "PvpTwo", map: ROOM_NAME_VALLEY, kingdom: "gale" });
     const first = await join(room, firstIdentity);
     const second = await join(room, secondIdentity);
     await setMode(first, "free", room, first.sessionId);
@@ -184,9 +184,9 @@ describe("room pvp combat", () => {
   });
 
   it("blocks party friendly fire even in Free mode", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const firstIdentity = fake.prepare({ name: "PartyA", map: ROOM_NAME_FIELDS, kingdom: "ember" });
-    const secondIdentity = fake.prepare({ name: "PartyB", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
+    const firstIdentity = fake.prepare({ name: "PartyA", map: ROOM_NAME_VALLEY, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "PartyB", map: ROOM_NAME_VALLEY, kingdom: "gale" });
     const first = await join(room, firstIdentity);
     const second = await join(room, secondIdentity);
     const invitePromise = second.waitForMessage(MSG.partyInvite, 2000);
@@ -214,9 +214,9 @@ describe("room pvp combat", () => {
   });
 
   it("blocks guild friendly fire even in Free mode", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const firstIdentity = fake.prepare({ name: "GuildA", map: ROOM_NAME_FIELDS, kingdom: "ember" });
-    const secondIdentity = fake.prepare({ name: "GuildB", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
+    const firstIdentity = fake.prepare({ name: "GuildA", map: ROOM_NAME_VALLEY, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "GuildB", map: ROOM_NAME_VALLEY, kingdom: "gale" });
     const first = await join(room, firstIdentity);
     const second = await join(room, secondIdentity);
     setGuild(room, first.sessionId, "guild-phase8");
@@ -240,10 +240,10 @@ describe("room pvp combat", () => {
   });
 
   it("filters party members from a hostile AoE crowd", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
     const firstIdentity = fake.prepare({
       name: "AoeCaster",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "ember",
       level: 20,
       doctrine: "blade",
@@ -251,13 +251,13 @@ describe("room pvp combat", () => {
     });
     const hostileIdentity = fake.prepare({
       name: "AoeHostile",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "gale",
       level: 20,
     });
     const allyIdentity = fake.prepare({
       name: "AoeAlly",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "gale",
       level: 20,
     });
@@ -302,15 +302,15 @@ describe("room pvp combat", () => {
   });
 
   it("cannot hit an invisible or stealthed player", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
     const firstIdentity = fake.prepare({
       name: "HiddenHunter",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "ember",
     });
     const secondIdentity = fake.prepare({
       name: "HiddenTarget",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "gale",
     });
     const first = await join(room, firstIdentity);
@@ -342,15 +342,15 @@ describe("room pvp combat", () => {
   });
 
   it("does not apply PvE XP loss or rewards on a PvP death", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
     const firstIdentity = fake.prepare({
       name: "DeathDealer",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "ember",
     });
     const secondIdentity = fake.prepare({
       name: "DeathVictim",
-      map: ROOM_NAME_FIELDS,
+      map: ROOM_NAME_VALLEY,
       kingdom: "gale",
     });
     const first = await join(room, firstIdentity);
@@ -377,9 +377,9 @@ describe("room pvp combat", () => {
   });
 
   it("rejects a peaceful target in a PvP map", async () => {
-    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
-    const firstIdentity = fake.prepare({ name: "Aggressor", map: ROOM_NAME_FIELDS, kingdom: "ember" });
-    const secondIdentity = fake.prepare({ name: "Pacifist", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VALLEY, {});
+    const firstIdentity = fake.prepare({ name: "Aggressor", map: ROOM_NAME_VALLEY, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "Pacifist", map: ROOM_NAME_VALLEY, kingdom: "gale" });
     const first = await join(room, firstIdentity);
     const second = await join(room, secondIdentity);
     await setMode(first, "free", room, first.sessionId);

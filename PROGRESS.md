@@ -329,7 +329,7 @@ Plan: `docs/plans/phase-9.md`.
 - [x] Task 8 — Teleporter NPC kind and data
 - [x] Task 9 — Server teleporter travel intent
 - [x] Task 10 — Client teleporter dialog and real world map
-- [ ] Task 11 — Channels core: filterBy, metadata, auth and warp tokens
+- [x] Task 11 — Channels core: filterBy, metadata, auth and warp tokens
 - [ ] Task 12 — Channel picker UI
 - [ ] Task 13 — Monsters, spawn groups and drops to level 60
 - [ ] Task 14 — Items and shops to level 60

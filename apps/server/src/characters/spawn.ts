@@ -12,6 +12,8 @@ export interface PositionSave {
 
 /** Everything the room persists on autosave, leave, kick, warp and level-up. */
 export interface CharacterSave extends PositionSave {
+  /** Channel the character was last seen on (1–4). */
+  channel?: number;
   hp: number;
   mp: number;
   xp: number;

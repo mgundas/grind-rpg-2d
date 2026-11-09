@@ -66,6 +66,8 @@ import {
   guildLeaveMessageSchema,
   guildRespondMessageSchema,
   guildSetRankMessageSchema,
+  channelSwitchMessageSchema,
+  clampChannelId,
   inputMessageSchema,
   interactNpcMessageSchema,
   isClassId,
@@ -113,6 +115,8 @@ import {
   type AdminGiveItemRequest,
   type AdminUpdateCharacterRequest,
   type BossTimerPayload,
+  type ChannelId,
+  type ChannelSwitchErrorPayload,
   type BuffStatePayload,
   type BuffView,
   type ChatMsgPayload,
@@ -201,7 +205,7 @@ import { buildInventorySnapshot, buildWarehouseSnapshot } from "./items";
 import { createPlayerRuntime, type PlayerRuntime } from "./playerRuntime";
 import type { GroundItemRuntime } from "./groundItems";
 import { GroundItemState, PlayerState, SpiritStoneState, WorldState } from "./state/WorldState";
-import { issueWarpToken } from "./warpTokens";
+import { consumeWarpTokenPayload, issueWarpToken } from "./warpTokens";
 import { getServerServices } from "../services";
 import { buildAdminPresence, findGrantedStack, toAdminError } from "./adminActions";
 import { ServiceError } from "../errors";
@@ -304,12 +308,17 @@ const WARP_CLIENT_LEAVE_TIMEOUT_MS = 2000;
 /** Dirty position autosave cadence (GAME_DESIGN.md §10.2). */
 const AUTOSAVE_INTERVAL_MS = 60_000;
 
+interface MapRoomMetadata {
+  mapId: MapId;
+  channel: ChannelId;
+}
+
 /**
- * One room instance per map (GAME_DESIGN.md §10.2). Authentication happens at
- * matchmaking (`static onAuth`); the room only trusts `client.auth`, the
- * server-issued spawn and the DB-backed persistence services.
+ * One room instance per map channel (GAME_DESIGN.md §10.2). Authentication
+ * happens at matchmaking (`static onAuth`); the room only trusts `client.auth`,
+ * the server-issued spawn and the DB-backed persistence services.
  */
-export class MapRoom extends Room {
+export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
   maxClients = MAX_PLAYERS_PER_CHANNEL;
   maxMessagesPerSecond = MAX_MESSAGES_PER_SECOND;
   patchRate = 50;
@@ -317,6 +326,7 @@ export class MapRoom extends Room {
   state = new WorldState();
 
   private mapId!: MapId;
+  private channel: ChannelId = clampChannelId(undefined);
   private assets!: MapAssets;
   private runtimes = new Map<string, PlayerRuntime>();
   private monsterRuntimes = new Map<string, MonsterRuntime>();
@@ -358,11 +368,17 @@ export class MapRoom extends Room {
     return getServerServices().joinAuthenticator(token, options, { ip: context.ip });
   }
 
-  onCreate(): void {
+  onCreate(options: { channel?: unknown } = {}): void {
     if (!isMapId(this.roomName)) {
       throw new Error(`unknown map room "${this.roomName}"`);
     }
     this.mapId = this.roomName;
+    // Colyseus seeds metadata.channel from the join option; clamp defensively
+    // so a reservation without a channel still creates a CH1 room.
+    this.channel = clampChannelId(options.channel ?? this.metadata?.channel);
+    if (this.metadata?.channel !== this.channel || this.metadata?.mapId !== this.mapId) {
+      void this.setMetadata({ mapId: this.mapId, channel: this.channel });
+    }
     this.assets = loadMapAssets(this.mapId);
     this.rng = getServerServices().createRandomSource();
     this.spawns = createSpawnManager({
@@ -1040,6 +1056,15 @@ export class MapRoom extends Room {
       this.teleportTo(client, parsed.data.targetMap);
     });
 
+    this.onMessage(MSG.channelSwitch, (client, raw) => {
+      const parsed = channelSwitchMessageSchema.safeParse(raw);
+      if (!parsed.success) {
+        logger.warn({ session: client.sessionId }, "dropped invalid channelSwitch message");
+        return;
+      }
+      this.switchChannel(client, clampChannelId(parsed.data.channel));
+    });
+
     this.onMessage(MSG.shopBuy, (client, raw) => {
       const parsed = shopBuyMessageSchema.safeParse(raw);
       if (!parsed.success) {
@@ -1296,8 +1321,12 @@ export class MapRoom extends Room {
       throw new Error("authenticated join without client.auth");
     }
 
-    // The warp token was consumed and validated during matchmaking. Fall back
-    // to the character's saved position for a normal join.
+    // Matchmaking only peeks at the warp token (a full room is retried several
+    // times); burn it here, once the seat is actually ours.
+    if (auth.warpToken && !consumeWarpTokenPayload(auth.warpToken, this.mapId)) {
+      throw new Error("warp token was already consumed");
+    }
+    // Fall back to the character's saved position for a normal join.
     const requested = auth.warpSpawn ?? { x: auth.character.x, y: auth.character.y };
     const spawn = this.resolveSpawn(requested.x, requested.y);
     // Inventory is loaded before the player exists: a broken character row must
@@ -1316,7 +1345,7 @@ export class MapRoom extends Room {
       characterId: auth.character.id,
       tokenVersion: auth.account.tokenVersion,
       role: auth.account.role,
-      channel: auth.character.channel,
+      channel: auth.channel,
       progression,
       skillMastery: auth.character.skillMastery ?? {},
       pvpMode: auth.character.pvpMode,
@@ -1333,7 +1362,8 @@ export class MapRoom extends Room {
       progression.mp !== auth.character.mp ||
       progression.statPoints !== auth.character.statPoints ||
       progression.doctrine !== auth.character.doctrine ||
-      progression.skillPoints !== auth.character.skillPoints;
+      progression.skillPoints !== auth.character.skillPoints ||
+      auth.channel !== auth.character.channel;
     if (auth.warpSpawn) {
       runtime.warpCooldownUntilMs = Date.now() + WARP_COOLDOWN_MS;
     }
@@ -2165,7 +2195,7 @@ export class MapRoom extends Room {
    */
   private enqueueSave(
     runtime: PlayerRuntime,
-    destination: { mapId: MapId; x: number; y: number },
+    destination: { mapId: MapId; x: number; y: number; channel?: ChannelId },
   ): Promise<boolean> {
     const snapshot = this.characterSave(runtime, destination);
     const run = async (): Promise<boolean> => {
@@ -2193,13 +2223,14 @@ export class MapRoom extends Room {
 
   private characterSave(
     runtime: PlayerRuntime,
-    destination: { mapId: MapId; x: number; y: number },
+    destination: { mapId: MapId; x: number; y: number; channel?: ChannelId },
   ): CharacterSave {
     const progression = runtime.progression;
     return {
       mapId: destination.mapId,
       x: destination.x,
       y: destination.y,
+      channel: destination.channel ?? runtime.channel,
       hp: progression.hp,
       mp: progression.mp,
       xp: progression.xp,
@@ -2217,6 +2248,7 @@ export class MapRoom extends Room {
     return (
       runtime.mover.pos.x === snapshot.x &&
       runtime.mover.pos.y === snapshot.y &&
+      runtime.channel === snapshot.channel &&
       progression.hp === snapshot.hp &&
       progression.mp === snapshot.mp &&
       progression.xp === snapshot.xp &&
@@ -3489,6 +3521,43 @@ export class MapRoom extends Room {
     initial.inventoryChain = next.then(
       () => undefined,
       () => undefined,
+    );
+  }
+
+  private sendChannelError(client: Client, code: ChannelSwitchErrorPayload["code"]): void {
+    this.safeSend(client, MSG.channelSwitchError, { code } satisfies ChannelSwitchErrorPayload);
+  }
+
+  /** Same-map warp to another channel; the position is preserved. */
+  private switchChannel(client: Client, targetChannel: ChannelId): void {
+    const runtime = this.runtimes.get(client.sessionId);
+    if (!runtime) {
+      return;
+    }
+    if (runtime.warping) {
+      this.sendChannelError(client, "warping");
+      return;
+    }
+    if (runtime.dead) {
+      this.sendChannelError(client, "dead");
+      return;
+    }
+    if (runtime.channel === targetChannel) {
+      this.sendChannelError(client, "same_channel");
+      return;
+    }
+    if (Date.now() < runtime.warpCooldownUntilMs || !this.takeItemCommandToken(runtime)) {
+      this.sendChannelError(client, "cooldown");
+      return;
+    }
+    const x = runtime.mover.pos.x;
+    const y = runtime.mover.pos.y;
+    void this.beginWarp(client, { mapId: this.mapId, x, y, channel: targetChannel }).then(
+      (accepted) => {
+        if (!accepted) {
+          this.sendChannelError(client, "internal");
+        }
+      },
     );
   }
 
@@ -5927,7 +5996,7 @@ export class MapRoom extends Room {
    */
   private async beginWarp(
     client: Client,
-    destination: { mapId: MapId; x: number; y: number },
+    destination: { mapId: MapId; x: number; y: number; channel?: ChannelId },
     options: { awaitInventory?: boolean } = {},
   ): Promise<boolean> {
     const runtime = this.runtimes.get(client.sessionId);
@@ -5950,11 +6019,14 @@ export class MapRoom extends Room {
       await runtime.inventoryChain?.catch(() => undefined);
     }
     const services = getServerServices();
+    const channel = destination.channel ?? runtime.channel;
     const source = {
       mapId: this.mapId,
       x: runtime.mover.pos.x,
       y: runtime.mover.pos.y,
+      channel: runtime.channel,
     };
+    runtime.channel = channel;
 
     const saved = await this.enqueueSave(runtime, destination);
     if (!saved) {
@@ -5984,10 +6056,12 @@ export class MapRoom extends Room {
         accountId: runtime.accountId,
         characterId: runtime.characterId,
         tokenVersion: runtime.tokenVersion,
+        channel,
       });
       const reservation = await this.reserveSeat(destination.mapId, {
         characterId: runtime.characterId,
         map: destination.mapId,
+        channel,
         warpToken: token,
       });
       if (!this.clients.some((candidate) => candidate.sessionId === client.sessionId)) {
@@ -6000,6 +6074,7 @@ export class MapRoom extends Room {
         map: destination.mapId,
         x: destination.x,
         y: destination.y,
+        channel,
         reservation,
       };
       client.send(MSG.warp, payload);
@@ -6059,6 +6134,10 @@ export class MapRoom extends Room {
         }
         this.updateInterest();
       }
+      const full = error instanceof Error && /already full/i.test(error.message);
+      if (full) {
+        this.sendChannelError(client, "channel_full");
+      }
       logger.error({ roomId: this.roomId, session: client.sessionId, error }, "warp failed");
       return false;
     }
@@ -6070,7 +6149,7 @@ export class MapRoom extends Room {
    */
   reserveSeat(
     map: MapId,
-    options: { characterId: string; map: MapId; warpToken: string },
+    options: { characterId: string; map: MapId; channel: ChannelId; warpToken: string },
   ): ReturnType<typeof matchMaker.joinOrCreate> {
     return matchMaker.joinOrCreate(map, options, {
       headers: new Headers(),

@@ -192,8 +192,19 @@ export const MAX_PLAYERS_PER_CHANNEL = 200;
 export const CHANNEL_IDS = [1, 2, 3, 4] as const;
 export type ChannelId = (typeof CHANNEL_IDS)[number];
 export const DEFAULT_CHANNEL: ChannelId = 1;
-export const MIN_CHANNEL = CHANNEL_IDS[0];
-export const MAX_CHANNEL = CHANNEL_IDS[CHANNEL_IDS.length - 1];
+export const MIN_CHANNEL: ChannelId = 1;
+export const MAX_CHANNEL: ChannelId = 4;
+
+export function isChannelId(value: unknown): value is ChannelId {
+  return (
+    typeof value === "number" && Number.isInteger(value) && value >= MIN_CHANNEL && value <= MAX_CHANNEL
+  );
+}
+
+/** Stale or corrupt values (a 0/NULL column, a bad join option) fall back to CH1. */
+export function clampChannelId(value: unknown): ChannelId {
+  return isChannelId(value) ? value : DEFAULT_CHANNEL;
+}
 
 /** Mounted walk speed is 300 px/s (GAME_DESIGN.md §5). */
 export const MOUNT_SPEED_MULT = 1.5;

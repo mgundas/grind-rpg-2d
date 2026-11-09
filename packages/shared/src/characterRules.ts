@@ -1,4 +1,4 @@
-import { MAP_IDS, type MapId } from "./constants";
+import { MAP_IDS, type ChannelId, type MapId } from "./constants";
 
 /**
  * Character-creation rules shared by the REST API, the room authenticator and
@@ -41,6 +41,7 @@ export interface CharacterSummary extends CharacterAppearance {
   map: MapId;
   x: number;
   y: number;
+  channel: ChannelId;
   createdAt: string;
 }
 

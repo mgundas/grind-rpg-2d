@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { MAP_IDS, type MapId } from "@jadethrone/shared";
+import { MAP_IDS, clampChannelId, type ChannelId, type MapId } from "@jadethrone/shared";
 import { logger } from "../logger";
 import { isBanned, type AccountAuthRecord } from "./accountService";
 import { verifyAccessToken } from "./tokens";
@@ -17,6 +17,8 @@ import type { WarpTokenPayload } from "../rooms/warpTokens";
 export interface JoinOptions {
   characterId: string;
   map: MapId;
+  /** Requested channel; invalid/missing values resolve to CH1. */
+  channel: ChannelId;
   warpToken?: string;
 }
 
@@ -25,6 +27,10 @@ export interface JoinIdentity {
   character: CharacterRecord;
   /** Present only when the join presented a valid server-issued warp token. */
   warpSpawn: { mapId: MapId; x: number; y: number } | null;
+  /** Effective channel for this session (token channel for warps). */
+  channel: ChannelId;
+  /** Raw warp token to burn in onJoin once the seat is actually taken. */
+  warpToken?: string;
 }
 
 export type JoinAuthenticator = (
@@ -40,18 +46,22 @@ export interface JoinAuthDeps {
     accountId: string,
     characterId: string,
   ) => Promise<CharacterRecord | null>;
-  /** Single-use: burns a valid token and returns its account/character binding. */
-  consumeWarpToken: (token: string, map: MapId) => WarpTokenPayload | null;
+  /** Peek: matchmaking retries on a full room, so onAuth must not burn it. */
+  checkWarpToken: (token: string, map: MapId) => WarpTokenPayload | null;
 }
 const joinOptionsSchema = z.object({
   characterId: z.uuid(),
   map: z.enum(MAP_IDS),
+  channel: z.unknown().optional(),
   warpToken: z.string().min(1).optional(),
 });
 
 export function parseJoinOptions(options: unknown): JoinOptions | null {
   const parsed = joinOptionsSchema.safeParse(options ?? {});
-  return parsed.success ? parsed.data : null;
+  if (!parsed.success) {
+    return null;
+  }
+  return { ...parsed.data, channel: clampChannelId(parsed.data.channel) };
 }
 
 function reject(reason: string, ip?: string | string[]): null {
@@ -71,7 +81,7 @@ export async function authenticateJoin(
   }
 
   if (parsed.warpToken) {
-    const warp = deps.consumeWarpToken(parsed.warpToken, parsed.map);
+    const warp = deps.checkWarpToken(parsed.warpToken, parsed.map);
     if (!warp?.accountId || !warp.characterId || warp.characterId !== parsed.characterId) {
       return reject("bad_warp_token", context.ip);
     }
@@ -89,10 +99,15 @@ export async function authenticateJoin(
     if (!character || character.map !== parsed.map) {
       return reject("warp_character_mismatch", context.ip);
     }
+    if (warp.channel !== parsed.channel) {
+      return reject("warp_channel_mismatch", context.ip);
+    }
     return {
       account,
       character,
       warpSpawn: { mapId: warp.map, x: warp.x, y: warp.y },
+      channel: warp.channel,
+      warpToken: parsed.warpToken,
     };
   }
 
@@ -123,5 +138,5 @@ export async function authenticateJoin(
     return reject("character_map_mismatch", context.ip);
   }
 
-  return { account, character, warpSpawn: null };
+  return { account, character, warpSpawn: null, channel: parsed.channel };
 }

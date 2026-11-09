@@ -4,6 +4,7 @@ import {
   CHARACTER_SLOTS,
   isClassId,
   isGender,
+  clampChannelId,
   isMapId,
   isValidCharacterName,
   isValidHairColor,
@@ -54,6 +55,7 @@ function normalizeSave(save: CharacterSave): CharacterSave {
     mapId: save.mapId,
     x: save.x,
     y: save.y,
+    channel: clampChannelId(save.channel),
     hp: boundedInt(save.hp, 0, MAX_HP_MP),
     mp: boundedInt(save.mp, 0, MAX_HP_MP),
     xp: boundedInt(save.xp, 0, Number.MAX_SAFE_INTEGER),
@@ -337,7 +339,7 @@ export async function saveCharacterStates(
 
   const values = normalized.map(
     (save) =>
-      sql`(${save.characterId}::uuid, ${save.mapId}::text, ${save.x}::real, ${save.y}::real, ${save.hp}::int, ${save.mp}::int, ${save.xp}::bigint, ${save.level}::int, ${save.statVit}::int, ${save.statInt}::int, ${save.statStr}::int, ${save.statDex}::int, ${save.statPoints}::int)`,
+      sql`(${save.characterId}::uuid, ${save.mapId}::text, ${save.x}::real, ${save.y}::real, ${save.channel}::int, ${save.hp}::int, ${save.mp}::int, ${save.xp}::bigint, ${save.level}::int, ${save.statVit}::int, ${save.statInt}::int, ${save.statStr}::int, ${save.statDex}::int, ${save.statPoints}::int)`,
   );
   try {
     await db.execute(sql`
@@ -348,7 +350,7 @@ export async function saveCharacterStates(
           stat_str = v.stat_str, stat_dex = v.stat_dex,
           stat_points = v.stat_points, updated_at = now()
       FROM (VALUES ${sql.join(values, sql`, `)}) AS v(
-        id, map_id, x, y, hp, mp, xp, level,
+        id, map_id, x, y, channel, hp, mp, xp, level,
         stat_vit, stat_int, stat_str, stat_dex, stat_points
       )
       WHERE c.id = v.id

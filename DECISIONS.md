@@ -339,3 +339,17 @@ kept and the map is rethemed and relabelled "Ember Highlands" in
 connection to point back at its source, so travel can never strand a player on a
 map with no return path. The dungeon flag also forbids PvP and is what the
 server uses to decide that a map is instanced (Phase 9 task 18).
+
+## D79 — Channels are filtered rooms with a peeked warp token
+
+CH1–CH4 are real room shards: every map handler is registered with
+`.filterBy(["channel"])`, and Colyseus seeds `metadata.channel` from the join
+option, so one room exists per (map, channel) and `joinOrCreate` never invents a
+"CH1b" — a full channel rejects at seat reservation instead. The channel is
+clamped to 1–4 everywhere a stale value can appear (DB row, join option, token),
+never rejected, so a bad column cannot lock a player out. Warp tokens now carry
+the channel, and matchmaking only *peeks* at them: a full room is retried up to
+five times, so burning the token in `onAuth` would destroy it. `onJoin` consumes
+it once the seat is ours. Switching channels reuses `beginWarp` to the same map
+at the current position, which keeps the `character.map === options.map` auth
+check true and preserves the 2 s anti-ping-pong cooldown.

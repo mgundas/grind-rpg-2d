@@ -1,8 +1,10 @@
 import {
+  CHANNEL_IDS,
   CHAT_MAX_LEN,
   MAP_IDS,
   MAX_GOLD,
   TRADE_MAX_OFFER_ITEMS,
+  type ChannelId,
   type MapId,
   type Stats,
 } from "./constants";
@@ -52,6 +54,8 @@ export const MSG = {
   npcDialog: "npcDialog",
   teleportRequest: "teleportRequest",
   teleportError: "teleportError",
+  channelSwitch: "channelSwitch",
+  channelSwitchError: "channelSwitchError",
   shopBuy: "shopBuy",
   shopSell: "shopSell",
   warehouseOpen: "warehouseOpen",
@@ -197,6 +201,7 @@ export interface WarpPayload {
   map: MapId;
   x: number;
   y: number;
+  channel: ChannelId;
   reservation: SeatReservationPayload;
 }
 
@@ -338,6 +343,24 @@ export const pickupMessageSchema = z.object({ dropId: instanceIdSchema }).strict
 export type PickupMessage = z.infer<typeof pickupMessageSchema>;
 
 export const interactNpcMessageSchema = z.object({ npcId: npcIdSchema }).strict();
+
+export const channelIdSchema = z.number().int().min(1).max(4);
+
+export const channelSwitchMessageSchema = z.object({ channel: channelIdSchema }).strict();
+export type ChannelSwitchMessage = z.infer<typeof channelSwitchMessageSchema>;
+
+export type ChannelSwitchErrorCode =
+  | "channel_full"
+  | "cooldown"
+  | "dead"
+  | "warping"
+  | "same_channel"
+  | "invalid_channel"
+  | "internal";
+
+export interface ChannelSwitchErrorPayload {
+  code: ChannelSwitchErrorCode;
+}
 
 export const teleportRequestMessageSchema = z
   .object({ npcId: npcIdSchema, targetMap: z.enum(MAP_IDS) })

@@ -9,6 +9,8 @@ import {
   KINGDOM_IDS,
   KINGDOMS,
   MAP_IDS,
+  clampChannelId,
+  isChannelId,
   MAP_LABELS,
   isClassId,
   isGender,
@@ -63,5 +65,24 @@ describe("character creation constants", () => {
   it("keeps kingdom ids and map labels in sync with their data", () => {
     expect(KINGDOM_IDS).toEqual(KINGDOMS.map((kingdom) => kingdom.id));
     expect(Object.keys(MAP_LABELS).sort()).toEqual([...MAP_IDS].sort());
+  });
+});
+
+describe("channel ids", () => {
+  it("accepts CH1–CH4 only", () => {
+    for (const value of [1, 2, 3, 4]) {
+      expect(isChannelId(value)).toBe(true);
+    }
+    for (const value of [0, 5, -1, 1.5, "2", null, undefined]) {
+      expect(isChannelId(value)).toBe(false);
+    }
+  });
+
+  it("clamps stale values to CH1", () => {
+    expect(clampChannelId(3)).toBe(3);
+    expect(clampChannelId(0)).toBe(1);
+    expect(clampChannelId(99)).toBe(1);
+    expect(clampChannelId(undefined)).toBe(1);
+    expect(clampChannelId("x")).toBe(1);
   });
 });

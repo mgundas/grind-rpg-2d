@@ -1,4 +1,5 @@
 import {
+  clampChannelId,
   isClassId,
   isGender,
   isMapId,
@@ -104,6 +105,7 @@ export function toCharacterSummary(row: CharacterRow): CharacterSummary {
     map: row.mapId,
     x: row.x,
     y: row.y,
+    channel: clampChannelId(row.channel),
     gender: row.gender,
     hairStyle: row.hairStyle,
     hairColor: row.hairColor,

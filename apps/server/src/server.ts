@@ -23,7 +23,7 @@ import {
 } from "./characters/characterSkills";
 import { getDb, type Db } from "./db/client";
 import type { CharacterRecord } from "./characters/characterMappers";
-import { consumeWarpTokenPayload } from "./rooms/warpTokens";
+import { checkWarpToken } from "./rooms/warpTokens";
 import { MapRoom } from "./rooms/MapRoom";
 import { requireAdminCookie } from "./http/adminCookie";
 import { errorHandler, notFoundHandler } from "./http/errors";
@@ -97,7 +97,7 @@ function defaultJoinAuthenticator(db: Db, accessSecret: string): JoinAuthenticat
         getAccountById: (accountId) => getAccountById(db, accountId),
         getCharacterForAccount: (accountId, characterId) =>
           getCharacterForAccount(db, accountId, characterId),
-        consumeWarpToken: (warpToken, map: MapId) => consumeWarpTokenPayload(warpToken, map),
+        checkWarpToken: (warpToken, map: MapId) => checkWarpToken(warpToken, map),
       },
       token,
       options,
@@ -184,7 +184,9 @@ export function createGameServer(deps: ServerDeps = {}) {
   });
 
   const server = defineServer({
-    rooms: Object.fromEntries(MAP_IDS.map((mapId) => [mapId, defineRoom(MapRoom)])),
+    rooms: Object.fromEntries(
+      MAP_IDS.map((mapId) => [mapId, defineRoom(MapRoom).filterBy(["channel"])]),
+    ),
     express: (app) => {
       app.disable("x-powered-by");
       app.get("/api/health", healthHandler);
