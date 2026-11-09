@@ -171,7 +171,7 @@ describeDb("admin mutation routes", () => {
       method: "POST",
       token: adminToken,
     });
-    expect(kick.status).toBe(204);
+    expect(kick.status).toBe(409);
     const teleport = await request(`/api/admin/players/${targetCharacterId}/teleport-town`, {
       method: "POST",
       token: adminToken,

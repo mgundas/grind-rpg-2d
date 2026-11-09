@@ -63,10 +63,10 @@ async function api(path, { method = "GET", body, token } = {}) {
 
 function pgClient() {
   return new PgClient({
-    host: process.env.POSTGRES_HOST ?? "127.0.0.1",
+    host: process.env.POSTGRES_HOST ?? "localhost",
     port: Number(process.env.POSTGRES_PORT ?? 5432),
     user: process.env.POSTGRES_USER ?? "jade",
-    password: process.env.POSTGRES_PASSWORD ?? "",
+    password: process.env.POSTGRES_PASSWORD ?? "jade_dev",
     database: process.env.POSTGRES_DB ?? "jade_throne",
   });
 }
@@ -136,10 +136,10 @@ function nextMessage(room, type, predicate = () => true, timeoutMs = 4000) {
   });
 }
 
-async function join(player) {
+async function join(player, map = MAP) {
   const client = new Client(WS_URL);
   client.auth.token = player.auth.tokens.accessToken;
-  const room = await client.joinOrCreate(MAP, { characterId: player.character.id, map: MAP });
+  const room = await client.joinOrCreate(map, { characterId: player.character.id, map });
   await waitUntil(() => Boolean(room.state?.players?.get(room.sessionId)), 5000, "join");
   let snapshot = null;
   room.onMessage("inventory", (payload) => {
@@ -160,6 +160,7 @@ async function main() {
 
   const one = await createPlayer("warrior", "P8A", "ember");
   const other = await createPlayer("warrior", "P8B", "gale");
+  const whisperTarget = await createPlayer("warrior", "P8C", "gale");
   await seedCharacter(one.character.id, {
     level: 30,
     gold: 600_000,
@@ -182,6 +183,7 @@ async function main() {
 
   const first = await join(one);
   const second = await join(other);
+  const third = await join(whisperTarget, "map_ember_village");
   const room = first.room; // both are in separate field rooms; use social delivery
   const firstClient = first.room;
 
@@ -198,24 +200,53 @@ async function main() {
   await joinedGuild;
   check("guild invite accepted", true);
 
+  // Guild mates cannot damage each other, so leave before the PvP check.
+  const leftGuild = nextMessage(second.room, "guildState", (payload) => !payload.guild);
+  second.room.send("guildLeave", {});
+  await leftGuild;
+  check("guild left before pvp", true);
+
   const friendsState = nextMessage(firstClient, "friendsState", (payload) =>
-    payload.friends?.some((friend) => friend.characterId === other.character.id),
+    payload.friends?.some((friend) => friend.characterId === whisperTarget.character.id),
   );
-  firstClient.send("friendAdd", { characterId: other.character.id });
+  firstClient.send("friendAdd", { characterId: whisperTarget.character.id });
   const friends = await friendsState;
   check("friend added", friends.friends.some((friend) => friend.online));
 
-  const whisper = nextMessage(second.room, "chatMsg", (payload) => payload.channel === "whisper");
-  firstClient.send("chat", { text: "hello across maps", channel: "whisper", targetName: other.character.name });
+  const whisper = nextMessage(third.room, "chatMsg", (payload) => payload.channel === "whisper");
+  firstClient.send("chat", {
+    text: "hello across maps",
+    channel: "whisper",
+    targetName: whisperTarget.character.name,
+  });
   const whisperMsg = await whisper;
-  check("whisper delivered", whisperMsg.text === "hello across maps");
+  check("whisper delivered cross-map", whisperMsg.text === "hello across maps");
 
-  // Place both near each other in their own field room; PvP eligibility is checked server-side.
-  await seedCharacter(one.character.id, { level: 30, gold: 600_000, doctrine: "blade", skillRank: 20 });
-
+  check("pvp players share a room", firstClient.roomId === second.room.roomId);
   firstClient.send("setPvpMode", { mode: "free" });
   second.room.send("setPvpMode", { mode: "free" });
-  await wait(250);
+  await waitUntil(
+    () => firstClient.state.players.get(firstClient.sessionId)?.pvpMode === "free",
+    3000,
+    "first pvp mode",
+  );
+  await waitUntil(
+    () => second.room.state.players.get(second.room.sessionId)?.pvpMode === "free",
+    3000,
+    "second pvp mode",
+  );
+  await wait(1000);
+  const firstPlayer = firstClient.state.players.get(firstClient.sessionId);
+  const secondPlayer = second.room.state.players.get(second.room.sessionId);
+  const pvpDistance =
+    firstPlayer && secondPlayer
+      ? Math.hypot(firstPlayer.x - secondPlayer.x, firstPlayer.y - secondPlayer.y)
+      : Number.POSITIVE_INFINITY;
+  check(
+    "pvp players in range",
+    pvpDistance < 150,
+    `${firstPlayer?.x},${firstPlayer?.y} / ${secondPlayer?.x},${secondPlayer?.y}`,
+  );
 
   const bookId = first.snapshot().items.find((item) => item.itemId === "skillbook_mastery")?.id;
   check("book loaded", Boolean(bookId));
@@ -225,6 +256,7 @@ async function main() {
   check("skill book read", read.ok === true, read.code ?? "");
   check("mastery cooldown set", (read.nextReadAtMs ?? 0) > Date.now());
 
+  const beforeHp = second.room.state.players.get(second.room.sessionId)?.hp ?? 0;
   const pvpEvent = nextMessage(
     firstClient,
     "combat",
@@ -233,12 +265,14 @@ async function main() {
   firstClient.send("attack", { dir: 0 });
   const combat = await pvpEvent;
   check("pvp attack delivered", Boolean(combat));
+  await wait(150);
   check(
     "pvp damage applied",
-    (second.room.state.players.get(second.room.sessionId)?.hp ?? 0) > 0,
+    (second.room.state.players.get(second.room.sessionId)?.hp ?? beforeHp) < beforeHp,
   );
   await first.room.leave();
   await second.room.leave();
+  await third.room.leave();
   void room;
 }
 

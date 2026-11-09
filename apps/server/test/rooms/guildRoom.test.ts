@@ -200,6 +200,27 @@ describe("room guild integration", () => {
     expect(chatB.channel).toBe("guild");
   });
 
+  it("accepts a guild invite from another room", async () => {
+    const firstRoom = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const secondRoom = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
+    const first = await join(firstRoom, "CrossGuildLead");
+    const second = await join(secondRoom, "CrossGuildMate");
+
+    const created = first.client.waitForMessage(MSG.guildState, 2000);
+    send(first.client, MSG.guildCreate, { name: "Cross Guard" });
+    await created;
+
+    const invitePromise = second.client.waitForMessage(MSG.guildInvite, 2000);
+    send(first.client, MSG.guildInvite, { characterId: second.identity.character.id });
+    const invite = (await invitePromise) as GuildInvitePayload;
+    const joined = second.client.waitForMessage(MSG.guildState, 2000);
+    send(second.client, MSG.guildRespond, { inviteId: invite.inviteId, accept: true });
+    expect(((await joined) as GuildStatePayload).guild?.name).toBe("Cross Guard");
+    expect(secondRoom.state.players.get(second.client.sessionId)?.guildName).toBe(
+      "Cross Guard",
+    );
+  });
+
   it("rejects guild invites from someone without a guild", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const first = await join(room, "NoGuild");

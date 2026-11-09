@@ -64,12 +64,12 @@ describe("game data editor helpers", () => {
     expect(fieldsForDataset("upgrades")).toEqual([]);
   });
 
-  it("defaults blank numeric fields to zero", () => {
+  it("rejects blank required numeric fields", () => {
     const result = applyFieldValues(
       fieldsForDataset("monsters"),
       { id: "m" },
       { name: "M", level: "", hp: "", attack: "", defense: "", xp: "", goldMin: "", goldMax: "" },
     );
-    expect(result.payload?.level).toBe(0);
+    expect(result.ok).toBe(false);
   });
 });

@@ -44,6 +44,7 @@ import { setServerServices, type ChatLogInput, type CombatTuning } from "./servi
 import { createDbGameDataStore } from "./gameData/dbStore";
 import type { GameDataStore } from "./gameData/store";
 import { createSocialDirectory } from "./social/bus";
+import { createGuildInviteRegistry } from "./social/guildInvites";
 import type { SocialDirectory } from "./social/bus";
 import { createGuildService } from "./guilds/service";
 import type { GuildService } from "./guilds/service";
@@ -130,6 +131,7 @@ export function createGameServer(deps: ServerDeps = {}) {
   const itemService = deps.items ?? createItemService(db);
   const gameData = deps.gameData ?? createDbGameDataStore(db);
   const social = deps.social ?? createSocialDirectory();
+  const guildInvites = createGuildInviteRegistry();
   const guilds = deps.guilds ?? (deps.joinAuthenticator ? null : createGuildService(db));
   const friends = deps.friends ?? (deps.joinAuthenticator ? null : createFriendsService(db));
   const setPvpMode =
@@ -173,6 +175,7 @@ export function createGameServer(deps: ServerDeps = {}) {
     guilds,
     friends,
     setPvpMode,
+    guildInvites,
     adminBus,
     adminRuntime,
     logChat: deps.logChat ?? logChat,

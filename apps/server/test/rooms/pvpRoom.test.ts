@@ -145,6 +145,36 @@ describe("room pvp combat", () => {
     expect(room.state.players.get(second.sessionId)?.hp).toBe(before);
   });
 
+  it("blocks party friendly fire even in Free mode", async () => {
+    const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
+    const firstIdentity = fake.prepare({ name: "PartyA", map: ROOM_NAME_FIELDS, kingdom: "ember" });
+    const secondIdentity = fake.prepare({ name: "PartyB", map: ROOM_NAME_FIELDS, kingdom: "gale" });
+    const first = await join(room, firstIdentity);
+    const second = await join(room, secondIdentity);
+    const invitePromise = second.waitForMessage(MSG.partyInvite, 2000);
+    send(first, MSG.partyInvite, { characterId: secondIdentity.character.id });
+    const invite = (await invitePromise) as { inviteId: string };
+    const joined = first.waitForMessage(MSG.partyState, 2000);
+    send(second, MSG.partyRespond, { inviteId: invite.inviteId, accept: true });
+    await joined;
+    await setMode(first, "free", room, first.sessionId);
+    await setMode(second, "free", room, second.sessionId);
+    place(room, first.sessionId, 200);
+    place(room, second.sessionId, 230);
+    const before = room.state.players.get(second.sessionId)?.hp;
+
+    let playerHit = false;
+    first.onMessage(MSG.combat, (payload: CombatEventPayload) => {
+      if (payload.hits.some((hit) => hit.target.kind === "player" && !hit.miss)) {
+        playerHit = true;
+      }
+    });
+    send(first, MSG.attack, { dir: 0 });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(playerHit).toBe(false);
+    expect(room.state.players.get(second.sessionId)?.hp).toBe(before);
+  });
+
   it("rejects a peaceful target in a PvP map", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_FIELDS, {});
     const firstIdentity = fake.prepare({ name: "Aggressor", map: ROOM_NAME_FIELDS, kingdom: "ember" });

@@ -26,6 +26,7 @@ export function Minimap() {
   const map = useUiStore((state) => state.minimapMap);
   const dots = useUiStore((state) => state.minimapDots);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const backgroundRef = useRef<{ mapId: string; canvas: HTMLCanvasElement } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -41,18 +42,29 @@ export function Minimap() {
       return;
     }
     ctx.clearRect(0, 0, WIDTH, height);
-    ctx.fillStyle = "rgba(8, 12, 10, 0.92)";
-    ctx.fillRect(0, 0, WIDTH, height);
-
-    const cellW = WIDTH / map.widthTiles;
-    const cellH = height / map.heightTiles;
-    ctx.fillStyle = "rgba(70, 92, 82, 0.75)";
-    for (let y = 0; y < map.heightTiles; y++) {
-      for (let x = 0; x < map.widthTiles; x++) {
-        if (map.solid[y * map.widthTiles + x]) {
-          ctx.fillRect(x * cellW, y * cellH, Math.ceil(cellW), Math.ceil(cellH));
+    if (backgroundRef.current?.mapId !== map.mapId) {
+      const background = document.createElement("canvas");
+      background.width = WIDTH;
+      background.height = height;
+      const bg = background.getContext("2d");
+      if (bg) {
+        bg.fillStyle = "rgba(8, 12, 10, 0.92)";
+        bg.fillRect(0, 0, WIDTH, height);
+        const cellW = WIDTH / map.widthTiles;
+        const cellH = height / map.heightTiles;
+        bg.fillStyle = "rgba(70, 92, 82, 0.75)";
+        for (let y = 0; y < map.heightTiles; y++) {
+          for (let x = 0; x < map.widthTiles; x++) {
+            if (map.solid[y * map.widthTiles + x]) {
+              bg.fillRect(x * cellW, y * cellH, Math.ceil(cellW), Math.ceil(cellH));
+            }
+          }
         }
       }
+      backgroundRef.current = { mapId: map.mapId, canvas: background };
+    }
+    if (backgroundRef.current) {
+      ctx.drawImage(backgroundRef.current.canvas, 0, 0);
     }
 
     const transform = {

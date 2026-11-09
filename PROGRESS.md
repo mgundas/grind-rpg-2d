@@ -282,7 +282,7 @@ Plan: `docs/plans/phase-4.md` (Phase 8 content saved there per request).
 - [x] Task 19 — Minimap and world map
 - [x] Task 20 — Admin chat channel visibility
 - [x] Task 21 — Phase 8 E2E, decisions and report
-- [ ] Task 22 — Phase gate
+- [x] Task 22 — Phase gate
 
 ### Phase 8 — Review follow-ups (Important, from `docs/reviews/review-2026-11-09.md`)
 
@@ -317,6 +317,6 @@ findings, numbered as in the review.
 - [x] Phase 5 — Admin panel (see the Phase 5 section above)
 - [x] Phase 6 — Spirit stones, skills, parties (see the Phase 6 section above)
 - [x] Phase 7 — Upgrades, bonuses, trading
-- [ ] Phase 8 — Social and progression depth (in progress; see section above)
+- [x] Phase 8 — Social and progression depth (see section above)
 - [ ] Phase 9 — The wider world
 - [ ] Phase 10 — Polish, performance and deployment

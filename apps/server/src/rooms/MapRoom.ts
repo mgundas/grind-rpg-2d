@@ -268,10 +268,7 @@ import {
   type SpawnManager,
 } from "./spawnManager";
 import type { JoinIdentity } from "../auth/joinAuth";
-import {
-  createGuildInviteRegistry,
-  GuildInviteError,
-} from "../social/guildInvites";
+import { GuildInviteError } from "../social/guildInvites";
 import { GuildRuleError, canInvite } from "../guilds/rules";
 import {
   FriendRuleError,
@@ -325,7 +322,6 @@ export class MapRoom extends Room {
   private adminActions = new Map<string, AdminLiveActions>();
   private adminRoom: AdminRoomHandle | null = null;
   private readonly parties = createPartyRegistry();
-  private readonly guildInvites = createGuildInviteRegistry();
   private readonly trades = createTradeRegistry({
     isOnline: (characterId) => this.runtimeForCharacter(characterId) !== undefined,
   });
@@ -454,12 +450,10 @@ export class MapRoom extends Room {
       }
 
       const slash = parseChatInput(rawText);
-      const channel =
-        parsed.data.channel !== "local" ? parsed.data.channel : slash.channel;
-      const targetName = parsed.data.targetName ?? slash.targetName;
-      const bodyText = filterProfanity(
-        (parsed.data.channel !== "local" ? rawText : slash.body).trim(),
-      );
+      const hasSlash = rawText.startsWith("/");
+      const channel = hasSlash ? slash.channel : parsed.data.channel;
+      const targetName = hasSlash ? slash.targetName : parsed.data.targetName;
+      const bodyText = filterProfanity((hasSlash ? slash.body : rawText).trim());
       if (channel === "system") {
         this.sendSystemMessage(client, "System chat is server-only.");
         return;
@@ -568,8 +562,12 @@ export class MapRoom extends Room {
         }
         const directory = getServerServices().social;
         const target = directory.findByName(targetName);
-        if (!target || target.characterId === runtime.characterId) {
+        if (!target) {
           this.sendSystemMessage(client, "That player is not online.");
+          return;
+        }
+        if (target.characterId === runtime.characterId) {
+          this.sendSystemMessage(client, "You cannot whisper yourself.");
           return;
         }
         this.safeSend(client, MSG.chatMsg, payload(target.name));
@@ -1512,7 +1510,7 @@ export class MapRoom extends Room {
     const runtime = this.runtimes.get(client.sessionId);
     if (runtime) {
       getServerServices().social.unregister(runtime.characterId, client.sessionId);
-      this.guildInvites.cancelForCharacter(runtime.characterId);
+      getServerServices().guildInvites.cancelForCharacter(runtime.characterId);
       await this.refreshGuildRoster(runtime.characterId);
       await this.refreshFriendViews(runtime.characterId);
       this.cancelTradeForCharacter(runtime.characterId, "disconnect");
@@ -1557,7 +1555,6 @@ export class MapRoom extends Room {
     this.adminRoom = null;
     this.parties.clear();
     this.trades.clear();
-    this.guildInvites.clear();
   }
 
   /**
@@ -2352,7 +2349,7 @@ export class MapRoom extends Room {
     for (const trade of [...expiredTrades.expiredInvites, ...expiredTrades.expiredTrades]) {
       this.sendTradeState(trade);
     }
-    this.guildInvites.prune(now);
+    getServerServices().guildInvites.prune(now);
     this.checkWarps();
     this.tickActive = false;
     this.tickPvp = null;
@@ -2515,7 +2512,7 @@ export class MapRoom extends Room {
       broadcast.push(hit);
       this.sendSelfStats(hit.target.sessionId);
       if (result.killed) {
-        this.handlePlayerDeath(hit.target.sessionId, now);
+        this.handlePlayerDeath(hit.target.sessionId, now, true);
       }
     }
     void attackerSessionId;
@@ -2880,7 +2877,7 @@ export class MapRoom extends Room {
     }
   }
 
-  private handlePlayerDeath(sessionId: string, now: number): void {
+  private handlePlayerDeath(sessionId: string, now: number, byPlayer = false): void {
     const runtime = this.runtimes.get(sessionId);
     const player = this.state.players.get(sessionId);
     if (!runtime || !player || runtime.dead) {
@@ -2915,10 +2912,12 @@ export class MapRoom extends Room {
     player.moving = false;
     this.parties.updateMember(runtime.characterId, { dead: true });
 
-    runtime.progression.xp = Math.max(
-      0,
-      runtime.progression.xp - deathXpLoss(runtime.progression.level, runtime.progression.xp),
-    );
+    if (!byPlayer) {
+      runtime.progression.xp = Math.max(
+        0,
+        runtime.progression.xp - deathXpLoss(runtime.progression.level, runtime.progression.xp),
+      );
+    }
     runtime.dirty = true;
     this.clearPlayerFromMonsters(sessionId);
 
@@ -4325,7 +4324,7 @@ export class MapRoom extends Room {
       if (await this.guildService().loadByCharacter(target.characterId)) {
         throw new GuildRuleError("already_member", "That player is already in a guild.");
       }
-      const invite = this.guildInvites.create({
+      const invite = getServerServices().guildInvites.create({
         guildId: guild.id,
         guildName: guild.name,
         fromCharacterId: runtime.characterId,
@@ -4348,10 +4347,10 @@ export class MapRoom extends Room {
   private handleGuildRespond(client: Client, inviteId: string, accept: boolean): void {
     this.runGuildCommand(client, async (runtime) => {
       if (!accept) {
-        this.guildInvites.decline(inviteId, runtime.characterId);
+        getServerServices().guildInvites.decline(inviteId, runtime.characterId);
         return;
       }
-      const invite = this.guildInvites.take(inviteId, runtime.characterId);
+      const invite = getServerServices().guildInvites.take(inviteId, runtime.characterId);
       const guilds = this.guildService();
       const inviterGuild = await guilds.loadByCharacter(invite.fromCharacterId);
       if (!inviterGuild || inviterGuild.id !== invite.guildId) {
@@ -4381,15 +4380,11 @@ export class MapRoom extends Room {
         throw new GuildRuleError("not_member", "You are not in a guild.");
       }
       await guilds.leave(runtime.characterId);
-      const remaining: GuildRecord = {
-        ...guild,
-        members: guild.members.filter((member) => member.characterId !== runtime.characterId),
-      };
       getServerServices().social.updateGuild(runtime.characterId, null, null);
       getServerServices().social.send(runtime.characterId, MSG.guildState, {
         guild: null,
       } satisfies GuildStatePayload);
-      await this.publishGuild(remaining);
+      await this.publishGuild(await guilds.loadById(guild.id));
     });
   }
 
@@ -4401,15 +4396,11 @@ export class MapRoom extends Room {
         throw new GuildRuleError("not_member", "You are not in a guild.");
       }
       await guilds.kick(runtime.characterId, targetCharacterId);
-      const remaining: GuildRecord = {
-        ...guild,
-        members: guild.members.filter((member) => member.characterId !== targetCharacterId),
-      };
       getServerServices().social.updateGuild(targetCharacterId, null, null);
       getServerServices().social.send(targetCharacterId, MSG.guildState, {
         guild: null,
       } satisfies GuildStatePayload);
-      await this.publishGuild(remaining);
+      await this.publishGuild(await guilds.loadById(guild.id));
     });
   }
 
@@ -5822,7 +5813,7 @@ export class MapRoom extends Room {
     }
 
     getServerServices().social.unregister(runtime.characterId, client.sessionId);
-    this.guildInvites.cancelForCharacter(runtime.characterId);
+    getServerServices().guildInvites.cancelForCharacter(runtime.characterId);
     this.state.players.delete(client.sessionId);
     this.runtimes.delete(client.sessionId);
     this.clearPlayerFromMonsters(client.sessionId);

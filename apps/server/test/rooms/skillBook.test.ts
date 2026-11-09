@@ -142,6 +142,24 @@ describe("room skill-book reading", () => {
     expect(snapshot.items.find((item) => item.id === bookId)?.quantity).toBe(1);
   });
 
+  it("rejects dead and warping players before consuming", async () => {
+    const { room, client, bookId } = await joinWithBook("ReaderDead");
+    const internals = room as unknown as {
+      runtimes: Map<string, { dead: boolean; warping: boolean }>;
+    };
+    const runtime = internals.runtimes.get(client.sessionId)!;
+    runtime.dead = true;
+    const dead = client.waitForMessage(MSG.skillBookResult, 2000);
+    send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
+    expect(((await dead) as SkillBookResultPayload).code).toBe("dead");
+
+    runtime.dead = false;
+    runtime.warping = true;
+    const warping = client.waitForMessage(MSG.skillBookResult, 2000);
+    send(client, MSG.readSkillBook, { bookInstanceId: bookId, skillId: SKILL });
+    expect(((await warping) as SkillBookResultPayload).code).toBe("warping");
+  });
+
   it("rejects an unlearned rank without consuming the book", async () => {
     const room = await colyseus.createRoom<MapRoom>(ROOM_NAME_VILLAGE, {});
     const identity = fake.prepare({

@@ -564,7 +564,7 @@ export const friendRemoveMessageSchema = z
 export type FriendRemoveMessage = z.infer<typeof friendRemoveMessageSchema>;
 
 export const guildCreateMessageSchema = z
-  .object({ name: z.string().trim().min(2).max(20) })
+  .object({ name: z.string().trim().min(3).max(20) })
   .strict();
 export type GuildCreateMessage = z.infer<typeof guildCreateMessageSchema>;
 
