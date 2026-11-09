@@ -218,6 +218,7 @@ export interface AdminLogRow {
   characterName?: string | null;
   accountId?: string | null;
   action: string;
+  channel?: string | null;
   definitionId?: string | null;
   quantity?: number | null;
   fromLocation?: string | null;

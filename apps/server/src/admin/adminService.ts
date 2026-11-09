@@ -348,7 +348,13 @@ export async function listChatLogs(db: Db, query: AdminLogQuery): Promise<AdminL
   if (query.from) conditions.push(gte(chatLog.createdAt, new Date(query.from)));
   if (query.to) conditions.push(lte(chatLog.createdAt, new Date(query.to)));
   if (query.q) {
-    conditions.push(or(ilike(chatLog.name, pattern(query.q)), ilike(chatLog.chatText, pattern(query.q))));
+    conditions.push(
+      or(
+        ilike(chatLog.name, pattern(query.q)),
+        ilike(chatLog.chatText, pattern(query.q)),
+        ilike(chatLog.channel, pattern(query.q)),
+      ),
+    );
   }
   const rows = await db
     .select({
@@ -356,7 +362,8 @@ export async function listChatLogs(db: Db, query: AdminLogQuery): Promise<AdminL
       characterId: chatLog.characterId,
       characterName: chatLog.name,
       action: chatLog.mapId,
-      detail: sql<Record<string, unknown>>`jsonb_build_object('text', ${chatLog.chatText}, 'kingdom', ${chatLog.kingdom})`,
+      channel: chatLog.channel,
+      detail: sql<Record<string, unknown>>`jsonb_build_object('text', ${chatLog.chatText}, 'kingdom', ${chatLog.kingdom}, 'channel', ${chatLog.channel})`,
       createdAt: chatLog.createdAt,
     })
     .from(chatLog)

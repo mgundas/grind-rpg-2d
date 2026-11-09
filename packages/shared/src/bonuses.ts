@@ -80,3 +80,25 @@ export function bonusValue(
   }
   return total;
 }
+
+/**
+ * Sum one bonus type across equipped stacks. Client prediction and the server
+ * movement step must use this same helper or they diverge every tick.
+ */
+export function equippedBonusValue(
+  equipment: ReadonlyArray<{ bonuses: readonly ItemBonus[] } | null | undefined>,
+  type: BonusType,
+): number {
+  let total = 0;
+  for (const stack of equipment) {
+    if (stack) {
+      total += bonusValue(stack.bonuses, type);
+    }
+  }
+  return total;
+}
+
+/** Movement multiplier from equipped `move_speed` bonuses (shared formula). */
+export function moveSpeedMultiplier(bonus: number): number {
+  return Math.max(0.1, 1 + bonus);
+}

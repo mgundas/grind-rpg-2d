@@ -60,6 +60,7 @@ const COLUMNS: Record<LogKind, Column[]> = {
   chat: [
     { header: "Time", render: (row) => time(row.createdAt) },
     { header: "Character", render: (row) => row.characterName ?? "—" },
+    { header: "Channel", render: (row) => row.channel ?? "local" },
     { header: "Map", render: (row) => row.action },
     {
       header: "Message",

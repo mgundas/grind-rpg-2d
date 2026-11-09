@@ -152,6 +152,7 @@ describeDb("admin read service", () => {
       name: "Logs",
       kingdom: "ember",
       mapId: "map_ember_village",
+      channel: "guild",
       chatText: `${marker} hello`,
     });
 
@@ -186,6 +187,7 @@ describeDb("admin read service", () => {
       offset: 0,
     });
     expect(chatRows[0]?.detail?.text).toContain(marker);
+    expect(chatRows[0]?.channel).toBe("guild");
   });
 
   it("lists trade logs with participant, gold and trade-id filters", async () => {
