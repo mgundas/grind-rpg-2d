@@ -357,7 +357,7 @@ Plan: `docs/plans/phase-10.md`.
 - [x] Task 7 — Client perf: lazy maps and pool audit
 - [x] Task 8 — Server tick instrumentation
 - [x] Task 9 — Server perf fixes
-- [ ] Task 10 — Load test: 150 bots on one channel
+- [x] Task 10 — Load test: 150 bots on one channel
 - [ ] Task 11 — Production Docker and nginx
 - [ ] Task 12 — Production server behaviour
 - [ ] Task 13 — DEPLOY.md and production env example

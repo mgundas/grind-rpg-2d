@@ -430,3 +430,19 @@ unchanged (GM invisibility hides, stealthed allies stay visible to their party,
 missing runtimes default to visible). The spawn pass also reuses a per-room
 `Vec2[]` buffer instead of allocating `filter().map()` every tick. These are
 hoisting-only fixes; the tick ordering and combat/AI code were not touched.
+
+## D86 — Load tests use raw SDK bots seeded directly in the database
+
+`scripts/verify-phase10-load.ts` (run with `pnpm verify:phase10-load`) joins 150
+real `@colyseus/sdk` clients to one map/channel through the normal `onAuth`
+path. Accounts and characters are inserted straight into Postgres — the HTTP
+register route is deliberately rate-limited to a few attempts per IP, so
+creating 150 accounts over HTTP is not an option — and access tokens are minted
+with the configured secret. Bots are spread across the map's `mob_zone`
+centres, walk, attack, and a third of them issue `setTarget` so pathfinding and
+monster AI are exercised. The acceptance metric is the server's own tick stats
+(`GET /api/admin/server`), ignoring the join warm-up and requiring >=95% joins
+and worst p95 < 20 ms. Cleanup deletes every `loadbot_<run>` account (cascades
+items/characters/sessions) even if seeding or joining throws; the script refuses
+to run with `NODE_ENV=production`. `@colyseus/loadtest` was not added: its thin
+wrapper adds a peer-range risk and no control we need.

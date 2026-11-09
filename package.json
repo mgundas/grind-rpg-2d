@@ -28,9 +28,11 @@
     "verify:phase7-e2e": "node --env-file-if-exists=.env scripts/verify-phase7-e2e.mjs",
     "verify:phase8-e2e": "node --env-file-if-exists=.env scripts/verify-phase8-e2e.mjs",
     "verify:phase9-grind": "node --import tsx scripts/verify-phase9-grind.mjs",
-    "verify:phase9-e2e": "node scripts/verify-phase9-e2e.mjs"
+    "verify:phase9-e2e": "node scripts/verify-phase9-e2e.mjs",
+    "verify:phase10-load": "node --env-file-if-exists=.env --import tsx scripts/verify-phase10-load.ts"
   },
   "devDependencies": {
+    "@colyseus/sdk": "catalog:",
     "@types/node": "catalog:",
     "concurrently": "catalog:",
     "eslint": "catalog:",
