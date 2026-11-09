@@ -8,6 +8,7 @@ import {
   COMBAT_EVENT_RADIUS_PX,
   DIR8_VECTORS,
   AUTO_WALK_GIVE_UP_MS,
+  AUTO_WALK_MAX_ASTAR_PER_TICK,
   AUTO_WALK_MAX_EMPTY_PATHS,
   AUTO_WALK_TARGET_RANGE_PX,
   DROP_OWNERSHIP_MS,
@@ -35,6 +36,7 @@ import {
   TILE_SIZE,
   WALK_SPEED,
   WARP_COOLDOWN_MS,
+  XP_SAVE_INTERVAL_MS,
   PARTY_XP_RADIUS_PX,
   allocStatMessageSchema,
   applyBonusScrollMessageSchema,
@@ -337,6 +339,11 @@ export class MapRoom extends Room {
   /** Reused intent buffer: no per-tick allocation in the steady state. */
   private attackIntents: Array<{ monsterId: string; targetSessionId: string }> = [];
   private attackIntentCount = 0;
+  /** Built once per tick and reused by every PvP-aware system in that tick. */
+  private tickPvp: PvpCombatContext | null = null;
+  private tickActive = false;
+  /** Auto-walk repaths consume this per tick (reset in `tick`). */
+  private autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
 
   /**
    * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
@@ -1305,6 +1312,7 @@ export class MapRoom extends Room {
       inventory: loaded.inventory,
       gold: loaded.gold,
     });
+    runtime.sessionId = client.sessionId;
     runtime.dirty =
       Math.abs(spawn.x - auth.character.x) > 0.01 ||
       Math.abs(spawn.y - auth.character.y) > 0.01 ||
@@ -1530,6 +1538,11 @@ export class MapRoom extends Room {
 
   onDispose(): void {
     try {
+      for (const runtime of this.runtimes.values()) {
+        if (runtime.dirty) {
+          void this.enqueueSave(runtime, this.deathAwareDestination(runtime));
+        }
+      }
       for (const [sessionId, runtime] of this.runtimes) {
         getServerServices().social.unregister(runtime.characterId, sessionId);
       }
@@ -2210,6 +2223,7 @@ export class MapRoom extends Room {
   private updateInterest(): void {
     const addSquared = INTEREST_ADD_RADIUS_PX * INTEREST_ADD_RADIUS_PX;
     const removeSquared = INTEREST_RADIUS_PX * INTEREST_RADIUS_PX;
+    const now = Date.now();
 
     for (const client of this.clients) {
       const view = client.view;
@@ -2217,6 +2231,10 @@ export class MapRoom extends Room {
       if (!view || !own) {
         continue;
       }
+      const ownRuntime = this.runtimes.get(client.sessionId);
+      const ownParty = ownRuntime
+        ? this.parties.getByCharacter(ownRuntime.characterId)?.id
+        : undefined;
       for (const [sessionId, player] of this.state.players) {
         if (sessionId === client.sessionId) {
           if (!view.has(player)) {
@@ -2225,7 +2243,14 @@ export class MapRoom extends Room {
           continue;
         }
         const otherRuntime = this.runtimes.get(sessionId);
-        if (otherRuntime?.invisible) {
+        // GM invisibility and stealth both hide a player from other clients.
+        // Party members can still see a stealthed ally (needed for party frames).
+        const stealthed = otherRuntime ? hasStealth(otherRuntime.buffs, now) : false;
+        const sharesParty =
+          stealthed &&
+          ownParty !== undefined &&
+          this.parties.getByCharacter(otherRuntime!.characterId)?.id === ownParty;
+        if (otherRuntime?.invisible || (stealthed && !sharesParty)) {
           if (view.has(player)) {
             view.remove(player);
           }
@@ -2276,7 +2301,10 @@ export class MapRoom extends Room {
    */
   private tick(): void {
     const now = Date.now();
-    const players = this.playerSnapshots();
+    this.tickActive = true;
+    this.tickPvp = null;
+    this.autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
+    const players = this.playerSnapshots(now);
     for (const client of this.clients) {
       const runtime = this.runtimes.get(client.sessionId);
       const player = this.state.players.get(client.sessionId);
@@ -2319,6 +2347,8 @@ export class MapRoom extends Room {
     }
     this.guildInvites.prune(now);
     this.checkWarps();
+    this.tickActive = false;
+    this.tickPvp = null;
   }
 
   /** Resolve queued player swings, then monster intents from the AI phase. */
@@ -2331,7 +2361,7 @@ export class MapRoom extends Room {
       monsterRuntimes: this.monsterRuntimes,
       stoneRuntimes: this.stones.stones,
       catalog: this.catalog(),
-      pvp: this.pvpContext(),
+      pvp: this.tickPvpContext(),
     };
 
     for (const [sessionId, runtime] of this.runtimes) {
@@ -3060,7 +3090,7 @@ export class MapRoom extends Room {
   }
 
   private sessionForRuntime(runtime: PlayerRuntime): string | undefined {
-    return [...this.runtimes.entries()].find(([, value]) => value === runtime)?.[0];
+    return this.runtimes.get(runtime.sessionId) === runtime ? runtime.sessionId : undefined;
   }
 
   private sendInventoryById(runtime: PlayerRuntime): void {
@@ -3230,8 +3260,10 @@ export class MapRoom extends Room {
 
     const before = runtime.inventory;
     const consumed = planConsume(runtime.inventory, runtime.characterId, instanceId);
-    runtime.itemUseReadyAtMs = now + ITEM_USE_COOLDOWN_MS;
     await this.applyItemPlan(runtime, consumed.state, consumed.plan);
+    // Cooldown starts only after the commit succeeds; a rejected use must not
+    // lock the player out for the full cooldown.
+    runtime.itemUseReadyAtMs = now + ITEM_USE_COOLDOWN_MS;
 
     if (effect.kind === "warp_town") {
       const accepted = await this.beginWarp(client, defaultSpawn(), {
@@ -3704,11 +3736,21 @@ export class MapRoom extends Room {
     runtime.dirty = true;
     this.sendSelfStats(sessionId);
     this.sendSkillState(sessionId);
-    void this.enqueueSave(runtime, {
-      mapId: this.mapId,
-      x: runtime.mover.pos.x,
-      y: runtime.mover.pos.y,
-    });
+    // A farmed spot would otherwise issue one full-row UPDATE per kill. Save
+    // immediately on a level-up (stat points are visible to the player) and
+    // throttle plain XP gains; leave/kick/death/autosave cover the rest.
+    const now = Date.now();
+    if (
+      runtime.progression.level !== previousLevel ||
+      now - runtime.lastXpSaveAtMs >= XP_SAVE_INTERVAL_MS
+    ) {
+      runtime.lastXpSaveAtMs = now;
+      void this.enqueueSave(runtime, {
+        mapId: this.mapId,
+        x: runtime.mover.pos.x,
+        y: runtime.mover.pos.y,
+      });
+    }
     return true;
   }
 
@@ -3721,22 +3763,23 @@ export class MapRoom extends Room {
     handler: (runtime: PlayerRuntime) => Promise<void>,
   ): void {
     const runtime = this.runtimes.get(client.sessionId);
-    if (!runtime) {
+    if (!runtime || runtime.inventoryClosed) {
       return;
     }
     const run = async (): Promise<void> => {
-      if (runtime.inventoryClosed) {
+      const current = this.runtimes.get(client.sessionId);
+      if (!current || current.inventoryClosed || current.dead || current.warping) {
         return;
       }
       try {
-        await handler(runtime);
+        await handler(current);
       } catch (error) {
         if (error instanceof SkillRuleError) {
           this.safeSend(client, MSG.skillError, toSkillErrorPayload(error));
           return;
         }
         logger.error(
-          { roomId: this.roomId, characterId: runtime.characterId, error },
+          { roomId: this.roomId, characterId: current.characterId, error },
           "skill command failed",
         );
         this.safeSend(client, MSG.skillError, {
@@ -3980,26 +4023,40 @@ export class MapRoom extends Room {
       this.sendItemError(client, "internal");
       return;
     }
-    void persist(runtime.characterId, mode)
-      .then((saved) => {
-        const active = this.runtimes.get(client.sessionId);
-        const activePlayer = this.state.players.get(client.sessionId);
-        if (!saved || !active || !activePlayer) {
-          if (!saved) {
-            this.sendItemError(client, "stale");
-          }
+    // Serialize through the same chain as item mutations so two rapid toggles
+    // cannot commit out of order and leave memory inverted vs. the database.
+    const run = async (): Promise<void> => {
+      const current = this.runtimes.get(client.sessionId);
+      if (!current || current.inventoryClosed || current.dead || current.warping) {
+        return;
+      }
+      if (current.pvpMode === mode) {
+        return;
+      }
+      try {
+        const saved = await persist(current.characterId, mode);
+        if (!saved) {
+          this.sendItemError(client, "stale");
           return;
         }
-        active.pvpMode = mode;
-        activePlayer.pvpMode = mode;
-      })
-      .catch((error: unknown) => {
+        current.pvpMode = mode;
+        const activePlayer = this.state.players.get(client.sessionId);
+        if (activePlayer) {
+          activePlayer.pvpMode = mode;
+        }
+      } catch (error) {
         logger.error(
           { roomId: this.roomId, session: client.sessionId, error },
           "pvp mode update failed",
         );
         this.sendItemError(client, "internal");
-      });
+      }
+    };
+    const next = (runtime.inventoryChain ?? Promise.resolve()).then(run, run);
+    runtime.inventoryChain = next.then(
+      () => undefined,
+      () => undefined,
+    );
   }
 
   private friendsService(): FriendsService {
@@ -4438,6 +4495,7 @@ export class MapRoom extends Room {
   private pvpContext(): PvpCombatContext {
     const policy = getMapPolicy(this.mapId);
     const inputs: PvpActorInput[] = [];
+    const now = Date.now();
     for (const [sessionId, runtime] of this.runtimes) {
       const player = this.state.players.get(sessionId);
       inputs.push({
@@ -4450,6 +4508,7 @@ export class MapRoom extends Room {
         dead: runtime.dead,
         warping: runtime.warping,
         invisible: runtime.invisible,
+        stealth: hasStealth(runtime.buffs, now),
         pvpReady: runtime.pvpReady,
       });
     }
@@ -4457,6 +4516,19 @@ export class MapRoom extends Room {
       policy: { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
       actors: buildPvpActors(inputs),
     };
+  }
+
+  /**
+   * PvP membership only changes between ticks, so the tick builds one snapshot
+   * and every chaser/combat consumer in that tick reuses it. Message handlers
+   * run outside the tick and always get a fresh build.
+   */
+  private tickPvpContext(): PvpCombatContext {
+    if (!this.tickActive) {
+      return this.pvpContext();
+    }
+    this.tickPvp ??= this.pvpContext();
+    return this.tickPvp;
   }
 
   private catalog(): CatalogLookup {
@@ -5251,7 +5323,7 @@ export class MapRoom extends Room {
           grid: this.assets.grid,
           casterModifiers: playerBuffModifiers(runtime.buffs, now),
           catalog: this.catalog(),
-          pvp: this.pvpContext(),
+          pvp: this.tickPvpContext(),
         },
         {
           sessionId,
@@ -5531,7 +5603,7 @@ export class MapRoom extends Room {
   private allocateStat(sessionId: string, stat: StatKey): void {
     const runtime = this.runtimes.get(sessionId);
     const player = this.state.players.get(sessionId);
-    if (!runtime || !player || runtime.warping) {
+    if (!runtime || !player || runtime.dead || runtime.warping) {
       return;
     }
     if (runtime.progression.statPoints <= 0) {
@@ -5575,10 +5647,10 @@ export class MapRoom extends Room {
   }
 
   /** One snapshot per tick for the AI; positions come from authoritative movers. */
-  private playerSnapshots(): AiPlayerSnapshot[] {
+  private playerSnapshots(now: number): AiPlayerSnapshot[] {
     const snapshots: AiPlayerSnapshot[] = [];
     for (const [sessionId, runtime] of this.runtimes) {
-      if (runtime.invisible || hasStealth(runtime.buffs, Date.now())) {
+      if (runtime.invisible || hasStealth(runtime.buffs, now)) {
         continue;
       }
       snapshots.push({
@@ -6069,7 +6141,7 @@ export class MapRoom extends Room {
         targetRuntime.dead ||
         targetRuntime.warping ||
         !canPvpTarget(
-          this.pvpContext().actors,
+          this.tickPvpContext().actors,
           { pvpAllowed: policy.pvpAllowed, safe: policy.safe },
           sessionId,
           targetSession,
@@ -6119,17 +6191,26 @@ export class MapRoom extends Room {
     }
 
     if (now >= runtime.nextChaseRepathAtMs || runtime.mover.path.length === 0) {
-      runtime.nextChaseRepathAtMs = now + 250;
-      const path = findPath(this.assets.grid, runtime.mover.pos, targetPos);
-      runtime.mover.path = path;
-      if (path.length === 0) {
-        runtime.emptyChasePaths++;
-        if (runtime.emptyChasePaths >= AUTO_WALK_MAX_EMPTY_PATHS) {
-          this.clearAutoWalk(runtime, sessionId, "unreachable");
+      if (this.autoWalkAstarBudget <= 0) {
+        // Budget spent by other chasers this tick: keep following the current
+        // path; if there is none, wait for the next tick instead of spiking A*.
+        if (runtime.mover.path.length === 0) {
           return;
         }
       } else {
-        runtime.emptyChasePaths = 0;
+        this.autoWalkAstarBudget--;
+        runtime.nextChaseRepathAtMs = now + 250;
+        const path = findPath(this.assets.grid, runtime.mover.pos, targetPos);
+        runtime.mover.path = path;
+        if (path.length === 0) {
+          runtime.emptyChasePaths++;
+          if (runtime.emptyChasePaths >= AUTO_WALK_MAX_EMPTY_PATHS) {
+            this.clearAutoWalk(runtime, sessionId, "unreachable");
+            return;
+          }
+        } else {
+          runtime.emptyChasePaths = 0;
+        }
       }
     }
 
@@ -6200,9 +6281,21 @@ export class MapRoom extends Room {
 
     runtime.lastPathTargetKey = goalKey;
     runtime.lastPathRetargetAtMs = now;
+    // Recomputing from the same start tile and exact target yields the same
+    // waypoints, so a legit click-to-move can reuse the cached path instead of
+    // running A* on every tick. A new tile or target invalidates it.
+    const cacheKey = `${startTx},${startTy}|${goalKey}|${Math.round(target.x)},${Math.round(target.y)}`;
+    if (runtime.cachedPathKey === cacheKey && runtime.cachedPath) {
+      runtime.mover.path = runtime.cachedPath;
+      return;
+    }
     runtime.pathComputations++;
     const path = findPath(this.assets.grid, runtime.mover.pos, target);
     runtime.mover.path = path;
+    // Only non-empty paths are cacheable: an empty result means "already
+    // there" and must be re-evaluated if the player moves within the tile.
+    runtime.cachedPathKey = path.length > 0 ? cacheKey : null;
+    runtime.cachedPath = path.length > 0 ? path : null;
 
     const sameTile = startTx === goalTx && startTy === goalTy;
     if (path.length === 0 && !sameTile) {

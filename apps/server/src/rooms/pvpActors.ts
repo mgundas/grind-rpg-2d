@@ -11,16 +11,18 @@ export interface PvpActorInput {
   dead: boolean;
   warping: boolean;
   invisible: boolean;
+  /** Stealthed players cannot be targeted or hit by other players. */
+  stealth: boolean;
   pvpReady: boolean;
 }
 
-/** Builds the session-indexed eligibility map; invisible/not-ready actors are omitted. */
+/** Builds the session-indexed eligibility map; hidden/not-ready actors are omitted. */
 export function buildPvpActors(
   inputs: Iterable<PvpActorInput>,
 ): Map<string, PvpActor> {
   const actors = new Map<string, PvpActor>();
   for (const input of inputs) {
-    if (input.invisible || !input.pvpReady) {
+    if (input.invisible || input.stealth || !input.pvpReady) {
       continue;
     }
     actors.set(input.sessionId, {

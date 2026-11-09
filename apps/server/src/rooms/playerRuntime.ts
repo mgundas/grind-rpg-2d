@@ -22,6 +22,8 @@ import type { PendingSkillCast } from "../skills/skillRuntime";
  * derived from `mover.pos` and `progression` after each tick.
  */
 export interface PlayerRuntime {
+  /** Colyseus session id; set on join so lookups are O(1). */
+  sessionId: string;
   /** Authenticated account/character this session belongs to. */
   accountId: string;
   characterId: string;
@@ -73,10 +75,15 @@ export interface PlayerRuntime {
   failedPathUntilMs: Map<string, number>;
   /** Number of A* runs performed (debug/test counter). */
   pathComputations: number;
+  /** Cached path plus its (start tile, goal, exact target) key; avoids one A* per tick. */
+  cachedPathKey: string | null;
+  cachedPath: Vec2[] | null;
   /** Inputs dropped because the pending queue was full (debug/test counter). */
   droppedInputs: number;
   /** True when authoritative state has changed since the last save. */
   dirty: boolean;
+  /** Last time a non-level-up XP gain was persisted. */
+  lastXpSaveAtMs: number;
   /** Serialized save chain so autosave/kick/leave/warp writes cannot reorder. */
   saveChain: Promise<unknown> | null;
 
@@ -158,6 +165,7 @@ const FALLBACK_PROGRESSION: PlayerProgression = {
 export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): PlayerRuntime {
   const now = Date.now();
   return {
+    sessionId: "",
     accountId: identity.accountId,
     characterId: identity.characterId,
     role: identity.role ?? "player",
@@ -186,8 +194,11 @@ export function createPlayerRuntime(spawn: Vec2, identity: PlayerIdentity): Play
     lastPathRetargetAtMs: 0,
     failedPathUntilMs: new Map(),
     pathComputations: 0,
+    cachedPathKey: null,
+    cachedPath: null,
     droppedInputs: 0,
     dirty: false,
+    lastXpSaveAtMs: 0,
     saveChain: null,
     inventory: identity.inventory ?? emptyInventory(),
     gold: identity.gold ?? 0,

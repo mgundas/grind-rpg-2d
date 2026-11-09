@@ -75,6 +75,10 @@ export const AUTO_WALK_TARGET_RANGE_PX = 1000;
 export const AUTO_WALK_GIVE_UP_MS = 1500;
 export const AUTO_WALK_STOP_MARGIN_PX = 24;
 export const AUTO_WALK_MAX_EMPTY_PATHS = 3;
+/** Chaser repaths share one per-tick A* allowance so N chasers cannot spike the tick. */
+export const AUTO_WALK_MAX_ASTAR_PER_TICK = 4;
+/** Non-level-up XP gains are saved at most this often; leave/autosave covers the rest. */
+export const XP_SAVE_INTERVAL_MS = 10_000;
 export const COMBAT_EVENT_RADIUS_PX = 900;
 
 /** Phase-4 economy interaction ranges and timings (GAME_DESIGN.md §6.3, §7). */
