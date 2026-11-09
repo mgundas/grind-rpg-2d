@@ -95,10 +95,7 @@ export interface MonsterRefs {
 }
 
 /** Build and validate monsters from raw JSON (base or merged). */
-export function buildMonsters(
-  rawJson: unknown,
-  refs: MonsterRefs = {},
-): readonly MonsterInfo[] {
+export function buildMonsters(rawJson: unknown, refs: MonsterRefs = {}): readonly MonsterInfo[] {
   const monsters = monstersFileSchema.parse(rawJson).monsters;
   if (refs.hasDropTable) {
     for (const monster of monsters) {

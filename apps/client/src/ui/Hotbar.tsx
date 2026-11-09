@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  RARITY_COLORS,
-  type CastSkillMessage,
-  type ItemInstanceDto,
-} from "@jadethrone/shared";
+import { RARITY_COLORS, type CastSkillMessage, type ItemInstanceDto } from "@jadethrone/shared";
 import { getItem, hasItem } from "../data/catalog";
 import { getSkill, hasSkill } from "../data/catalog";
 import { sendCastSkill, sendUseItem } from "../network/session";
@@ -63,9 +59,9 @@ export function Hotbar() {
   const characterId = useUiStore((state) => state.selectedCharacterId);
   const inventory = useUiStore((state) => state.inventory);
   const skillState = useUiStore((state) => state.skillState);
-  const [bindingsByCharacter, setBindingsByCharacter] = useState<
-    Record<string, HotbarBindings>
-  >({});
+  const [bindingsByCharacter, setBindingsByCharacter] = useState<Record<string, HotbarBindings>>(
+    {},
+  );
   const [now, setNow] = useState(0);
   const draggedItemId = useUiStore((state) => state.draggedItemId);
   const draggedSkillId = useUiStore((state) => state.draggedSkillId);
@@ -190,14 +186,12 @@ export function Hotbar() {
           binding?.kind === "item" && hasItem(binding.id) ? getItem(binding.id) : null;
         const skill =
           binding?.kind === "skill" && hasSkill(binding.id) ? getSkill(binding.id) : null;
-        const count =
-          binding?.kind === "item" ? (counts.get(binding.id) ?? 0) : 0;
+        const count = binding?.kind === "item" ? (counts.get(binding.id) ?? 0) : 0;
         const item: ItemInstanceDto | undefined =
           binding?.kind === "item"
             ? (inventory?.items ?? []).find((entry) => entry.itemId === binding.id)
             : undefined;
-        const rank =
-          skillState?.skills.find((entry) => entry.skillId === skill?.id)?.rank ?? 0;
+        const rank = skillState?.skills.find((entry) => entry.skillId === skill?.id)?.rank ?? 0;
         const readyAtMs =
           skillState?.skills.find((entry) => entry.skillId === skill?.id)?.readyAtMs ?? 0;
         const remaining = skill ? Math.max(0, readyAtMs - now) : 0;

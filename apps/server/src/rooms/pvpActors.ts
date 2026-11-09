@@ -17,9 +17,7 @@ export interface PvpActorInput {
 }
 
 /** Builds the session-indexed eligibility map; hidden/not-ready actors are omitted. */
-export function buildPvpActors(
-  inputs: Iterable<PvpActorInput>,
-): Map<string, PvpActor> {
+export function buildPvpActors(inputs: Iterable<PvpActorInput>): Map<string, PvpActor> {
   const actors = new Map<string, PvpActor>();
   for (const input of inputs) {
     if (input.invisible || input.stealth || !input.pvpReady) {

@@ -1,9 +1,4 @@
-import type {
-  ClassId,
-  GameDataDataset,
-  ItemType,
-  Rarity,
-} from "@jadethrone/shared";
+import type { ClassId, GameDataDataset, ItemType, Rarity } from "@jadethrone/shared";
 import { ZodError } from "zod";
 import rawBonusFile from "../bonuses.json";
 import rawDropTables from "../dropTables.json";
@@ -227,10 +222,7 @@ export function buildCatalog(entries: GameDataEntries, version: number): GameDat
     spawnGroups = buildSpawnGroups({ version: 1, groups: entries.spawnGroups }, monsterRefs);
   });
   wrapValidation("upgrades", () => {
-    upgrades = buildUpgrades(
-      { version: 1, maxLevel: 9, steps: entries.upgrades },
-      itemRefs,
-    );
+    upgrades = buildUpgrades({ version: 1, maxLevel: 9, steps: entries.upgrades }, itemRefs);
   });
   wrapValidation("bonuses", () => {
     bonusPool = buildBonuses({ version: 1, bonuses: entries.bonuses });
@@ -298,9 +290,7 @@ export const BASE_CATALOG: GameDataCatalog = buildCatalog(BASE_GAME_DATA, 1);
 /** Stable identity for one dataset entry, used by override rows. */
 export function entryIdOf(dataset: GameDataDataset, entry: unknown): string {
   if (typeof entry !== "object" || entry === null) {
-    throw new GameDataValidationError(dataset, [
-      { path: "", message: "entry must be an object" },
-    ]);
+    throw new GameDataValidationError(dataset, [{ path: "", message: "entry must be an object" }]);
   }
   const record = entry as Record<string, unknown>;
   if (dataset === "upgrades") {
@@ -320,9 +310,7 @@ export function entryIdOf(dataset: GameDataDataset, entry: unknown): string {
     return record.type;
   }
   if (typeof record.id !== "string" || record.id === "") {
-    throw new GameDataValidationError(dataset, [
-      { path: "id", message: "entry needs an id" },
-    ]);
+    throw new GameDataValidationError(dataset, [{ path: "id", message: "entry needs an id" }]);
   }
   return record.id;
 }
@@ -360,13 +348,10 @@ export function mergeDataset(
   const merged = order.map((id) => byId.get(id));
   if (dataset === "upgrades") {
     merged.sort(
-      (one, two) =>
-        Number((one as { from: number }).from) - Number((two as { from: number }).from),
+      (one, two) => Number((one as { from: number }).from) - Number((two as { from: number }).from),
     );
   } else if (dataset !== "bonuses") {
-    merged.sort((one, two) =>
-      entryIdOf(dataset, one).localeCompare(entryIdOf(dataset, two)),
-    );
+    merged.sort((one, two) => entryIdOf(dataset, one).localeCompare(entryIdOf(dataset, two)));
   }
   return merged;
 }
@@ -383,11 +368,7 @@ export function mergeGameData(
   }
   const merged = {} as Record<GameDataDataset, readonly unknown[]>;
   for (const dataset of Object.keys(base) as GameDataDataset[]) {
-    merged[dataset] = mergeDataset(
-      dataset,
-      base[dataset],
-      grouped.get(dataset) ?? [],
-    );
+    merged[dataset] = mergeDataset(dataset, base[dataset], grouped.get(dataset) ?? []);
   }
   return merged;
 }

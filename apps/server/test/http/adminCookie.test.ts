@@ -109,21 +109,14 @@ describe("requireRole", () => {
 });
 
 describe("requireAdminCookie", () => {
-  async function run(
-    cookie: string | undefined,
-    current: AccountAuthRecord | null = account(),
-  ) {
+  async function run(cookie: string | undefined, current: AccountAuthRecord | null = account()) {
     const next = vi.fn();
     const res = response();
     const handler = requireAdminCookie({
       authDeps: authDeps(),
       getAccount: async () => current,
     });
-    await handler(
-      { headers: cookie === undefined ? {} : { cookie } } as Request,
-      res,
-      next,
-    );
+    await handler({ headers: cookie === undefined ? {} : { cookie } } as Request, res, next);
     return { next, res };
   }
 
@@ -142,8 +135,8 @@ describe("requireAdminCookie", () => {
     ).toBe("unauthorized");
     expect(
       (
-        (await run(`${ADMIN_COOKIE_NAME}=${token()}`, account({ role: "player" })))
-          .next.mock.calls[0]![0] as ServiceError
+        (await run(`${ADMIN_COOKIE_NAME}=${token()}`, account({ role: "player" }))).next.mock
+          .calls[0]![0] as ServiceError
       ).code,
     ).toBe("forbidden");
   });

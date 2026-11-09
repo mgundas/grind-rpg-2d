@@ -315,9 +315,7 @@ export function resolveSkillCast(
     dash: null,
     breaksStealth:
       Boolean(skill.damage) ||
-      skill.effects.some((effect) =>
-        ["stun", "slow", "poison", "knockback"].includes(effect.kind),
-      ),
+      skill.effects.some((effect) => ["stun", "slow", "poison", "knockback"].includes(effect.kind)),
   };
 
   const equipment = equipmentBonusStats(runtime.inventory, ctx.catalog);
@@ -336,19 +334,11 @@ export function resolveSkillCast(
           modifiers,
           "attack",
         )
-      : applyBuffModifiers(
-          magicAttackOf(stats.int, runtime.progression.level),
-          modifiers,
-          "attack",
-        )
+      : applyBuffModifiers(magicAttackOf(stats.int, runtime.progression.level), modifiers, "attack")
     : 0;
   const critValue = Math.min(
     1,
-    applyBuffModifiers(
-      critChance(stats.dex, equipment.critChance),
-      modifiers,
-      "critChance",
-    ),
+    applyBuffModifiers(critChance(stats.dex, equipment.critChance), modifiers, "critChance"),
   );
   const power = damage ? skillPowerAtRank(damage.basePower, damage.powerPerRank, rank) : 0;
 
@@ -368,10 +358,7 @@ export function resolveSkillCast(
           ]
         : [],
     );
-    const buffDuration = Math.max(
-      0,
-      ...buffEffects.map((effect) => effect.durationMs ?? 0),
-    );
+    const buffDuration = Math.max(0, ...buffEffects.map((effect) => effect.durationMs ?? 0));
     const hotEffect = skill.effects.find((effect) => effect.kind === "heal_over_time");
     const heal = skill.heal;
     const magicAttack = magicAttackOf(stats.int, runtime.progression.level);
@@ -399,7 +386,10 @@ export function resolveSkillCast(
       }
       if (heal && !heal.overTime) {
         const raw = skillHealAmount(heal.base, heal.perRank, rank, magicAttack);
-        const amount = Math.max(0, Math.min(raw, targetRuntime.progression.maxHp - targetRuntime.progression.hp));
+        const amount = Math.max(
+          0,
+          Math.min(raw, targetRuntime.progression.maxHp - targetRuntime.progression.hp),
+        );
         if (amount > 0) {
           outcome.heals.push({
             targetSessionId: sessionId,
@@ -485,8 +475,7 @@ export function resolveSkillCast(
   } else if (skill.type === "dash") {
     const dx = aim.x - origin.x;
     const dy = aim.y - origin.y;
-    const direction =
-      dx * dx + dy * dy > 1 ? (dir8Towards(origin, aim) ?? 0) : null;
+    const direction = dx * dx + dy * dy > 1 ? (dir8Towards(origin, aim) ?? 0) : null;
     // Sweep in small steps: one long `stepMover` call only tests the endpoint,
     // so a 220 px dash would tunnel through a 32 px wall that has walkable
     // ground behind it. Marching keeps the dash inside the collision grid.
@@ -495,13 +484,7 @@ export function resolveSkillCast(
     if (direction !== null) {
       const steps = Math.ceil(skill.rangePx / dashStepPx);
       for (let i = 0; i < steps; i++) {
-        const next = stepMover(
-          dashed,
-          { kind: "dir", dir: direction },
-          ctx.grid,
-          1000,
-          dashStepPx,
-        );
+        const next = stepMover(dashed, { kind: "dir", dir: direction }, ctx.grid, 1000, dashStepPx);
         if (next.pos.x === dashed.pos.x && next.pos.y === dashed.pos.y) {
           break;
         }
@@ -509,10 +492,9 @@ export function resolveSkillCast(
       }
     }
     const destination = dashed.pos;
-    const safe =
-      isWalkableAt(ctx.grid, destination.x, destination.y)
-        ? destination
-        : (nearestWalkable(ctx.grid, destination.x, destination.y, 2) ?? origin);
+    const safe = isWalkableAt(ctx.grid, destination.x, destination.y)
+      ? destination
+      : (nearestWalkable(ctx.grid, destination.x, destination.y, 2) ?? origin);
     center = safe;
     outcome.dash = {
       destination: safe,
@@ -534,14 +516,7 @@ export function resolveSkillCast(
       continue;
     }
     if (ref.kind === "player") {
-      const hit = resolvePlayerHit(
-        ctx,
-        input.sessionId,
-        ref.id,
-        attack,
-        critValue,
-        power,
-      );
+      const hit = resolvePlayerHit(ctx, input.sessionId, ref.id, attack, critValue, power);
       if (hit) {
         outcome.hits.push(hit);
         outcome.playerHits.push(hit);
@@ -685,7 +660,8 @@ function friendlyTargets(
     return [caster];
   }
   if (skill.target === "ally") {
-    return input.allySessionId && (input.allySessionId === caster || party.includes(input.allySessionId))
+    return input.allySessionId &&
+      (input.allySessionId === caster || party.includes(input.allySessionId))
       ? [input.allySessionId]
       : [caster];
   }
@@ -723,6 +699,9 @@ function hitChanceFor(
 ): number {
   return Math.min(
     0.98,
-    Math.max(0.4, 0.7 + (attackerDex - defenderDex) * 0.005 + (attackerLevel - defenderLevel) * 0.01),
+    Math.max(
+      0.4,
+      0.7 + (attackerDex - defenderDex) * 0.005 + (attackerLevel - defenderLevel) * 0.01,
+    ),
   );
 }

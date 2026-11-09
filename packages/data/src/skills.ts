@@ -97,9 +97,7 @@ const effectSchema = z
         break;
     }
     if (
-      ["stun", "slow", "poison", "knockback", "stealth", "heal_over_time"].includes(
-        effect.kind,
-      ) &&
+      ["stun", "slow", "poison", "knockback", "stealth", "heal_over_time"].includes(effect.kind) &&
       (effect.durationMs === undefined || effect.durationMs <= 0)
     ) {
       ctx.addIssue({ code: "custom", message: `${effect.kind} needs a positive durationMs` });
@@ -140,10 +138,7 @@ const skillSchema = z
     if (skill.type === "buff" && skill.effects.length === 0) {
       ctx.addIssue({ code: "custom", message: "buff skills need at least one effect" });
     }
-    if (
-      (skill.type === "melee_aoe" || skill.type === "area") &&
-      skill.radiusPx <= 0
-    ) {
+    if ((skill.type === "melee_aoe" || skill.type === "area") && skill.radiusPx <= 0) {
       ctx.addIssue({ code: "custom", message: "area skills need a positive radiusPx" });
     }
   });

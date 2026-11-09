@@ -20,10 +20,7 @@ import { ServiceError } from "../errors";
 import { logger } from "../logger";
 import { ItemError } from "../items/errors";
 import { toItemDto } from "../items/itemMappers";
-import {
-  applyItemPlanInTx,
-  withItemTransaction,
-} from "../items/itemTransactions";
+import { applyItemPlanInTx, withItemTransaction } from "../items/itemTransactions";
 import { loadInventory } from "../items/itemRepository";
 import { planAdminGive, planAdminRemove } from "../items/planning";
 import { writeAdminLog } from "./adminLog";
@@ -98,7 +95,11 @@ export async function banAccount(
       },
       ip: input.ip,
     });
-    return { bannedUntil: bannedUntil.toISOString(), banReason: input.ban.reason ?? null, tokenVersion };
+    return {
+      bannedUntil: bannedUntil.toISOString(),
+      banReason: input.ban.reason ?? null,
+      tokenVersion,
+    };
   });
   return result;
 }

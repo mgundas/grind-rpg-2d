@@ -169,7 +169,8 @@ export function PlayersPage() {
                 </span>
               </div>
               <div className="mt-1 text-[#7d8a84]">
-                {character.accountUsername} · {MAP_LABELS[character.mapId as keyof typeof MAP_LABELS] ?? character.mapId}
+                {character.accountUsername} ·{" "}
+                {MAP_LABELS[character.mapId as keyof typeof MAP_LABELS] ?? character.mapId}
                 {character.banned ? " · BANNED" : ""}
               </div>
             </button>
@@ -186,10 +187,7 @@ export function PlayersPage() {
             </p>
             <div className="grid gap-1">
               {accountOnly.map((account) => (
-                <div
-                  key={account.id}
-                  className="rounded border border-[#1d2622] px-3 py-2 text-xs"
-                >
+                <div key={account.id} className="rounded border border-[#1d2622] px-3 py-2 text-xs">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[#cfd8d3]">{account.username}</span>
                     <span className={account.banned ? "text-[#ff8f84]" : "text-[#7d8a84]"}>
@@ -206,9 +204,7 @@ export function PlayersPage() {
                           .then(() => setRefresh((value) => value + 1))
                           .catch((unbanError: unknown) =>
                             setError(
-                              unbanError instanceof Error
-                                ? unbanError.message
-                                : "Unban failed.",
+                              unbanError instanceof Error ? unbanError.message : "Unban failed.",
                             ),
                           )
                       }
@@ -264,8 +260,12 @@ export function PlayersPage() {
                 <div className="grid gap-2 sm:grid-cols-2">
                   <div>Gold: {detail.character.gold.toLocaleString()}</div>
                   <div>Map: {detail.character.mapId}</div>
-                  <div>HP: {detail.character.hp} / {detail.character.maxHp}</div>
-                  <div>MP: {detail.character.mp} / {detail.character.maxMp}</div>
+                  <div>
+                    HP: {detail.character.hp} / {detail.character.maxHp}
+                  </div>
+                  <div>
+                    MP: {detail.character.mp} / {detail.character.maxMp}
+                  </div>
                   <div>XP: {detail.character.xp}</div>
                   <div>Stat points: {detail.character.statPoints}</div>
                   <div>VIT: {detail.character.stats.vit}</div>

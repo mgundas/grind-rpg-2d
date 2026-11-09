@@ -822,7 +822,9 @@ export class WorldScene extends Phaser.Scene {
     candidates.sort((a, b) => a.distance - b.distance);
     const store = useUiStore.getState();
     const index = candidates.findIndex(
-      (candidate) => candidate.id === (store.targetKind === "stone" ? store.targetStoneId : store.targetMonsterId),
+      (candidate) =>
+        candidate.id ===
+        (store.targetKind === "stone" ? store.targetStoneId : store.targetMonsterId),
     );
     const next = candidates[(index + 1) % candidates.length]!;
     if (next.kind === "stone") {
@@ -999,9 +1001,7 @@ export class WorldScene extends Phaser.Scene {
     if (!store.minimapMap) {
       return;
     }
-    const partyIds = new Set(
-      (store.party?.members ?? []).map((member) => member.characterId),
-    );
+    const partyIds = new Set((store.party?.members ?? []).map((member) => member.characterId));
     const dots: import("../ui/store").MinimapDot[] = [];
     const self = this.predictor?.position ?? this.character;
     dots.push({ kind: "self", x: self.x, y: self.y });
@@ -1162,7 +1162,16 @@ export class WorldScene extends Phaser.Scene {
         info.kind === "shop" ? "#5da88f" : info.kind === "warehouse" ? "#c9a227" : "#9b6bd1";
       this.add.ellipse(point.x, point.y + 2, 20, 7, 0x000000, 0.28).setDepth(point.y - 1);
       this.add.rectangle(point.x, point.y - 14, 18, 30, 0x3a3630).setDepth(point.y);
-      this.add.rectangle(point.x, point.y - 20, 18, 10, Phaser.Display.Color.HexStringToColor(color).color, 0.7).setDepth(point.y);
+      this.add
+        .rectangle(
+          point.x,
+          point.y - 20,
+          18,
+          10,
+          Phaser.Display.Color.HexStringToColor(color).color,
+          0.7,
+        )
+        .setDepth(point.y);
       this.add.circle(point.x, point.y - 33, 7, 0xc89b6a).setDepth(point.y);
       this.add
         .text(point.x, point.y - 43, info.name, {
@@ -1214,7 +1223,8 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private createGroundVisual(item: GroundItemData): void {
-    const rarityColor = RARITY_COLORS[(item.rarity as keyof typeof RARITY_COLORS) ?? "common"] ??
+    const rarityColor =
+      RARITY_COLORS[(item.rarity as keyof typeof RARITY_COLORS) ?? "common"] ??
       RARITY_COLORS.common;
     const color = Phaser.Display.Color.HexStringToColor(rarityColor).color;
     const beam = this.add
@@ -1223,7 +1233,10 @@ export class WorldScene extends Phaser.Scene {
       .setDepth(item.y - 1);
     let sprite: GroundVisual["sprite"];
     if (item.kind === "gold") {
-      sprite = this.add.circle(item.x, item.y - 6, 7, 0xd4a017).setDepth(item.y).setAlpha(0);
+      sprite = this.add
+        .circle(item.x, item.y - 6, 7, 0xd4a017)
+        .setDepth(item.y)
+        .setAlpha(0);
     } else {
       const definition = hasItem(item.itemId) ? getItem(item.itemId) : null;
       sprite = this.add
@@ -1366,13 +1379,7 @@ export class WorldScene extends Phaser.Scene {
       );
     } else if (payload.itemId) {
       const name = hasItem(payload.itemId) ? getItem(payload.itemId).name : "Item";
-      this.showDamageNumber(
-        own.x,
-        own.y - 58,
-        `+${payload.quantity ?? 1} ${name}`,
-        "#8fd3b6",
-        12,
-      );
+      this.showDamageNumber(own.x, own.y - 58, `+${payload.quantity ?? 1} ${name}`, "#8fd3b6", 12);
     }
   }
 
@@ -1599,7 +1606,9 @@ export class WorldScene extends Phaser.Scene {
     const fx = payload.fx;
     const color = palette[fx] ?? 0xc9a227;
     if (fx === "projectile" || fx === "beam" || fx === "dash") {
-      const orb = this.add.circle(payload.x, payload.y - 24, 6, color, 0.95).setDepth(payload.y + 8);
+      const orb = this.add
+        .circle(payload.x, payload.y - 24, 6, color, 0.95)
+        .setDepth(payload.y + 8);
       this.tweens.add({
         targets: orb,
         x: payload.targetX,
@@ -1699,16 +1708,9 @@ export class WorldScene extends Phaser.Scene {
     } catch {
       size = null;
     }
-    const scale = entity.isBoss
-      ? 1.4
-      : size === "large"
-        ? 1.2
-        : size === "small"
-          ? 0.85
-          : 1;
+    const scale = entity.isBoss ? 1.4 : size === "large" ? 1.2 : size === "small" ? 0.85 : 1;
     const pos = entity.buffer.sample(-Infinity) ?? { x: 0, y: 0 };
-    const textureKey =
-      spriteKey && this.textures.exists(spriteKey) ? spriteKey : KEY_CHARACTER;
+    const textureKey = spriteKey && this.textures.exists(spriteKey) ? spriteKey : KEY_CHARACTER;
     const shadow = this.add
       .ellipse(pos.x, pos.y + 6, 24 * scale, 9 * scale, 0x000000, 0.3)
       .setDepth(pos.y - 1);
@@ -2038,11 +2040,10 @@ export class WorldScene extends Phaser.Scene {
       solid: this.grid.solid.slice(),
     });
     this.environment?.destroy();
-    this.environment = new EnvironmentController(
-      this,
-      getMapPolicy(this.mapId).weather,
-      { width: this.scale.width, height: this.scale.height },
-    );
+    this.environment = new EnvironmentController(this, getMapPolicy(this.mapId).weather, {
+      width: this.scale.width,
+      height: this.scale.height,
+    });
   }
 
   private buildSortedDecor(tiled: TiledMapJson, textureKey: string): void {

@@ -87,7 +87,9 @@ describeDb("admin mutations", () => {
     const logs = await db
       .select()
       .from(adminLog)
-      .where(and(eq(adminLog.targetAccountId, target.accountId), eq(adminLog.action, "account_ban")));
+      .where(
+        and(eq(adminLog.targetAccountId, target.accountId), eq(adminLog.action, "account_ban")),
+      );
     expect(logs).toHaveLength(1);
   });
 
@@ -139,7 +141,12 @@ describeDb("admin mutations", () => {
     const logs = await db
       .select()
       .from(adminLog)
-      .where(and(eq(adminLog.targetCharacterId, target.characterId), eq(adminLog.action, "character_update")));
+      .where(
+        and(
+          eq(adminLog.targetCharacterId, target.characterId),
+          eq(adminLog.action, "character_update"),
+        ),
+      );
     expect(logs).toHaveLength(1);
   });
 
@@ -177,7 +184,9 @@ describeDb("admin mutations", () => {
     const auditRows = await db
       .select()
       .from(adminLog)
-      .where(and(eq(adminLog.targetCharacterId, target.characterId), eq(adminLog.action, "item_grant")));
+      .where(
+        and(eq(adminLog.targetCharacterId, target.characterId), eq(adminLog.action, "item_grant")),
+      );
     expect(auditRows).toHaveLength(1);
 
     await removeItemOffline(db, {

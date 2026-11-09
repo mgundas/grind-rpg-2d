@@ -101,24 +101,15 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
     const query = parseBody(adminSearchQuerySchema, req.query);
     const isOnline = (characterId: string) => Boolean(deps.adminBus.get(characterId));
     res.json(
-      await searchAccountsAndCharacters(
-        deps.db,
-        query.q,
-        query.limit,
-        query.offset,
-        isOnline,
-      ),
+      await searchAccountsAndCharacters(deps.db, query.q, query.limit, query.offset, isOnline),
     );
   });
 
   router.get("/players/:characterId", async (req, res) => {
     const characterId = parseBody(characterIdSchema, req.params.characterId);
     const online = deps.adminBus.get(characterId)?.presence() ?? null;
-    const detail = await getCharacterDetail(
-      deps.db,
-      characterId,
-      online,
-      (id) => Boolean(deps.adminBus.get(id)),
+    const detail = await getCharacterDetail(deps.db, characterId, online, (id) =>
+      Boolean(deps.adminBus.get(id)),
     );
     if (!detail) {
       res.status(404).json({
@@ -348,9 +339,7 @@ export function createAdminRouter(deps: AdminRouteDeps): Router {
     const recurring = input.intervalMinutes != null;
     const id = randomUUID();
     const expiresAt =
-      input.expiresInMinutes === undefined
-        ? null
-        : new Date(now + input.expiresInMinutes * 60_000);
+      input.expiresInMinutes === undefined ? null : new Date(now + input.expiresInMinutes * 60_000);
     await deps.db.insert(announcements).values({
       id,
       message: input.message,

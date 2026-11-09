@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { findArcTargets, findCircleTargets, findLineTargets, isInMeleeArc } from "@jadethrone/shared";
+import {
+  findArcTargets,
+  findCircleTargets,
+  findLineTargets,
+  isInMeleeArc,
+} from "@jadethrone/shared";
 
 const origin = { x: 100, y: 100 };
 
@@ -93,11 +98,7 @@ describe("findLineTargets", () => {
   const end = { x: 200, y: 100 };
 
   it("accepts targets inside the corridor and rejects those outside it", () => {
-    const candidates = [
-      point("near", 130, 100),
-      point("side", 150, 120),
-      point("far", 260, 100),
-    ];
+    const candidates = [point("near", 130, 100), point("side", 150, 120), point("far", 260, 100)];
     expect(findLineTargets(candidates, { origin: start, end, widthPx: 20 })).toEqual(["near"]);
   });
 
@@ -115,8 +116,9 @@ describe("findLineTargets", () => {
 describe("findCircleTargets", () => {
   it("includes the radius plus padding and sorts nearest first", () => {
     const candidates = [point("edge", 135, 100), point("center", 105, 100)];
-    expect(
-      findCircleTargets(candidates, { center: origin, radiusPx: 30, padPx: 8 }),
-    ).toEqual(["center", "edge"]);
+    expect(findCircleTargets(candidates, { center: origin, radiusPx: 30, padPx: 8 })).toEqual([
+      "center",
+      "edge",
+    ]);
   });
 });

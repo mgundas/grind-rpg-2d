@@ -55,9 +55,7 @@ describe("catalog", () => {
   it("rejects an override whose payload id does not match", () => {
     const item = BASE_GAME_DATA.items[0] as Record<string, unknown>;
     expect(() =>
-      mergeGameData(BASE_GAME_DATA, [
-        { dataset: "items", entryId: "other", payload: item },
-      ]),
+      mergeGameData(BASE_GAME_DATA, [{ dataset: "items", entryId: "other", payload: item }]),
     ).toThrow(GameDataValidationError);
   });
 

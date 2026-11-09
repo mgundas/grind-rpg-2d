@@ -94,11 +94,7 @@ function addMonster(
   return runtime;
 }
 
-function addStone(
-  stones: Map<string, StoneRuntime>,
-  id: string,
-  pos: Vec2,
-): StoneRuntime {
+function addStone(stones: Map<string, StoneRuntime>, id: string, pos: Vec2): StoneRuntime {
   const runtime: StoneRuntime = {
     stoneId: id,
     infoId: "ember_fields_stone",
@@ -217,12 +213,15 @@ describe("resolveSkillCast", () => {
     const skill = getSkill("hexblade_dark_arts_dark_nova");
     runtimes.get("s1")!.progression.skills[skill.id] = 1;
 
-    const outcome = resolveSkillCast(context(state, runtimes, monsters, stones, [0.5, 0.5, 0.9, 0.5, 0.9]), {
-      sessionId: "s1",
-      skill,
-      rank: 1,
-      targetPos: { x: 225, y: 205 },
-    });
+    const outcome = resolveSkillCast(
+      context(state, runtimes, monsters, stones, [0.5, 0.5, 0.9, 0.5, 0.9]),
+      {
+        sessionId: "s1",
+        skill,
+        rank: 1,
+        targetPos: { x: 225, y: 205 },
+      },
+    );
     expect(outcome?.hits.some((hit) => hit.target.kind === "monster")).toBe(true);
     expect(outcome?.stoneHits).toHaveLength(1);
     expect(stone.hp).toBe(12_000);
@@ -238,11 +237,14 @@ describe("resolveSkillCast", () => {
     const skill = getSkill("assassin_shadow_venom_strike");
     runtimes.get("s1")!.progression.skills[skill.id] = 1;
 
-    const outcome = resolveSkillCast(context(state, runtimes, monsters, new Map(), [0.5, 0.5, 0.9]), {
-      sessionId: "s1",
-      skill,
-      rank: 1,
-    });
+    const outcome = resolveSkillCast(
+      context(state, runtimes, monsters, new Map(), [0.5, 0.5, 0.9]),
+      {
+        sessionId: "s1",
+        skill,
+        rank: 1,
+      },
+    );
     expect(outcome?.statuses[0]).toMatchObject({
       kind: "poison",
       monsterId: "m1",
@@ -293,11 +295,14 @@ describe("resolveSkillCast", () => {
     expect(self?.selfDamage).toBe(19);
 
     const soulReap = getSkill("hexblade_cursed_steel_soul_reap");
-    const outcome = resolveSkillCast(context(state, runtimes, monsters, new Map(), [0.5, 0.5, 0.9]), {
-      sessionId: "s1",
-      skill: soulReap,
-      rank: 1,
-    });
+    const outcome = resolveSkillCast(
+      context(state, runtimes, monsters, new Map(), [0.5, 0.5, 0.9]),
+      {
+        sessionId: "s1",
+        skill: soulReap,
+        rank: 1,
+      },
+    );
     expect(outcome?.heals.length).toBeGreaterThan(0);
     expect(outcome?.heals[0]!.amount).toBeLessThanOrEqual(19);
   });

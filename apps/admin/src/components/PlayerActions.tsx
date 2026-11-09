@@ -119,14 +119,16 @@ export function PlayerActions({
               className="mt-1 w-full rounded border border-[var(--jade-soft)] bg-[#0e1311] px-2 py-1"
             />
           </label>
-          {([
-            ["VIT", vit, setVit],
-            ["INT", int, setInt],
-            ["STR", str, setStr],
-            ["DEX", dex, setDex],
-            ["X", x, setX],
-            ["Y", y, setY],
-          ] as const).map(([label, value, setter]) => (
+          {(
+            [
+              ["VIT", vit, setVit],
+              ["INT", int, setInt],
+              ["STR", str, setStr],
+              ["DEX", dex, setDex],
+              ["X", x, setX],
+              ["Y", y, setY],
+            ] as const
+          ).map(([label, value, setter]) => (
             <label key={label}>
               {label}
               <input
@@ -165,9 +167,7 @@ export function PlayerActions({
                 setFeedback("No changes to save.");
                 return;
               }
-              void run("Character update", () =>
-                adminApi.updateCharacter(character.id, body),
-              );
+              void run("Character update", () => adminApi.updateCharacter(character.id, body));
             }}
             className="rounded bg-[var(--jade)] px-3 py-1 font-semibold text-[#0f1210] disabled:opacity-50"
           >

@@ -40,7 +40,8 @@ describe("buff percentage caps", () => {
   });
 });
 
-describe("character HP/MP formulas", () => {  it("computes level-1 warrior HP/MP from the spec formula", () => {
+describe("character HP/MP formulas", () => {
+  it("computes level-1 warrior HP/MP from the spec formula", () => {
     expect(maxHp({ baseHp: 120, vit: 4, level: 1 })).toBe(316);
     expect(maxMp({ baseMp: 20, int: 3, level: 1 })).toBe(92);
   });

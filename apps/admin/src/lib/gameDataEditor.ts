@@ -74,9 +74,7 @@ export function fieldValuesFor(
   fields: readonly GameDataField[],
   payload: Record<string, unknown>,
 ): FieldValues {
-  return Object.fromEntries(
-    fields.map((field) => [field.key, String(payload[field.key] ?? "")]),
-  );
+  return Object.fromEntries(fields.map((field) => [field.key, String(payload[field.key] ?? "")]));
 }
 
 export interface AppliedFields {

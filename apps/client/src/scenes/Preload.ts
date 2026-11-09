@@ -122,16 +122,11 @@ export class PreloadScene extends Phaser.Scene {
     this.progressBox.fillRect(x - 4, y - 4, width + 8, 36);
     this.progressBar = this.add.graphics();
     this.tip = this.add
-      .text(
-        this.scale.width / 2,
-        y + 46,
-        `Tip: ${TIPS[Math.floor(Math.random() * TIPS.length)]}`,
-        {
-          fontFamily: "system-ui, sans-serif",
-          fontSize: "12px",
-          color: "#7d8a84",
-        },
-      )
+      .text(this.scale.width / 2, y + 46, `Tip: ${TIPS[Math.floor(Math.random() * TIPS.length)]}`, {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "12px",
+        color: "#7d8a84",
+      })
       .setOrigin(0.5, 0);
     this.progressHandler = (value: number) => {
       this.progressBar?.clear();

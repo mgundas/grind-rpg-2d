@@ -125,7 +125,13 @@ describe("inventory grid maths", () => {
 describe("adding items", () => {
   it("merges stacks before using new cells", () => {
     const state = stateWith([stack({ id: "a", quantity: 8 })]);
-    const result = addItem(state, DEFINITIONS.potion!, stack({ id: "b", quantity: 5 }), nextIdFactory(), getDefinition);
+    const result = addItem(
+      state,
+      DEFINITIONS.potion!,
+      stack({ id: "b", quantity: 5 }),
+      nextIdFactory(),
+      getDefinition,
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.state.items).toHaveLength(2);
@@ -156,7 +162,13 @@ describe("adding items", () => {
         stack({ id: `p-${slot}`, slot, quantity: 10 }),
       ),
     );
-    const result = addItem(full, DEFINITIONS.potion!, stack({ id: "new" }), nextIdFactory(), getDefinition);
+    const result = addItem(
+      full,
+      DEFINITIONS.potion!,
+      stack({ id: "new" }),
+      nextIdFactory(),
+      getDefinition,
+    );
     expect(result).toEqual({ ok: false, code: "inventory_full" });
     expect(full.items).toHaveLength(INVENTORY_CELLS);
   });

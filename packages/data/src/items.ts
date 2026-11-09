@@ -52,7 +52,10 @@ const itemSchema = z
     baseStats: statsSchema.default({}),
     upgradeStep: statsSchema.optional(),
     iconKey: z.string().regex(/^icon\.item\.[a-z0-9_]+$/),
-    spriteLayerKey: z.string().regex(/^[a-z0-9_.]+$/).optional(),
+    spriteLayerKey: z
+      .string()
+      .regex(/^[a-z0-9_.]+$/)
+      .optional(),
     rarity: z.enum(["common", "fine", "rare", "legendary"]),
     effect: effectSchema.optional(),
   })
@@ -90,7 +93,10 @@ const itemSchema = z
       ctx.addIssue({ code: "custom", message: "visible equipment needs spriteLayerKey" });
     }
     if (item.effect && item.type !== "consumable" && item.type !== "skillbook") {
-      ctx.addIssue({ code: "custom", message: "only consumables and skill books can have an effect" });
+      ctx.addIssue({
+        code: "custom",
+        message: "only consumables and skill books can have an effect",
+      });
     }
     if (item.effect?.kind === "skill_book" && item.type !== "skillbook") {
       ctx.addIssue({ code: "custom", message: "skill_book effects need a skillbook item" });
@@ -150,23 +156,23 @@ function buildUpgradeChain(
 export function buildItems(rawJson: unknown): readonly ItemDefinition[] {
   const parsed = itemsFileSchema.parse(rawJson);
   return parsed.items.map((item) => ({
-  id: item.id,
-  name: item.name,
-  description: item.description,
-  type: item.type,
-  subtype: item.subtype,
-  classes: item.classes as readonly ClassId[] | "all",
-  levelReq: item.levelReq,
-  size: item.size,
-  stackable: item.stackable,
-  maxStack: item.maxStack,
-  buyPrice: item.buyPrice,
-  sellPrice: item.sellPrice,
-  baseStats: item.baseStats,
-  upgradeChain: buildUpgradeChain(item.upgradeStep),
-  iconKey: item.iconKey,
-  spriteLayerKey: item.spriteLayerKey,
-  rarity: item.rarity as Rarity,
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    type: item.type,
+    subtype: item.subtype,
+    classes: item.classes as readonly ClassId[] | "all",
+    levelReq: item.levelReq,
+    size: item.size,
+    stackable: item.stackable,
+    maxStack: item.maxStack,
+    buyPrice: item.buyPrice,
+    sellPrice: item.sellPrice,
+    baseStats: item.baseStats,
+    upgradeChain: buildUpgradeChain(item.upgradeStep),
+    iconKey: item.iconKey,
+    spriteLayerKey: item.spriteLayerKey,
+    rarity: item.rarity as Rarity,
     effect: item.effect as ItemEffect | undefined,
   }));
 }

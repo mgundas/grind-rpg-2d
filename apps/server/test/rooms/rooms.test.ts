@@ -1165,10 +1165,7 @@ describe("player damage, death and respawn", () => {
     // The XP loss is persisted at death time, not only on leave: a crash before
     // respawn must not roll it back (autosave skips dead players).
     await waitUntil(
-      () =>
-        fake.saved.some(
-          (save) => save.characterId === player.characterId && save.xp === 98,
-        ),
+      () => fake.saved.some((save) => save.characterId === player.characterId && save.xp === 98),
       2000,
     );
     const deathSave = fake.saved

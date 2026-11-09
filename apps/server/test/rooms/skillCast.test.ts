@@ -92,8 +92,7 @@ describe("room skill casting", () => {
 
     send(client, MSG.castSkill, { skillId: "warrior_blade_berserk" });
     const start = (await Promise.race([startPromise, startErrorPromise])) as
-      | SkillCastStartPayload
-      | SkillErrorPayload;
+      SkillCastStartPayload | SkillErrorPayload;
     if ("code" in start) {
       throw new Error(`cast rejected: ${start.code} ${start.message}`);
     }

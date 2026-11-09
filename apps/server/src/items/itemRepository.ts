@@ -103,10 +103,7 @@ export async function loadInventory(
       .select()
       .from(items)
       .where(
-        and(
-          eq(items.ownerCharacterId, characterId),
-          inArray(items.location, INVENTORY_LOCATIONS),
-        ),
+        and(eq(items.ownerCharacterId, characterId), inArray(items.location, INVENTORY_LOCATIONS)),
       )
       .orderBy(items.location, items.slot);
 

@@ -27,11 +27,7 @@ import type {
   UpgradeResultPayload,
   WarehouseSnapshotPayload,
 } from "@jadethrone/shared";
-import {
-  IDLE_SCROLL_TARGET,
-  scrollTargetReducer,
-  type ScrollTargetMode,
-} from "./scrollTarget";
+import { IDLE_SCROLL_TARGET, scrollTargetReducer, type ScrollTargetMode } from "./scrollTarget";
 import {
   initialTradeUiState,
   tradeUiReducer,
@@ -44,11 +40,7 @@ import {
   type ChatTabsAction,
   type ChatTabsState,
 } from "./chatTabs";
-import {
-  IDLE_SKILL_BOOK_TARGET,
-  skillBookTargetReducer,
-  type SkillBookTarget,
-} from "./skillBook";
+import { IDLE_SKILL_BOOK_TARGET, skillBookTargetReducer, type SkillBookTarget } from "./skillBook";
 
 export type ConnectionPhase = "idle" | "connecting" | "connected" | "error" | "left";
 
@@ -360,8 +352,7 @@ export const useUiStore = create<UiState>((set) => ({
   setChatFocused: (chatFocused) => set({ chatFocused }),
 
   chat: initialChatTabsState(),
-  chatDispatch: (action) =>
-    set((state) => ({ chat: chatTabsReducer(state.chat, action) })),
+  chatDispatch: (action) => set((state) => ({ chat: chatTabsReducer(state.chat, action) })),
 
   announcement: null,
   setAnnouncement: (announcement) => set({ announcement }),
@@ -378,10 +369,12 @@ export const useUiStore = create<UiState>((set) => ({
       targetMonsterId,
       targetStoneId: targetMonsterId ? null : state.targetStoneId,
       targetCharacterId: targetMonsterId ? null : state.targetCharacterId,
-      targetKind:
-        targetMonsterId ? "monster" : state.targetKind === "monster" ? null : state.targetKind,
-      targetInfo:
-        targetMonsterId || state.targetKind !== "monster" ? state.targetInfo : null,
+      targetKind: targetMonsterId
+        ? "monster"
+        : state.targetKind === "monster"
+          ? null
+          : state.targetKind,
+      targetInfo: targetMonsterId || state.targetKind !== "monster" ? state.targetInfo : null,
     })),
   targetStoneId: null,
   setTargetStone: (targetStoneId) =>
@@ -401,7 +394,11 @@ export const useUiStore = create<UiState>((set) => ({
       targetCharacterId,
       targetMonsterId: targetCharacterId ? null : state.targetMonsterId,
       targetStoneId: targetCharacterId ? null : state.targetStoneId,
-      targetKind: targetCharacterId ? "player" : state.targetKind === "player" ? null : state.targetKind,
+      targetKind: targetCharacterId
+        ? "player"
+        : state.targetKind === "player"
+          ? null
+          : state.targetKind,
       targetInfo:
         targetCharacterId || state.targetKind === "monster" || state.targetKind === "stone"
           ? state.targetInfo
@@ -438,8 +435,7 @@ export const useUiStore = create<UiState>((set) => ({
   buffs: [],
   setBuffState: (state) => set({ buffs: state.buffs }),
   party: null,
-  setParty: (party) =>
-    set({ party: party && party.partyId ? party : null, partyInvite: null }),
+  setParty: (party) => set({ party: party && party.partyId ? party : null, partyInvite: null }),
   partyInvite: null,
   setPartyInvite: (partyInvite) => set({ partyInvite }),
   partyWindowOpen: false,
@@ -527,8 +523,7 @@ export const useUiStore = create<UiState>((set) => ({
       blacksmithError: null,
     }),
   blacksmithPreview: null,
-  setBlacksmithPreview: (blacksmithPreview) =>
-    set({ blacksmithPreview, blacksmithError: null }),
+  setBlacksmithPreview: (blacksmithPreview) => set({ blacksmithPreview, blacksmithError: null }),
   blacksmithResult: null,
   setBlacksmithResult: (blacksmithResult) => set({ blacksmithResult }),
   blacksmithError: null,
@@ -551,8 +546,7 @@ export const useUiStore = create<UiState>((set) => ({
   setBonusScrollResult: (bonusScrollResult) => set({ bonusScrollResult }),
 
   trade: initialTradeUiState,
-  tradeDispatch: (action) =>
-    set((state) => ({ trade: tradeUiReducer(state.trade, action) })),
+  tradeDispatch: (action) => set((state) => ({ trade: tradeUiReducer(state.trade, action) })),
 
   playerContext: null,
   setPlayerContext: (playerContext) => set({ playerContext }),

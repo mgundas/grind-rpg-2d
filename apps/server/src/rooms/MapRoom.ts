@@ -236,11 +236,7 @@ import {
   type PlayerBuff,
 } from "../skills/effects";
 import { resolveSkillCast, type SkillOutcome } from "../skills/skillCombat";
-import {
-  createPendingCast,
-  startSkillCooldown,
-  validateSkillCast,
-} from "../skills/skillRuntime";
+import { createPendingCast, startSkillCooldown, validateSkillCast } from "../skills/skillRuntime";
 import {
   applyDamageToMonster,
   applyDamageToPlayer,
@@ -270,11 +266,7 @@ import {
 import type { JoinIdentity } from "../auth/joinAuth";
 import { GuildInviteError } from "../social/guildInvites";
 import { GuildRuleError, canInvite } from "../guilds/rules";
-import {
-  FriendRuleError,
-  toFriendsState,
-  type FriendsService,
-} from "../friends/service";
+import { FriendRuleError, toFriendsState, type FriendsService } from "../friends/service";
 import { toGuildView, type GuildRecord, type GuildService } from "../guilds/service";
 
 /** Converts a runtime buff to the wire shape used by skill/buff messages. */
@@ -398,7 +390,10 @@ export class MapRoom extends Room {
       .items.deleteExpiredGroundItems(this.mapId)
       .then((count) => {
         if (count > 0) {
-          logger.info({ roomId: this.roomId, mapId: this.mapId, count }, "purged expired ground items");
+          logger.info(
+            { roomId: this.roomId, mapId: this.mapId, count },
+            "purged expired ground items",
+          );
         }
       })
       .catch((error: unknown) => {
@@ -525,10 +520,7 @@ export class MapRoom extends Room {
             continue;
           }
           const other = this.state.players.get(otherClient.sessionId);
-          const scrambled =
-            other !== undefined &&
-            other.kingdom !== player.kingdom &&
-            !neutral;
+          const scrambled = other !== undefined && other.kingdom !== player.kingdom && !neutral;
           this.safeSend(
             otherClient,
             MSG.chatMsg,
@@ -784,12 +776,7 @@ export class MapRoom extends Room {
         logger.warn({ session: client.sessionId }, "dropped invalid tradeLock message");
         return;
       }
-      this.handleTradeLock(
-        client,
-        parsed.data.tradeId,
-        parsed.data.revision,
-        parsed.data.locked,
-      );
+      this.handleTradeLock(client, parsed.data.tradeId, parsed.data.revision, parsed.data.locked);
     });
 
     this.onMessage(MSG.tradeAccept, (client, raw) => {
@@ -809,7 +796,6 @@ export class MapRoom extends Room {
       }
       this.handleTradeCancel(client, parsed.data.tradeId);
     });
-
 
     this.onMessage(MSG.friendAdd, (client, raw) => {
       const parsed = friendAddMessageSchema.safeParse(raw);
@@ -1137,10 +1123,7 @@ export class MapRoom extends Room {
     this.onMessage(MSG.requestUpgradePreview, (client, raw) => {
       const parsed = requestUpgradePreviewMessageSchema.safeParse(raw);
       if (!parsed.success) {
-        logger.warn(
-          { session: client.sessionId },
-          "dropped invalid requestUpgradePreview message",
-        );
+        logger.warn({ session: client.sessionId }, "dropped invalid requestUpgradePreview message");
         return;
       }
       this.runItemCommand(
@@ -1632,10 +1615,7 @@ export class MapRoom extends Room {
   private takeItemCommandToken(runtime: PlayerRuntime): boolean {
     const now = Date.now();
     const elapsed = Math.max(0, now - runtime.itemCommandTokensAtMs);
-    runtime.itemCommandTokens = Math.min(
-      20,
-      runtime.itemCommandTokens + (elapsed / 1000) * 12,
-    );
+    runtime.itemCommandTokens = Math.min(20, runtime.itemCommandTokens + (elapsed / 1000) * 12);
     runtime.itemCommandTokensAtMs = now;
     if (runtime.itemCommandTokens < 1) {
       return false;
@@ -1838,10 +1818,7 @@ export class MapRoom extends Room {
     }
   }
 
-  private createAdminActions(
-    sessionId: string,
-    runtime: PlayerRuntime,
-  ): AdminLiveActions {
+  private createAdminActions(sessionId: string, runtime: PlayerRuntime): AdminLiveActions {
     return {
       characterId: runtime.characterId,
       sessionId,
@@ -1855,8 +1832,7 @@ export class MapRoom extends Room {
       setGold: (gold) => this.adminSetGold(sessionId, gold),
       updateCharacter: (update) => this.adminUpdateCharacter(sessionId, update),
       teleportTown: () => this.adminTeleportTown(sessionId),
-      spawnMonster: (typeId, count, x, y) =>
-        this.adminSpawnMonster(sessionId, typeId, count, x, y),
+      spawnMonster: (typeId, count, x, y) => this.adminSpawnMonster(sessionId, typeId, count, x, y),
     };
   }
 
@@ -2846,9 +2822,7 @@ export class MapRoom extends Room {
       const dropId = randomUUID();
       const position = this.dropPosition({ x: input.x, y: input.y });
       const ownerUntilMs =
-        assignment.ownerPartyId || assignment.ownerCharacterId
-          ? input.now + DROP_OWNERSHIP_MS
-          : 0;
+        assignment.ownerPartyId || assignment.ownerCharacterId ? input.now + DROP_OWNERSHIP_MS : 0;
       const row = {
         id: dropId,
         definitionId: itemId,
@@ -3004,11 +2978,7 @@ export class MapRoom extends Room {
     this.safeSend(client, MSG.inventoryError, { code });
   }
 
-  private sendBlacksmithError(
-    client: Client,
-    code: ItemActionErrorCode,
-    message?: string,
-  ): void {
+  private sendBlacksmithError(client: Client, code: ItemActionErrorCode, message?: string): void {
     this.safeSend(client, MSG.blacksmithError, { code, message });
   }
 
@@ -3193,11 +3163,7 @@ export class MapRoom extends Room {
    * Pick up an item or a gold pile. Gold is reserved by removing it from room
    * state before the await; items are claimed by the DB conditional update.
    */
-  private async pickupDrop(
-    client: Client,
-    runtime: PlayerRuntime,
-    dropId: string,
-  ): Promise<void> {
+  private async pickupDrop(client: Client, runtime: PlayerRuntime, dropId: string): Promise<void> {
     if (runtime.dead) {
       throw new ItemError("dead", "Cannot pick up items while dead.");
     }
@@ -3274,11 +3240,7 @@ export class MapRoom extends Room {
     });
   }
 
-  private async useItem(
-    client: Client,
-    runtime: PlayerRuntime,
-    instanceId: string,
-  ): Promise<void> {
+  private async useItem(client: Client, runtime: PlayerRuntime, instanceId: string): Promise<void> {
     if (runtime.dead) {
       throw new ItemError("dead", "Cannot use items while dead.");
     }
@@ -3350,10 +3312,7 @@ export class MapRoom extends Room {
     this.sendSelfStats(client.sessionId);
   }
 
-  private async refundConsumedItem(
-    runtime: PlayerRuntime,
-    before: InventoryState,
-  ): Promise<void> {
+  private async refundConsumedItem(runtime: PlayerRuntime, before: InventoryState): Promise<void> {
     const changes = diffInventory(runtime.inventory, before, runtime.characterId, "refund");
     if (changes.length === 0) {
       return;
@@ -3448,7 +3407,10 @@ export class MapRoom extends Room {
       runtime.inventory.items.find((item) => item.id === instanceId) ??
       runtime.inventory.equipment.find((item) => item?.id === instanceId) ??
       null;
-    const itemName = stack && this.catalog().hasItem(stack.itemId) ? this.catalog().getItem(stack.itemId).name : "an item";
+    const itemName =
+      stack && this.catalog().hasItem(stack.itemId)
+        ? this.catalog().getItem(stack.itemId).name
+        : "an item";
     getServerServices().adminBus.broadcastAnnouncement({
       message: `${player.name} forged ${itemName} to +${level}!`,
       kind: "upgrade",
@@ -3579,10 +3541,7 @@ export class MapRoom extends Room {
         return;
       }
     }
-    logger.error(
-      { roomId: this.roomId, session: client.sessionId, error },
-      "item command failed",
-    );
+    logger.error({ roomId: this.roomId, session: client.sessionId, error }, "item command failed");
     this.sendErrorFor(channel, client, "internal");
   }
 
@@ -3693,11 +3652,7 @@ export class MapRoom extends Room {
   }
 
   /** Award the same party-bonus XP to each eligible session once. */
-  private awardXpToGroup(
-    sessionIds: readonly string[],
-    baseXp: number,
-    sourceLevel: number,
-  ): void {
+  private awardXpToGroup(sessionIds: readonly string[], baseXp: number, sourceLevel: number): void {
     const unique = [...new Set(sessionIds)].filter((sessionId) => {
       const runtime = this.runtimes.get(sessionId);
       return Boolean(runtime && !runtime.dead);
@@ -3776,10 +3731,7 @@ export class MapRoom extends Room {
       }
     }
 
-    if (
-      runtime.progression.level === previousLevel &&
-      runtime.progression.xp === previousXp
-    ) {
+    if (runtime.progression.level === previousLevel && runtime.progression.xp === previousXp) {
       return false;
     }
 
@@ -3873,7 +3825,12 @@ export class MapRoom extends Room {
       if (!player || !isClassId(player.classId)) {
         throw new SkillRuleError("internal", "Character class is not playable.");
       }
-      const result = validateSkillUpgrade(runtime.progression, player.classId, skillId, this.catalog());
+      const result = validateSkillUpgrade(
+        runtime.progression,
+        player.classId,
+        skillId,
+        this.catalog(),
+      );
       const saved = await getServerServices().saveSkillState(runtime.characterId, {
         ranks: { [skillId]: result.rank },
         skillPoints: result.skillPoints,
@@ -4048,10 +4005,7 @@ export class MapRoom extends Room {
     }
   }
 
-  private handleSetPvpMode(
-    client: Client,
-    mode: "peaceful" | "kingdom" | "free",
-  ): void {
+  private handleSetPvpMode(client: Client, mode: "peaceful" | "kingdom" | "free"): void {
     const runtime = this.runtimes.get(client.sessionId);
     const player = this.state.players.get(client.sessionId);
     if (!runtime || !player) {
@@ -4198,8 +4152,7 @@ export class MapRoom extends Room {
   ): void {
     this.runFriendCommand(client, async (runtime) => {
       const friends = this.friendsService();
-      const targetId =
-        characterId ?? (name ? (await friends.findByName(name))?.id : undefined);
+      const targetId = characterId ?? (name ? (await friends.findByName(name))?.id : undefined);
       if (!targetId) {
         throw new FriendRuleError("not_found", "Character not found.");
       }
@@ -4592,11 +4545,7 @@ export class MapRoom extends Room {
     return undefined;
   }
 
-  private sendTradeError(
-    sessionId: string,
-    error: unknown,
-    tradeId?: string,
-  ): void {
+  private sendTradeError(sessionId: string, error: unknown, tradeId?: string): void {
     const client = this.clientFor(sessionId);
     if (!client) {
       return;
@@ -4643,7 +4592,11 @@ export class MapRoom extends Room {
     }
   }
 
-  private validateTradeOffer(runtime: PlayerRuntime, side: TradeSide, code: "invalid_offer" | "stale"): void {
+  private validateTradeOffer(
+    runtime: PlayerRuntime,
+    side: TradeSide,
+    code: "invalid_offer" | "stale",
+  ): void {
     for (const instanceId of side.offer.instanceIds) {
       if (!runtime.inventory.items.some((item) => item.id === instanceId)) {
         throw new TradeRuleError(code, "An offered item is no longer in your inventory.");
@@ -4720,7 +4673,11 @@ export class MapRoom extends Room {
     }
     const trade = this.trades.get(tradeId);
     if (!trade) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("not_found", "Trade not found."),
+        tradeId,
+      );
       return;
     }
     let otherSide: TradeSide;
@@ -4732,7 +4689,11 @@ export class MapRoom extends Room {
     }
     const other = this.runtimeForCharacter(otherSide.characterId);
     if (!other) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("offline", "They left the trade."),
+        tradeId,
+      );
       return;
     }
     this.runTradeCommand(runtime, other.runtime, async (one, two) => {
@@ -4773,7 +4734,11 @@ export class MapRoom extends Room {
     }
     const trade = this.trades.get(tradeId);
     if (!trade) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("not_found", "Trade not found."),
+        tradeId,
+      );
       return;
     }
     let otherSide: TradeSide;
@@ -4785,7 +4750,11 @@ export class MapRoom extends Room {
     }
     const other = this.runtimeForCharacter(otherSide.characterId);
     if (!other) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("offline", "They left the trade."),
+        tradeId,
+      );
       return;
     }
     this.runTradeCommand(runtime, other.runtime, async (one, two) => {
@@ -4812,7 +4781,11 @@ export class MapRoom extends Room {
     }
     const trade = this.trades.get(tradeId);
     if (!trade) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("not_found", "Trade not found."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("not_found", "Trade not found."),
+        tradeId,
+      );
       return;
     }
     let otherSide: TradeSide;
@@ -4824,7 +4797,11 @@ export class MapRoom extends Room {
     }
     const other = this.runtimeForCharacter(otherSide.characterId);
     if (!other) {
-      this.sendTradeError(client.sessionId, new TradeRuleError("offline", "They left the trade."), tradeId);
+      this.sendTradeError(
+        client.sessionId,
+        new TradeRuleError("offline", "They left the trade."),
+        tradeId,
+      );
       return;
     }
     this.runTradeCommand(runtime, other.runtime, async (one, two) => {
@@ -4866,11 +4843,7 @@ export class MapRoom extends Room {
     }
   }
 
-  private handleTradeActionFailure(
-    tradeId: string,
-    characterId: string,
-    error: unknown,
-  ): void {
+  private handleTradeActionFailure(tradeId: string, characterId: string, error: unknown): void {
     if (
       error instanceof TradeRuleError &&
       (error.code === "revision" ||
@@ -4976,10 +4949,7 @@ export class MapRoom extends Room {
     }
   }
 
-  private tradeSidePayload(
-    trade: TradeRecord,
-    runtime: PlayerRuntime,
-  ): TradeSidePayload {
+  private tradeSidePayload(trade: TradeRecord, runtime: PlayerRuntime): TradeSidePayload {
     const side = this.trades.side(trade, runtime.characterId);
     const items = side.offer.instanceIds
       .map((instanceId) => runtime.inventory.items.find((item) => item.id === instanceId))
@@ -5045,10 +5015,7 @@ export class MapRoom extends Room {
       try {
         await handler(a, b);
       } catch (error) {
-        logger.error(
-          { roomId: this.roomId, error },
-          "trade command failed",
-        );
+        logger.error({ roomId: this.roomId, error }, "trade command failed");
       }
     };
     const gate = Promise.all([
@@ -5206,18 +5173,21 @@ export class MapRoom extends Room {
         }
       }
       const partySessionIds = this.partySessionIdsFor(runtime);
-      const validation = validateSkillCast({
-        progression: runtime.progression,
-        classId: player.classId,
-        request,
-        now: Date.now(),
-        cooldowns: runtime.skillCooldowns,
-        hasPendingCast: runtime.pendingCast !== null,
-        dead: runtime.dead,
-        warping: runtime.warping,
-        casterPos: runtime.mover.pos,
-        targetPos,
-      }, this.catalog());
+      const validation = validateSkillCast(
+        {
+          progression: runtime.progression,
+          classId: player.classId,
+          request,
+          now: Date.now(),
+          cooldowns: runtime.skillCooldowns,
+          hasPendingCast: runtime.pendingCast !== null,
+          dead: runtime.dead,
+          warping: runtime.warping,
+          casterPos: runtime.mover.pos,
+          targetPos,
+        },
+        this.catalog(),
+      );
       const now = Date.now();
       runtime.progression.mp = Math.max(0, runtime.progression.mp - validation.mpCost);
       player.mp = runtime.progression.mp;
@@ -5414,7 +5384,12 @@ export class MapRoom extends Room {
         continue;
       }
       if (status.kind === "stun") {
-        applyStunAt(monster.status, status.durationMs, this.catalog().getMonster(monster.typeId).isBoss, now);
+        applyStunAt(
+          monster.status,
+          status.durationMs,
+          this.catalog().getMonster(monster.typeId).isBoss,
+          now,
+        );
       } else if (status.kind === "slow") {
         applySlow(monster.status, status.factor, status.durationMs, now);
       } else if (status.kind === "poison") {
@@ -5447,7 +5422,10 @@ export class MapRoom extends Room {
       if (!target || !targetPlayer || target.dead) {
         continue;
       }
-      target.progression.hp = Math.min(target.progression.maxHp, target.progression.hp + heal.amount);
+      target.progression.hp = Math.min(
+        target.progression.maxHp,
+        target.progression.hp + heal.amount,
+      );
       targetPlayer.hp = target.progression.hp;
       target.dirty = true;
       affected.add(heal.targetSessionId);
@@ -5569,7 +5547,10 @@ export class MapRoom extends Room {
     }
     this.awardXpForKill(killed, killerSessionId);
     void this.spawnDrops(killed, killerSessionId, now).catch((error: unknown) => {
-      logger.error({ roomId: this.roomId, monsterId: killed.monsterId, error }, "drop spawn failed");
+      logger.error(
+        { roomId: this.roomId, monsterId: killed.monsterId, error },
+        "drop spawn failed",
+      );
     });
   }
 
@@ -6000,15 +5981,33 @@ export class MapRoom extends Room {
         this.autoWalkStep(runtime, sessionId, now);
       } else if (runtime.lastIntent.kind === "path" && runtime.mover.path.length > 0) {
         // Click-to-move keeps following its path (speed-bounded by movement).
-        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+        runtime.mover = stepMover(
+          runtime.mover,
+          runtime.lastIntent,
+          this.assets.grid,
+          TICK_MS,
+          this.playerSpeed(runtime),
+        );
       } else if (runtime.lastIntent.kind === "dir" && runtime.graceTicksRemaining > 0) {
         // Packet loss must not stop the character mid-step: keep the last
         // direction for a few ticks. An explicit `none` clears the grace and
         // stops immediately.
         runtime.graceTicksRemaining--;
-        runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+        runtime.mover = stepMover(
+          runtime.mover,
+          runtime.lastIntent,
+          this.assets.grid,
+          TICK_MS,
+          this.playerSpeed(runtime),
+        );
       } else {
-        runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+        runtime.mover = stepMover(
+          runtime.mover,
+          { kind: "none" },
+          this.assets.grid,
+          TICK_MS,
+          this.playerSpeed(runtime),
+        );
       }
     }
 
@@ -6062,7 +6061,13 @@ export class MapRoom extends Room {
         runtime.lastIntent = { kind: "none" };
         break;
     }
-    runtime.mover = stepMover(runtime.mover, runtime.lastIntent, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+    runtime.mover = stepMover(
+      runtime.mover,
+      runtime.lastIntent,
+      this.assets.grid,
+      TICK_MS,
+      this.playerSpeed(runtime),
+    );
   }
 
   private attackRangeFor(player: PlayerState): number {
@@ -6220,7 +6225,13 @@ export class MapRoom extends Room {
       runtime.noProgressSinceMs = now;
       runtime.mover.path = [];
       runtime.lastIntent = { kind: "none" };
-      runtime.mover = stepMover(runtime.mover, { kind: "none" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+      runtime.mover = stepMover(
+        runtime.mover,
+        { kind: "none" },
+        this.assets.grid,
+        TICK_MS,
+        this.playerSpeed(runtime),
+      );
       if (now >= runtime.attackReadyAtMs) {
         runtime.pendingAttack = { dir: dir8Towards(runtime.mover.pos, targetPos) };
       }
@@ -6261,7 +6272,13 @@ export class MapRoom extends Room {
 
     runtime.graceTicksRemaining = 0;
     runtime.lastIntent = { kind: "path" };
-    runtime.mover = stepMover(runtime.mover, { kind: "path" }, this.assets.grid, TICK_MS, this.playerSpeed(runtime));
+    runtime.mover = stepMover(
+      runtime.mover,
+      { kind: "path" },
+      this.assets.grid,
+      TICK_MS,
+      this.playerSpeed(runtime),
+    );
   }
 
   private clearAutoWalk(

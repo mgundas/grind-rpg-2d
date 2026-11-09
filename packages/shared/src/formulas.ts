@@ -177,10 +177,7 @@ export function partyMemberXpGain(
     return 0;
   }
   const base = monsterXpGain(monsterXp, monsterLevel, memberLevel);
-  return Math.max(
-    0,
-    Math.floor(base * partyXpMultiplier(eligibleMemberCount) * xpRate),
-  );
+  return Math.max(0, Math.floor(base * partyXpMultiplier(eligibleMemberCount) * xpRate));
 }
 
 /**
@@ -221,10 +218,7 @@ export function applyBuffModifiers(
   stat: BuffStat,
 ): number {
   const { flat, percent } = buffModifierTotals(modifiers, stat);
-  const cappedPercent = Math.min(
-    BUFF_PERCENT_CAP_MAX,
-    Math.max(BUFF_PERCENT_CAP_MIN, percent),
-  );
+  const cappedPercent = Math.min(BUFF_PERCENT_CAP_MAX, Math.max(BUFF_PERCENT_CAP_MIN, percent));
   return Math.max(0, (base + flat) * (1 + cappedPercent));
 }
 

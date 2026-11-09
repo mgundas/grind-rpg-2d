@@ -207,10 +207,7 @@ export async function getCharacterDetail(
 
   const loaded = await loadInventory(db, row.account.id, characterId);
   const warehouse = await loadWarehouse(db, row.account.id);
-  const progression = progressionFromCharacter(
-    record,
-    equipmentBonusStats(loaded.inventory),
-  );
+  const progression = progressionFromCharacter(record, equipmentBonusStats(loaded.inventory));
   const summary = toCharacterSummary(row.character, row.account, isOnline(characterId));
 
   return {
@@ -367,7 +364,9 @@ export async function listChatLogs(db: Db, query: AdminLogQuery): Promise<AdminL
       characterName: chatLog.name,
       action: chatLog.mapId,
       channel: chatLog.channel,
-      detail: sql<Record<string, unknown>>`jsonb_build_object('text', ${chatLog.chatText}, 'kingdom', ${chatLog.kingdom}, 'channel', ${chatLog.channel})`,
+      detail: sql<
+        Record<string, unknown>
+      >`jsonb_build_object('text', ${chatLog.chatText}, 'kingdom', ${chatLog.kingdom}, 'channel', ${chatLog.channel})`,
       createdAt: chatLog.createdAt,
     })
     .from(chatLog)
@@ -433,8 +432,18 @@ export async function listTradeLogs(db: Db, query: AdminLogQuery): Promise<Admin
         goldA: row.goldA,
         goldB: row.goldB,
         participants: [
-          { characterId: row.characterAId, name: nameA, accountId: row.accountAId, gold: row.goldA },
-          { characterId: row.characterBId, name: nameB, accountId: row.accountBId, gold: row.goldB },
+          {
+            characterId: row.characterAId,
+            name: nameA,
+            accountId: row.accountAId,
+            gold: row.goldA,
+          },
+          {
+            characterId: row.characterBId,
+            name: nameB,
+            accountId: row.accountBId,
+            gold: row.goldB,
+          },
         ],
         itemsA: row.itemsA,
         itemsB: row.itemsB,
@@ -445,7 +454,11 @@ export async function listTradeLogs(db: Db, query: AdminLogQuery): Promise<Admin
 }
 
 export async function listAnnouncements(db: Db): Promise<AdminAnnouncementRow[]> {
-  const rows = await db.select().from(announcements).orderBy(desc(announcements.createdAt)).limit(100);
+  const rows = await db
+    .select()
+    .from(announcements)
+    .orderBy(desc(announcements.createdAt))
+    .limit(100);
   return rows.map((row: AnnouncementRow) => ({
     id: row.id,
     message: row.message,

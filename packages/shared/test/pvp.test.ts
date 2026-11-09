@@ -17,12 +17,12 @@ describe("pvp rules", () => {
   it("blocks self, safe maps, peaceful modes and friendly groups", () => {
     expect(canAttackPlayer(actor(), actor({ characterId: "a" }), MAP)).toBe(false);
     expect(canAttackPlayer(actor(), actor({ characterId: "b" }), SAFE)).toBe(false);
-    expect(
-      canAttackPlayer(actor({ pvpMode: "peaceful" }), actor({ characterId: "b" }), MAP),
-    ).toBe(false);
-    expect(
-      canAttackPlayer(actor(), actor({ characterId: "b", pvpMode: "peaceful" }), MAP),
-    ).toBe(false);
+    expect(canAttackPlayer(actor({ pvpMode: "peaceful" }), actor({ characterId: "b" }), MAP)).toBe(
+      false,
+    );
+    expect(canAttackPlayer(actor(), actor({ characterId: "b", pvpMode: "peaceful" }), MAP)).toBe(
+      false,
+    );
     expect(
       canAttackPlayer(actor({ partyId: "p" }), actor({ characterId: "b", partyId: "p" }), MAP),
     ).toBe(false);
@@ -32,9 +32,7 @@ describe("pvp rules", () => {
   });
 
   it("allows kingdom attacks only across kingdoms", () => {
-    expect(canAttackPlayer(actor(), actor({ characterId: "b", kingdom: "gale" }), MAP)).toBe(
-      true,
-    );
+    expect(canAttackPlayer(actor(), actor({ characterId: "b", kingdom: "gale" }), MAP)).toBe(true);
     expect(canAttackPlayer(actor(), actor({ characterId: "b", kingdom: "ember" }), MAP)).toBe(
       false,
     );
