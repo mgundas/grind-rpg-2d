@@ -108,5 +108,93 @@
       "respawnMinMs": 1200000,
       "respawnMaxMs": 1200000
     }
+    ,{
+      "id": "valley_wolves",
+      "members": [
+        { "monsterId": "gray_wolf", "count": 4 },
+        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 35000,
+      "respawnMaxMs": 60000
+    }
+    ,{
+      "id": "valley_spirits",
+      "members": [
+        { "monsterId": "lesser_spirit", "count": 4 },
+        { "monsterId": "corrupted_deer", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "valley_bandits",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 4 },
+        { "monsterId": "bandit_archer", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 45000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "valley_dead",
+      "members": [
+        { "monsterId": "corrupted_deer", "count": 3 },
+        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+      ],
+      "respawnMinMs": 45000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "valley_boss",
+      "members": [
+        { "monsterId": "wolf_king", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 1200000,
+      "respawnMaxMs": 1200000
+    }
+    ,{
+      "id": "forest_wolves",
+      "members": [
+        { "monsterId": "gray_wolf", "count": 3 },
+        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 40000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "forest_spirits",
+      "members": [
+        { "monsterId": "corrupted_deer", "count": 3 },
+        { "monsterId": "lesser_spirit", "count": 3, "leader": true }
+      ],
+      "respawnMinMs": 45000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "forest_bandits",
+      "members": [
+        { "monsterId": "bandit_thug", "count": 3 },
+        { "monsterId": "bandit_archer", "count": 3, "leader": true }
+      ],
+      "respawnMinMs": 45000,
+      "respawnMaxMs": 70000
+    }
+    ,{
+      "id": "forest_elites",
+      "members": [
+        { "monsterId": "brown_bear", "count": 3 },
+        { "monsterId": "alpha_wolf", "count": 2, "leader": true }
+      ],
+      "respawnMinMs": 50000,
+      "respawnMaxMs": 80000
+    }
+    ,{
+      "id": "forest_boss",
+      "members": [
+        { "monsterId": "wolf_king", "count": 1, "leader": true }
+      ],
+      "respawnMinMs": 1200000,
+      "respawnMaxMs": 1200000
+    }
   ]
 }

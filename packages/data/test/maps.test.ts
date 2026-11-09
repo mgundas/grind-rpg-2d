@@ -8,6 +8,7 @@ import {
   FIELDS_HEIGHT,
   FIELDS_SPAWN,
   FIELDS_WIDTH,
+  FOREST_SPAWN,
   GALE_HIGHLANDS_SPAWN,
   GALE_VILLAGE_SPAWN,
   TIDE_HIGHLANDS_SPAWN,
@@ -16,10 +17,12 @@ import {
   VILLAGE_SPAWN,
   VILLAGE_WIDTH,
   generateFieldsMap,
+  generateForestMap,
   generateGaleHighlandsMap,
   generateGaleVillageMap,
   generateTideHighlandsMap,
   generateTideVillageMap,
+  generateValleyMap,
   generateVillageMap,
   writeMapFiles,
 } from "../src/generate-maps";
@@ -60,6 +63,8 @@ const galeVillage = fixture(generateGaleVillageMap(), VILLAGE_WIDTH, VILLAGE_HEI
 const tideVillage = fixture(generateTideVillageMap(), VILLAGE_WIDTH, VILLAGE_HEIGHT);
 const galeHighlands = fixture(generateGaleHighlandsMap(), FIELDS_WIDTH, FIELDS_HEIGHT);
 const tideHighlands = fixture(generateTideHighlandsMap(), FIELDS_WIDTH, FIELDS_HEIGHT);
+const valley = fixture(generateValleyMap(), 180, 180);
+const forest = fixture(generateForestMap(), 180, 180);
 
 function tileCentre(tx: number, ty: number): { x: number; y: number } {
   return { x: tx * tile + tile / 2, y: ty * tile + tile / 2 };
@@ -340,12 +345,12 @@ describe("kingdom villages", () => {
   });
 });
 
-/** Shared invariants every 15–30 highlands map must satisfy. */
-function expectHighlands(
+/** Shared invariants every outdoor map (highlands, valley, forest) must satisfy. */
+function expectOutdoorMap(
   current: MapFixture,
   build: () => unknown,
   spawn: { x: number; y: number },
-  villageMap: string,
+  expected: { mobZones: number; stoneZones: number; warps: number },
 ): void {
   expect(structuredClone(build())).toEqual(build());
   expect(current.map.layers.map((layer) => layer.name)).toEqual([
@@ -357,25 +362,19 @@ function expectHighlands(
   ]);
   expectBorderSolid(current);
   expect(isWalkableAt(current.grid, spawn.x, spawn.y)).toBe(true);
-  expect(current.objects.mobZones).toHaveLength(4);
+  expect(current.objects.mobZones).toHaveLength(expected.mobZones);
   for (const zone of current.objects.mobZones) {
     expect(hasSpawnGroup(zone.spawnGroupId)).toBe(true);
     expect(zone.w).toBeGreaterThan(0);
     expect(zone.h).toBeGreaterThan(0);
   }
-  expect(current.objects.stoneZones).toHaveLength(1);
-  const zoneId = current.objects.stoneZones[0]!.properties?.find(
-    (property) => property.name === "zoneId",
-  )?.value;
-  expect(typeof zoneId).toBe("string");
-  expect(current.objects.warps).toHaveLength(2);
-  const [villageWarp, valleyWarp] = current.objects.warps as [
-    MapObjects["warps"][number],
-    MapObjects["warps"][number],
-  ];
-  expect(villageWarp.targetMap).toBe(villageMap);
-  expect(valleyWarp.targetMap).toBe("map_valley_of_echoes");
-  for (const warp of [villageWarp, valleyWarp]) {
+  expect(current.objects.stoneZones).toHaveLength(expected.stoneZones);
+  for (const zone of current.objects.stoneZones) {
+    const zoneId = zone.properties?.find((property) => property.name === "zoneId")?.value;
+    expect(typeof zoneId).toBe("string");
+  }
+  expect(current.objects.warps).toHaveLength(expected.warps);
+  for (const warp of current.objects.warps) {
     expectWarpRectWalkable(current, warp);
     expect(
       canReach(
@@ -392,11 +391,60 @@ function expectHighlands(
 
 describe("kingdom highlands", () => {
   it("generates Gale Highlands linked to its village and the valley", () => {
-    expectHighlands(galeHighlands, generateGaleHighlandsMap, GALE_HIGHLANDS_SPAWN, "map_gale_village");
+    expectOutdoorMap(galeHighlands, generateGaleHighlandsMap, GALE_HIGHLANDS_SPAWN, {
+      mobZones: 4,
+      stoneZones: 1,
+      warps: 2,
+    });
+    const [villageWarp, valleyWarp] = galeHighlands.objects.warps as [
+      MapObjects["warps"][number],
+      MapObjects["warps"][number],
+    ];
+    expect(villageWarp.targetMap).toBe("map_gale_village");
+    expect(valleyWarp.targetMap).toBe("map_valley_of_echoes");
   });
 
   it("generates Tide Highlands linked to its village and the valley", () => {
-    expectHighlands(tideHighlands, generateTideHighlandsMap, TIDE_HIGHLANDS_SPAWN, "map_tide_village");
+    expectOutdoorMap(tideHighlands, generateTideHighlandsMap, TIDE_HIGHLANDS_SPAWN, {
+      mobZones: 4,
+      stoneZones: 1,
+      warps: 2,
+    });
+    const [villageWarp, valleyWarp] = tideHighlands.objects.warps as [
+      MapObjects["warps"][number],
+      MapObjects["warps"][number],
+    ];
+    expect(villageWarp.targetMap).toBe("map_tide_village");
+    expect(valleyWarp.targetMap).toBe("map_valley_of_echoes");
+  });
+});
+
+describe("neutral maps", () => {
+  it("generates the Valley of Echoes with three kingdom gates and a forest exit", () => {
+    expectOutdoorMap(valley, generateValleyMap, { x: 90 * tile + 16, y: 90 * tile + 16 }, {
+      mobZones: 5,
+      stoneZones: 2,
+      warps: 4,
+    });
+    expect(valley.objects.warps.map((warp) => warp.targetMap).sort()).toEqual(
+      [
+        "map_ember_fields",
+        "map_corrupted_forest",
+        "map_gale_highlands",
+        "map_tide_highlands",
+      ].sort(),
+    );
+  });
+
+  it("generates the Corrupted Forest with a valley exit and the cave entrance", () => {
+    expectOutdoorMap(forest, generateForestMap, FOREST_SPAWN, {
+      mobZones: 5,
+      stoneZones: 2,
+      warps: 2,
+    });
+    expect(forest.objects.warps.map((warp) => warp.targetMap).sort()).toEqual(
+      ["map_spider_cave", "map_valley_of_echoes"].sort(),
+    );
   });
 });
 
@@ -413,6 +461,8 @@ describe("writeMapFiles", () => {
       expect(existsSync(join(dir, "map_tide_village.json"))).toBe(true);
       expect(existsSync(join(dir, "map_gale_highlands.json"))).toBe(true);
       expect(existsSync(join(dir, "map_tide_highlands.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_valley_of_echoes.json"))).toBe(true);
+      expect(existsSync(join(dir, "map_corrupted_forest.json"))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

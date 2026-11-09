@@ -11,8 +11,10 @@ import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   ROOM_NAME_FIELDS,
+  ROOM_NAME_FOREST,
   ROOM_NAME_GALE_HIGHLANDS,
   ROOM_NAME_GALE_VILLAGE,
+  ROOM_NAME_SPIDER_CAVE,
   ROOM_NAME_TIDE_HIGHLANDS,
   ROOM_NAME_TIDE_VILLAGE,
   ROOM_NAME_VALLEY,
@@ -117,6 +119,9 @@ export const TIDE_HIGHLANDS_SPAWN = { x: 5 * TILE_SIZE + 16, y: 80 * TILE_SIZE +
 export const VALLEY_EMBER_SPAWN = { x: 5 * TILE_SIZE + 16, y: 40 * TILE_SIZE + 16 };
 export const VALLEY_GALE_SPAWN = { x: 5 * TILE_SIZE + 16, y: 100 * TILE_SIZE + 16 };
 export const VALLEY_TIDE_SPAWN = { x: 5 * TILE_SIZE + 16, y: 140 * TILE_SIZE + 16 };
+/** Corrupted Forest arrival and the Spider Cave entrance point. */
+export const FOREST_SPAWN = { x: 5 * TILE_SIZE + 16, y: 90 * TILE_SIZE + 16 };
+export const SPIDER_CAVE_SPAWN = { x: 10 * TILE_SIZE + 16, y: 20 * TILE_SIZE + 16 };
 
 function emptyLayer(width: number, height: number, fill: number): number[] {
   return new Array<number>(width * height).fill(fill);
@@ -597,18 +602,21 @@ export interface HighlandsRect {
   h: number;
 }
 
-/** Declarative description of a 15–30 highlands map (GAME_DESIGN.md §3.1). */
+/** A warp out of an outdoor map. */
+export interface HighlandsWarp extends HighlandsRect {
+  targetMap: MapId;
+  targetSpawn: { x: number; y: number };
+}
+
+/** Declarative description of an outdoor map (GAME_DESIGN.md §3.1). */
 export interface HighlandsSpec {
   mapId: MapId;
-  /** Western arrival from the kingdom village. */
+  width: number;
+  height: number;
+  /** Default arrival point (used for fresh characters with no saved position). */
   spawn: { x: number; y: number };
-  villageMap: MapId;
-  villageSpawn: { x: number; y: number };
-  /** Eastern exit to the neutral Valley of Echoes. */
-  valleyMap: MapId;
-  valleySpawn: { x: number; y: number };
   clearings: Array<{ x: number; y: number; r: number }>;
-  /** Rects kept free of trees and rocks (arrival corridor and valley approach). */
+  /** Rects kept free of trees and rocks (arrival corridors and warp approaches). */
   corridors: HighlandsRect[];
   dirtPatches: number;
   stonePatches: number;
@@ -616,9 +624,8 @@ export interface HighlandsSpec {
   rocks: number;
   treeChance: number;
   mobZones: Array<{ groupId: string; x: number; y: number; w: number; h: number }>;
-  stoneZone: { zoneId: string; x: number; y: number; w: number; h: number };
-  villageWarp: HighlandsRect;
-  valleyWarp: HighlandsRect;
+  stoneZones: Array<{ zoneId: string; x: number; y: number; w: number; h: number }>;
+  warps: HighlandsWarp[];
 }
 
 /** Ember's original fields layout: the western entrance corridor. */
@@ -645,8 +652,8 @@ function insideRect(rect: HighlandsRect, tx: number, ty: number): boolean {
 }
 
 function buildHighlands(spec: HighlandsSpec): TiledMapFile {
-  const w = FIELDS_WIDTH;
-  const h = FIELDS_HEIGHT;
+  const w = spec.width;
+  const h = spec.height;
   const rng = mulberry32(seedFromString(spec.mapId));
 
   const ground = emptyLayer(w, h, TILE_GRASS);
@@ -666,7 +673,7 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
     paintDisc(w, h, ground, cx, cy, 1 + Math.floor(rng() * 2), TILE_STONE);
   }
 
-  // Entrance and valley-approach roads stay clear of collision.
+  // Arrival and warp-approach roads stay clear of collision.
   for (const corridor of spec.corridors) {
     paintRect(w, h, ground, corridor.x, corridor.y, corridor.w, corridor.h, TILE_DIRT);
     paintRect(w, h, collision, corridor.x, corridor.y, corridor.w, corridor.h, 0);
@@ -721,6 +728,7 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
     decor[index(w, tx, ty)] = TILE_WALL;
   }
 
+  let nextId = 3;
   const objects: TiledObject[] = [
     {
       id: 1,
@@ -734,40 +742,24 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
       type: "",
       visible: true,
     },
-    {
-      id: 2,
-      name: "warp",
-      x: spec.villageWarp.x,
-      y: spec.villageWarp.y,
-      width: spec.villageWarp.w,
-      height: spec.villageWarp.h,
+    ...spec.warps.map((warp) => ({
+      id: nextId++,
+      name: "warp" as const,
+      x: warp.x,
+      y: warp.y,
+      width: warp.w,
+      height: warp.h,
       rotation: 0,
       type: "",
       visible: true,
       properties: [
-        { name: "targetMap", type: "string", value: spec.villageMap satisfies MapId },
-        { name: "targetX", type: "int", value: spec.villageSpawn.x },
-        { name: "targetY", type: "int", value: spec.villageSpawn.y },
+        { name: "targetMap", type: "string", value: warp.targetMap satisfies MapId },
+        { name: "targetX", type: "int", value: warp.targetSpawn.x },
+        { name: "targetY", type: "int", value: warp.targetSpawn.y },
       ],
-    },
-    {
-      id: 3,
-      name: "warp",
-      x: spec.valleyWarp.x,
-      y: spec.valleyWarp.y,
-      width: spec.valleyWarp.w,
-      height: spec.valleyWarp.h,
-      rotation: 0,
-      type: "",
-      visible: true,
-      properties: [
-        { name: "targetMap", type: "string", value: spec.valleyMap satisfies MapId },
-        { name: "targetX", type: "int", value: spec.valleySpawn.x },
-        { name: "targetY", type: "int", value: spec.valleySpawn.y },
-      ],
-    },
-    ...spec.mobZones.map((zone, i) => ({
-      id: 4 + i,
+    })),
+    ...spec.mobZones.map((zone) => ({
+      id: nextId++,
       name: "mob_zone" as const,
       x: zone.x * TILE_SIZE,
       y: zone.y * TILE_SIZE,
@@ -778,18 +770,18 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
       visible: true,
       properties: [{ name: "spawnGroupId", type: "string", value: zone.groupId }],
     })),
-    {
-      id: 4 + spec.mobZones.length,
-      name: "stone_zone",
-      x: spec.stoneZone.x * TILE_SIZE,
-      y: spec.stoneZone.y * TILE_SIZE,
-      width: spec.stoneZone.w * TILE_SIZE,
-      height: spec.stoneZone.h * TILE_SIZE,
+    ...spec.stoneZones.map((zone) => ({
+      id: nextId++,
+      name: "stone_zone" as const,
+      x: zone.x * TILE_SIZE,
+      y: zone.y * TILE_SIZE,
+      width: zone.w * TILE_SIZE,
+      height: zone.h * TILE_SIZE,
       rotation: 0,
       type: "",
       visible: true,
-      properties: [{ name: "zoneId", type: "string", value: spec.stoneZone.zoneId }],
-    },
+      properties: [{ name: "zoneId", type: "string", value: zone.zoneId }],
+    })),
   ];
 
   return baseMap(w, h, "fields", [
@@ -804,11 +796,9 @@ function buildHighlands(spec: HighlandsSpec): TiledMapFile {
 /** Ember Highlands (the Phase-1 "fields") keeps its original layout and zones. */
 const EMBER_HIGHLANDS_SPEC: HighlandsSpec = {
   mapId: ROOM_NAME_FIELDS,
+  width: FIELDS_WIDTH,
+  height: FIELDS_HEIGHT,
   spawn: FIELDS_SPAWN,
-  villageMap: ROOM_NAME_VILLAGE,
-  villageSpawn: VILLAGE_SPAWN,
-  valleyMap: ROOM_NAME_VALLEY,
-  valleySpawn: VALLEY_EMBER_SPAWN,
   clearings: [
     { x: 5, y: 80, r: 11 },
     { x: 42, y: 42, r: 12 },
@@ -828,19 +818,33 @@ const EMBER_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "field_bandits", x: 112, y: 104, w: 16, h: 12 },
     { groupId: "field_boss", x: 130, y: 124, w: 12, h: 10 },
   ],
-  stoneZone: { zoneId: "fields_stones", x: 92, y: 116, w: 14, h: 10 },
-  villageWarp: { x: 2 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE * 5 },
-  valleyWarp: { x: 154 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE * 3, h: TILE_SIZE * 4 },
+  stoneZones: [{ zoneId: "fields_stones", x: 92, y: 116, w: 14, h: 10 }],
+  warps: [
+    {
+      x: 2 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_VILLAGE,
+      targetSpawn: VILLAGE_SPAWN,
+    },
+    {
+      x: 154 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE * 3,
+      h: TILE_SIZE * 4,
+      targetMap: ROOM_NAME_VALLEY,
+      targetSpawn: VALLEY_EMBER_SPAWN,
+    },
+  ],
 };
 
 /** Windy plains with open grinding fields and a bandit camp. */
 const GALE_HIGHLANDS_SPEC: HighlandsSpec = {
   mapId: ROOM_NAME_GALE_HIGHLANDS,
+  width: FIELDS_WIDTH,
+  height: FIELDS_HEIGHT,
   spawn: GALE_HIGHLANDS_SPAWN,
-  villageMap: ROOM_NAME_GALE_VILLAGE,
-  villageSpawn: GALE_VILLAGE_SPAWN,
-  valleyMap: ROOM_NAME_VALLEY,
-  valleySpawn: VALLEY_GALE_SPAWN,
   clearings: [
     { x: 5, y: 80, r: 11 },
     { x: 36, y: 36, r: 13 },
@@ -860,19 +864,33 @@ const GALE_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "gale_highlands_bandits", x: 110, y: 108, w: 16, h: 12 },
     { groupId: "gale_highlands_boss", x: 134, y: 128, w: 12, h: 10 },
   ],
-  stoneZone: { zoneId: "gale_highlands_stones", x: 94, y: 120, w: 12, h: 10 },
-  villageWarp: { x: 2 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE * 5 },
-  valleyWarp: { x: 154 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE * 3, h: TILE_SIZE * 4 },
+  stoneZones: [{ zoneId: "gale_highlands_stones", x: 94, y: 120, w: 12, h: 10 }],
+  warps: [
+    {
+      x: 2 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_GALE_VILLAGE,
+      targetSpawn: GALE_VILLAGE_SPAWN,
+    },
+    {
+      x: 154 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE * 3,
+      h: TILE_SIZE * 4,
+      targetMap: ROOM_NAME_VALLEY,
+      targetSpawn: VALLEY_GALE_SPAWN,
+    },
+  ],
 };
 
 /** Rocky coastal slopes with tide pools replaced by stone patches. */
 const TIDE_HIGHLANDS_SPEC: HighlandsSpec = {
   mapId: ROOM_NAME_TIDE_HIGHLANDS,
+  width: FIELDS_WIDTH,
+  height: FIELDS_HEIGHT,
   spawn: TIDE_HIGHLANDS_SPAWN,
-  villageMap: ROOM_NAME_TIDE_VILLAGE,
-  villageSpawn: TIDE_VILLAGE_SPAWN,
-  valleyMap: ROOM_NAME_VALLEY,
-  valleySpawn: VALLEY_TIDE_SPAWN,
   clearings: [
     { x: 5, y: 80, r: 11 },
     { x: 48, y: 38, r: 13 },
@@ -892,9 +910,157 @@ const TIDE_HIGHLANDS_SPEC: HighlandsSpec = {
     { groupId: "tide_highlands_bandits", x: 116, y: 100, w: 16, h: 12 },
     { groupId: "tide_highlands_boss", x: 136, y: 124, w: 12, h: 10 },
   ],
-  stoneZone: { zoneId: "tide_highlands_stones", x: 94, y: 120, w: 12, h: 10 },
-  villageWarp: { x: 2 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE, h: TILE_SIZE * 5 },
-  valleyWarp: { x: 154 * TILE_SIZE, y: 78 * TILE_SIZE, w: TILE_SIZE * 3, h: TILE_SIZE * 4 },
+  stoneZones: [{ zoneId: "tide_highlands_stones", x: 94, y: 120, w: 12, h: 10 }],
+  warps: [
+    {
+      x: 2 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_TIDE_VILLAGE,
+      targetSpawn: TIDE_VILLAGE_SPAWN,
+    },
+    {
+      x: 154 * TILE_SIZE,
+      y: 78 * TILE_SIZE,
+      w: TILE_SIZE * 3,
+      h: TILE_SIZE * 4,
+      targetMap: ROOM_NAME_VALLEY,
+      targetSpawn: VALLEY_TIDE_SPAWN,
+    },
+  ],
+};
+
+/** Neutral 25–45 crossroads: three kingdom entrances, two stone fields, five packs. */
+const VALLEY_SPEC: HighlandsSpec = {
+  mapId: ROOM_NAME_VALLEY,
+  width: 180,
+  height: 180,
+  spawn: { x: 90 * TILE_SIZE + 16, y: 90 * TILE_SIZE + 16 },
+  clearings: [
+    { x: 90, y: 90, r: 10 },
+    { x: 8, y: 40, r: 9 },
+    { x: 8, y: 100, r: 9 },
+    { x: 8, y: 140, r: 9 },
+    { x: 30, y: 30, r: 11 },
+    { x: 64, y: 62, r: 12 },
+    { x: 104, y: 44, r: 11 },
+    { x: 124, y: 122, r: 12 },
+    { x: 152, y: 150, r: 10 },
+    { x: 170, y: 92, r: 8 },
+  ],
+  corridors: [
+    { x: 2, y: 38, w: 10, h: 5 },
+    { x: 2, y: 98, w: 10, h: 5 },
+    { x: 2, y: 138, w: 10, h: 5 },
+    { x: 168, y: 88, w: 10, h: 7 },
+  ],
+  dirtPatches: 26,
+  stonePatches: 10,
+  treeClusters: 34,
+  rocks: 22,
+  treeChance: 0.42,
+  mobZones: [
+    { groupId: "valley_wolves", x: 25, y: 25, w: 16, h: 14 },
+    { groupId: "valley_spirits", x: 58, y: 56, w: 16, h: 14 },
+    { groupId: "valley_bandits", x: 98, y: 38, w: 16, h: 14 },
+    { groupId: "valley_dead", x: 118, y: 116, w: 16, h: 14 },
+    { groupId: "valley_boss", x: 148, y: 146, w: 14, h: 12 },
+  ],
+  stoneZones: [
+    { zoneId: "valley_stones_west", x: 38, y: 108, w: 12, h: 10 },
+    { zoneId: "valley_stones_east", x: 132, y: 80, w: 12, h: 10 },
+  ],
+  warps: [
+    {
+      x: 2 * TILE_SIZE,
+      y: 38 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_FIELDS,
+      targetSpawn: FIELDS_SPAWN,
+    },
+    {
+      x: 2 * TILE_SIZE,
+      y: 98 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_GALE_HIGHLANDS,
+      targetSpawn: GALE_HIGHLANDS_SPAWN,
+    },
+    {
+      x: 2 * TILE_SIZE,
+      y: 138 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_TIDE_HIGHLANDS,
+      targetSpawn: TIDE_HIGHLANDS_SPAWN,
+    },
+    {
+      x: 176 * TILE_SIZE,
+      y: 89 * TILE_SIZE,
+      w: TILE_SIZE * 2,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_FOREST,
+      targetSpawn: FOREST_SPAWN,
+    },
+  ],
+};
+
+/** Neutral 40–60 corrupted woodland between the valley and the spider cave. */
+const FOREST_SPEC: HighlandsSpec = {
+  mapId: ROOM_NAME_FOREST,
+  width: 180,
+  height: 180,
+  spawn: FOREST_SPAWN,
+  clearings: [
+    { x: 8, y: 90, r: 9 },
+    { x: 40, y: 40, r: 11 },
+    { x: 90, y: 60, r: 10 },
+    { x: 60, y: 120, r: 12 },
+    { x: 120, y: 100, r: 12 },
+    { x: 150, y: 40, r: 9 },
+    { x: 150, y: 150, r: 10 },
+    { x: 172, y: 92, r: 8 },
+  ],
+  corridors: [
+    { x: 2, y: 88, w: 12, h: 7 },
+    { x: 166, y: 88, w: 12, h: 7 },
+  ],
+  dirtPatches: 10,
+  stonePatches: 12,
+  treeClusters: 44,
+  rocks: 24,
+  treeChance: 0.55,
+  mobZones: [
+    { groupId: "forest_wolves", x: 34, y: 34, w: 16, h: 14 },
+    { groupId: "forest_spirits", x: 84, y: 54, w: 16, h: 14 },
+    { groupId: "forest_bandits", x: 54, y: 114, w: 16, h: 14 },
+    { groupId: "forest_elites", x: 114, y: 94, w: 16, h: 14 },
+    { groupId: "forest_boss", x: 144, y: 144, w: 14, h: 12 },
+  ],
+  stoneZones: [
+    { zoneId: "forest_stones_west", x: 60, y: 72, w: 12, h: 10 },
+    { zoneId: "forest_stones_east", x: 140, y: 112, w: 12, h: 10 },
+  ],
+  warps: [
+    {
+      x: 2 * TILE_SIZE,
+      y: 89 * TILE_SIZE,
+      w: TILE_SIZE,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_VALLEY,
+      targetSpawn: { x: 172 * TILE_SIZE + 16, y: 91 * TILE_SIZE + 16 },
+    },
+    {
+      x: 176 * TILE_SIZE,
+      y: 89 * TILE_SIZE,
+      w: TILE_SIZE * 2,
+      h: TILE_SIZE * 5,
+      targetMap: ROOM_NAME_SPIDER_CAVE,
+      targetSpawn: SPIDER_CAVE_SPAWN,
+    },
+  ],
 };
 
 export function generateFieldsMap(): TiledMapFile {
@@ -907,6 +1073,14 @@ export function generateGaleHighlandsMap(): TiledMapFile {
 
 export function generateTideHighlandsMap(): TiledMapFile {
   return buildHighlands(TIDE_HIGHLANDS_SPEC);
+}
+
+export function generateValleyMap(): TiledMapFile {
+  return buildHighlands(VALLEY_SPEC);
+}
+
+export function generateForestMap(): TiledMapFile {
+  return buildHighlands(FOREST_SPEC);
 }
 
 export interface MapFileDefinition {
@@ -922,6 +1096,8 @@ export const MAP_FILES: readonly MapFileDefinition[] = [
   { fileName: "map_tide_village.json", build: generateTideVillageMap },
   { fileName: "map_gale_highlands.json", build: generateGaleHighlandsMap },
   { fileName: "map_tide_highlands.json", build: generateTideHighlandsMap },
+  { fileName: "map_valley_of_echoes.json", build: generateValleyMap },
+  { fileName: "map_corrupted_forest.json", build: generateForestMap },
 ];
 
 /** Write the generated map files. Run via `pnpm generate:maps`. */
