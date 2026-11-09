@@ -37,6 +37,7 @@ import { isBanned } from "../auth/accountService";
 export interface AdminRoomInfo {
   roomId: string;
   mapId: string;
+  channel?: number;
   startedAtMs: number;
   maxClients: number;
   players: number;

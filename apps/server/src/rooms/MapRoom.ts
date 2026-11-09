@@ -1308,6 +1308,7 @@ export class MapRoom extends Room<{ metadata: MapRoomMetadata }> {
     this.adminRoom = {
       roomId: this.roomId,
       mapId: this.mapId,
+      channel: this.channel,
       startedAtMs: Date.now(),
       maxClients: this.maxClients,
       playerCount: () => this.runtimes.size,

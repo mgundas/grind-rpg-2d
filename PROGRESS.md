@@ -340,7 +340,7 @@ Plan: `docs/plans/phase-9.md`.
 - [ ] Task 19 — Dungeon client flow
 - [x] Task 20 — Mounts: item effect, state and speed
 - [x] Task 21 — Mount client visuals and predictor sync
-- [ ] Task 22 — Admin updates for new maps and channels
+- [x] Task 22 — Admin updates for new maps and channels
 - [ ] Task 23 — Phase 9 E2E script, assets and docs
 - [ ] Task 24 — Phase gate
 

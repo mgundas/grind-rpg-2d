@@ -33,6 +33,7 @@ export interface AdminLiveActions {
 export interface AdminRoomHandle {
   readonly roomId: string;
   readonly mapId: MapId;
+  readonly channel?: number;
   readonly startedAtMs: number;
   readonly maxClients: number;
   playerCount(): number;
@@ -55,6 +56,7 @@ export interface AdminBus extends AdminOnlineSource {
   rooms(): Array<{
     roomId: string;
     mapId: MapId;
+    channel?: number;
     startedAtMs: number;
     maxClients: number;
     players: number;
@@ -155,6 +157,7 @@ export function createAdminBus(): AdminBus {
       return [...rooms.values()].map((room) => ({
         roomId: room.roomId,
         mapId: room.mapId,
+        channel: room.channel,
         startedAtMs: room.startedAtMs,
         maxClients: room.maxClients,
         players: room.playerCount(),

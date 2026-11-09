@@ -85,6 +85,9 @@ export function LiveRoomsPage() {
               <tr key={room.roomId} className="border-t border-[#1d2622]">
                 <td className="py-2">
                   {(MAP_LABELS as Record<string, string>)[room.mapId] ?? room.mapId}
+                  <span className="ml-1 text-[10px] text-[#7d8a84]">
+                    CH{(room as { channel?: number }).channel ?? 1}
+                  </span>
                 </td>
                 <td className="py-2 font-mono text-[10px]">{room.roomId.slice(0, 8)}</td>
                 <td className="py-2 text-right">{room.players}</td>
