@@ -336,8 +336,8 @@ Plan: `docs/plans/phase-9.md`. Report: `docs/reports/phase-9.md`.
 - [x] Task 15 — Spirit stones for the new maps
 - [x] Task 16 — Boss coverage and 1→60 balance simulation
 - [x] Task 17 — Cross-map party registry
-- [ ] Task 18 — Spider Cave instanced dungeon room
-- [ ] Task 19 — Dungeon client flow
+- [x] Task 18 — Spider Cave instanced dungeon room
+- [x] Task 19 — Dungeon client flow
 - [x] Task 20 — Mounts: item effect, state and speed
 - [x] Task 21 — Mount client visuals and predictor sync
 - [x] Task 22 — Admin updates for new maps and channels
