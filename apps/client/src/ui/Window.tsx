@@ -31,6 +31,18 @@ function loadPosition(id: string, width: number): { x: number; y: number } {
 export function Window({ id, title, onClose, children, width = 300 }: WindowProps) {
   const [position, setPosition] = useState(() => loadPosition(id, width));
   const drag = useRef<{ offsetX: number; offsetY: number } | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
+
+  // GAME_DESIGN.md §11: windows open with a 120 ms scale/fade.
+  useEffect(() => {
+    panel.current?.animate(
+      [
+        { opacity: 0, transform: "scale(0.96)" },
+        { opacity: 1, transform: "scale(1)" },
+      ],
+      { duration: 120, easing: "ease-out" },
+    );
+  }, []);
 
   useEffect(() => {
     const move = (event: PointerEvent) => {
@@ -65,6 +77,7 @@ export function Window({ id, title, onClose, children, width = 300 }: WindowProp
 
   return (
     <div
+      ref={panel}
       style={{
         position: "fixed",
         left: position.x,

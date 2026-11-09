@@ -96,6 +96,9 @@ export class GroundItemState extends Schema {
 }
 
 export class WorldState extends Schema {
+  /** Coarse server clock (updated ~1 Hz) so clients can age drops without skew. */
+  @type("float64") serverTimeMs = 0;
+
   // `view: true` inside `@type()` is ignored by the installed schema build;
   // the separate `@view()` decorator is what tags the collection as filtered.
   @view()

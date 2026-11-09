@@ -57,6 +57,28 @@ describe("pvp rules", () => {
     ).toBe(false);
   });
 
+  it("pins the full 3x3 mode matrix for same-kingdom players", () => {
+    const modes = ["peaceful", "kingdom", "free"] as const;
+    const expected: Record<(typeof modes)[number], Record<(typeof modes)[number], boolean>> = {
+      peaceful: { peaceful: false, kingdom: false, free: false },
+      kingdom: { peaceful: false, kingdom: false, free: false },
+      // Free mode can hit a same-kingdom player who cannot retaliate; this
+      // asymmetry is deliberate (free = open PvP flag).
+      free: { peaceful: false, kingdom: true, free: true },
+    };
+    for (const attackerMode of modes) {
+      for (const targetMode of modes) {
+        expect(
+          canAttackPlayer(
+            actor({ pvpMode: attackerMode }),
+            actor({ characterId: "b", pvpMode: targetMode }),
+            MAP,
+          ),
+        ).toBe(expected[attackerMode][targetMode]);
+      }
+    }
+  });
+
   it("rejects dead or warping participants and validates modes", () => {
     expect(canAttackPlayer(actor({ dead: true }), actor({ characterId: "b" }), MAP)).toBe(false);
     expect(canAttackPlayer(actor(), actor({ characterId: "b", warping: true }), MAP)).toBe(false);

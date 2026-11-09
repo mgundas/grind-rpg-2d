@@ -23,6 +23,17 @@ function ensureTilesetFrames(scene: Phaser.Scene, key: string): void {
   }
 }
 
+const TIPS = [
+  "Click the ground to walk; WASD also works.",
+  "Press Tab to cycle nearby monsters.",
+  "Spirit stones drop upgrade materials — break them with a party.",
+  "Upgrade gear at the blacksmith; +7 and above announce server-wide.",
+  "Drink potions from the hotbar with 1–4.",
+  "Trade face to face to move items safely.",
+  "The field boss respawns on a fixed timer.",
+  "Higher-level monsters give less XP; level up where the fight is fair.",
+];
+
 /**
  * Loads every manifest entry; files that exist win, files that 404 get a
  * procedural placeholder under the same key (GAME_DESIGN.md §2.1). Offers a
@@ -32,6 +43,7 @@ export class PreloadScene extends Phaser.Scene {
   private progressBar: Phaser.GameObjects.Graphics | null = null;
   private progressBox: Phaser.GameObjects.Graphics | null = null;
   private progressHandler: ((value: number) => void) | null = null;
+  private tip: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super({ key: "Preload" });
@@ -109,6 +121,18 @@ export class PreloadScene extends Phaser.Scene {
     this.progressBox.fillStyle(0x101413, 0.85);
     this.progressBox.fillRect(x - 4, y - 4, width + 8, 36);
     this.progressBar = this.add.graphics();
+    this.tip = this.add
+      .text(
+        this.scale.width / 2,
+        y + 46,
+        `Tip: ${TIPS[Math.floor(Math.random() * TIPS.length)]}`,
+        {
+          fontFamily: "system-ui, sans-serif",
+          fontSize: "12px",
+          color: "#7d8a84",
+        },
+      )
+      .setOrigin(0.5, 0);
     this.progressHandler = (value: number) => {
       this.progressBar?.clear();
       this.progressBar?.fillStyle(0x5da88f, 1);
@@ -119,6 +143,8 @@ export class PreloadScene extends Phaser.Scene {
 
   private destroyProgressBar(): void {
     this.progressBar?.destroy();
+    this.tip?.destroy();
+    this.tip = null;
     this.progressBox?.destroy();
     if (this.progressHandler) {
       this.load.off("progress", this.progressHandler);

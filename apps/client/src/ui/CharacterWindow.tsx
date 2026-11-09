@@ -19,6 +19,8 @@ export function CharacterWindow() {
   const setDayNightEnabled = useUiStore((state) => state.setDayNightEnabled);
   const weatherEnabled = useUiStore((state) => state.weatherEnabled);
   const setWeatherEnabled = useUiStore((state) => state.setWeatherEnabled);
+  const screenShakeEnabled = useUiStore((state) => state.screenShakeEnabled);
+  const setScreenShakeEnabled = useUiStore((state) => state.setScreenShakeEnabled);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -105,6 +107,14 @@ export function CharacterWindow() {
             onChange={(event) => setWeatherEnabled(event.target.checked)}
           />
           Weather
+        </label>
+        <label style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <input
+            type="checkbox"
+            checked={screenShakeEnabled}
+            onChange={(event) => setScreenShakeEnabled(event.target.checked)}
+          />
+          Screen shake
         </label>
       </div>
 

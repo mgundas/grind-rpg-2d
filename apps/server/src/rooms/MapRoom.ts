@@ -345,6 +345,8 @@ export class MapRoom extends Room {
   private tickActive = false;
   /** Auto-walk repaths consume this per tick (reset in `tick`). */
   private autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;
+  /** Next 1 Hz update of the coarse server clock exposed in state. */
+  private nextServerClockAtMs = 0;
 
   /**
    * Colyseus 0.17 calls the STATIC method during matchmaking, before a seat is
@@ -2302,6 +2304,10 @@ export class MapRoom extends Room {
    */
   private tick(): void {
     const now = Date.now();
+    if (now >= this.nextServerClockAtMs) {
+      this.state.serverTimeMs = now;
+      this.nextServerClockAtMs = now + 1000;
+    }
     this.tickActive = true;
     this.tickPvp = null;
     this.autoWalkAstarBudget = AUTO_WALK_MAX_ASTAR_PER_TICK;

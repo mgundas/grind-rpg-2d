@@ -217,6 +217,8 @@ export class WorldScene extends Phaser.Scene {
   private lastAutoLootAt = 0;
   private ownWalkBuffer = new SampleBuffer(32);
   private lastServerPosition = { x: 0, y: 0, lastSeq: 0 };
+  /** serverTimeMs - Date.now(), refreshed on every patch (coarse 1 Hz clock). */
+  private serverClockOffsetMs = 0;
   private autoWalkPrev = false;
   private attackReadyAtMs = 0;
   private damageTexts: Phaser.GameObjects.Text[] = [];
@@ -276,6 +278,12 @@ export class WorldScene extends Phaser.Scene {
 
     this.input.keyboard?.off("keydown-F9");
     this.input.keyboard?.on("keydown-F9", (event: KeyboardEvent) => {
+      event.preventDefault();
+      useUiStore.getState().toggleDebug();
+    });
+    // Spec §11 calls the overlay F3; accept both so manual checks match either.
+    this.input.keyboard?.off("keydown-F3");
+    this.input.keyboard?.on("keydown-F3", (event: KeyboardEvent) => {
       event.preventDefault();
       useUiStore.getState().toggleDebug();
     });
@@ -476,16 +484,33 @@ export class WorldScene extends Phaser.Scene {
 
     room.onStateChange((next: unknown) => {
       const snapshot = next as RoomStateLike;
+      const serverTime = (snapshot as { serverTimeMs?: number }).serverTimeMs;
+      if (typeof serverTime === "number" && serverTime > 0) {
+        this.serverClockOffsetMs = serverTime - Date.now();
+      }
       const me = snapshot.players?.get(sessionId);
       if (me) {
         this.lastServerPosition = { x: me.x, y: me.y, lastSeq: me.lastSeq };
-        useUiStore.getState().setSelfPosition({ x: me.x, y: me.y });
-        useUiStore.getState().setVitals({
-          hp: me.hp,
-          maxHp: me.maxHp,
-          mp: me.mp,
-          maxMp: me.maxMp,
-        });
+        const ui = useUiStore.getState();
+        const currentPos = ui.selfPosition;
+        if (!currentPos || currentPos.x !== me.x || currentPos.y !== me.y) {
+          ui.setSelfPosition({ x: me.x, y: me.y });
+        }
+        const currentVitals = ui.vitals;
+        if (
+          !currentVitals ||
+          currentVitals.hp !== me.hp ||
+          currentVitals.maxHp !== me.maxHp ||
+          currentVitals.mp !== me.mp ||
+          currentVitals.maxMp !== me.maxMp
+        ) {
+          ui.setVitals({
+            hp: me.hp,
+            maxHp: me.maxHp,
+            mp: me.mp,
+            maxMp: me.maxMp,
+          });
+        }
         if (useUiStore.getState().autoWalk) {
           this.ownWalkBuffer.push(this.time.now, me.x, me.y);
         }
@@ -641,7 +666,7 @@ export class WorldScene extends Phaser.Scene {
       }
 
       if (hit.crit) {
-        this.cameras.main.shake(90, 0.0035);
+        this.shake(90, 0.0035);
         this.hitStopUntil = this.time.now + 40;
       }
     }
@@ -1253,13 +1278,26 @@ export class WorldScene extends Phaser.Scene {
     return this.predictor?.position ?? { x: this.character.x, y: this.character.y };
   }
 
+  /** Server epoch now, using the offset learned from the 1 Hz state clock. */
+  private serverNow(): number {
+    return Date.now() + this.serverClockOffsetMs;
+  }
+
+  /** Camera shake gated by the accessibility setting (also prefers-reduced-motion). */
+  private shake(durationMs: number, intensity: number): void {
+    if (!useUiStore.getState().screenShakeEnabled) {
+      return;
+    }
+    this.cameras.main.shake(durationMs, intensity);
+  }
+
   private nearestOwnedDrop(radiusPx: number): GroundItemData | null {
     const own = this.ownPosition();
     const characterId = this.ownCharacterId();
     let best: GroundItemData | null = null;
     let bestDistance = radiusPx * radiusPx;
     for (const item of this.groundData.values()) {
-      if (item.despawnAtMs <= Date.now()) {
+      if (item.despawnAtMs <= this.serverNow()) {
         continue;
       }
       if ((this.failedDrops.get(item.dropId) ?? 0) > Date.now()) {
@@ -1268,7 +1306,7 @@ export class WorldScene extends Phaser.Scene {
       if (
         item.ownerCharacterId &&
         item.ownerCharacterId !== characterId &&
-        item.ownerUntilMs > Date.now()
+        item.ownerUntilMs > this.serverNow()
       ) {
         continue;
       }
@@ -1404,15 +1442,25 @@ export class WorldScene extends Phaser.Scene {
     if (store.targetMonsterId) {
       const target = this.monsterRegistry.entities.get(store.targetMonsterId);
       if (target) {
-        store.setTargetInfo({
-          id: target.id,
-          name: target.name,
-          level: target.level,
-          hp: target.hp,
-          maxHp: target.maxHp,
-          isBoss: target.isBoss,
-          kind: "monster",
-        });
+        const current = store.targetInfo;
+        if (
+          !current ||
+          current.id !== target.id ||
+          current.hp !== target.hp ||
+          current.maxHp !== target.maxHp ||
+          current.level !== target.level ||
+          current.name !== target.name
+        ) {
+          store.setTargetInfo({
+            id: target.id,
+            name: target.name,
+            level: target.level,
+            hp: target.hp,
+            maxHp: target.maxHp,
+            isBoss: target.isBoss,
+            kind: "monster",
+          });
+        }
       } else {
         store.setTargetMonster(null);
       }
@@ -1574,7 +1622,7 @@ export class WorldScene extends Phaser.Scene {
         ease: "Quad.easeOut",
         onComplete: () => ring.destroy(),
       });
-      this.cameras.main.shake(160, 0.005);
+      this.shake(160, 0.005);
     } else if (fx === "slash_arc") {
       const arc = this.add
         .circle(payload.x, payload.y - 18, 26, color, 0.28)
@@ -1603,7 +1651,7 @@ export class WorldScene extends Phaser.Scene {
   }
 
   private showStoneDestroyed(payload: StoneDestroyedPayload): void {
-    this.cameras.main.shake(220, 0.008);
+    this.shake(220, 0.008);
     const shards = 14;
     for (let index = 0; index < shards; index++) {
       const angle = (index / shards) * Math.PI * 2;
@@ -1836,7 +1884,15 @@ export class WorldScene extends Phaser.Scene {
       if (this.pointerHeld && connected()) {
         this.pointerWorld = { x: pointer.worldX, y: pointer.worldY };
       }
-      useUiStore.getState().setCursorWorld({ x: pointer.worldX, y: pointer.worldY });
+      const cursor = useUiStore.getState().cursorWorld;
+      const moved =
+        !cursor ||
+        (cursor.x - pointer.worldX) * (cursor.x - pointer.worldX) +
+          (cursor.y - pointer.worldY) * (cursor.y - pointer.worldY) >
+          16;
+      if (moved) {
+        useUiStore.getState().setCursorWorld({ x: pointer.worldX, y: pointer.worldY });
+      }
       if (!connected()) {
         return;
       }

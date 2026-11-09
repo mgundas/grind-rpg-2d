@@ -17,7 +17,10 @@ const DUSK_END = 0.85;
 const MAX_DARKNESS = 0.72;
 
 export function dayCycleAt(nowMs: number): DayCyclePoint {
-  const cycle = ((nowMs % DAY_CYCLE_MS) + DAY_CYCLE_MS) % DAY_CYCLE_MS;
+  // Snap to one-second buckets so two clients with a little clock skew render
+  // the same tint instead of disagreeing inside a fade band.
+  const bucket = Math.floor(nowMs / 1000) * 1000;
+  const cycle = ((bucket % DAY_CYCLE_MS) + DAY_CYCLE_MS) % DAY_CYCLE_MS;
   const progress = cycle / DAY_CYCLE_MS;
 
   if (progress < DAWN_END) {

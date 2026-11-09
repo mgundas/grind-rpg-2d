@@ -246,6 +246,9 @@ interface UiState {
   setDayNightEnabled: (enabled: boolean) => void;
   weatherEnabled: boolean;
   setWeatherEnabled: (enabled: boolean) => void;
+  /** Accessibility: disable camera shake (also honours prefers-reduced-motion). */
+  screenShakeEnabled: boolean;
+  setScreenShakeEnabled: (enabled: boolean) => void;
 
   skillBookTarget: SkillBookTarget;
   beginSkillBook: (bookInstanceId: string) => void;
@@ -495,6 +498,10 @@ export const useUiStore = create<UiState>((set) => ({
   setDayNightEnabled: (dayNightEnabled) => set({ dayNightEnabled }),
   weatherEnabled: true,
   setWeatherEnabled: (weatherEnabled) => set({ weatherEnabled }),
+  screenShakeEnabled:
+    typeof window === "undefined" ||
+    !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches,
+  setScreenShakeEnabled: (screenShakeEnabled) => set({ screenShakeEnabled }),
 
   skillBookTarget: IDLE_SKILL_BOOK_TARGET,
   beginSkillBook: (bookInstanceId) =>

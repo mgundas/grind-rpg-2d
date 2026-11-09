@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   RARITY_COLORS,
   type CastSkillMessage,
@@ -71,12 +71,23 @@ export function Hotbar() {
   const draggedSkillId = useUiStore((state) => state.draggedSkillId);
   const setDraggedItemId = useUiStore((state) => state.setDraggedItemId);
   const setDraggedSkillId = useUiStore((state) => state.setDraggedSkillId);
-  const bindings = characterId
-    ? (bindingsByCharacter[characterId] ?? loadHotbar(characterId))
-    : loadHotbar(null);
+  const bindings = useMemo(
+    () =>
+      characterId
+        ? (bindingsByCharacter[characterId] ?? loadHotbar(characterId))
+        : loadHotbar(null),
+    [characterId, bindingsByCharacter],
+  );
 
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 200);
+    const timer = setInterval(() => {
+      const state = useUiStore.getState().skillState;
+      const now = Date.now();
+      // Only re-render while something is actually cooling down.
+      if (state?.skills.some((entry) => entry.readyAtMs > now)) {
+        setNow(now);
+      }
+    }, 200);
     return () => clearInterval(timer);
   }, []);
 
@@ -107,23 +118,26 @@ export function Hotbar() {
     setDraggedSkillId(null);
   }
 
-  function triggerSlot(index: number): void {
-    const binding = bindings[index];
-    if (!binding) {
-      return;
-    }
-    if (binding.kind === "item") {
-      const item = [...(inventory?.items ?? [])].find((entry) => entry.itemId === binding.id);
-      if (item) {
-        sendUseItem(item.id);
+  const triggerSlot = useCallback(
+    (index: number): void => {
+      const binding = bindings[index];
+      if (!binding) {
+        return;
       }
-      return;
-    }
-    const request = castRequest(binding);
-    if (request) {
-      sendCastSkill(request);
-    }
-  }
+      if (binding.kind === "item") {
+        const item = [...(inventory?.items ?? [])].find((entry) => entry.itemId === binding.id);
+        if (item) {
+          sendUseItem(item.id);
+        }
+        return;
+      }
+      const request = castRequest(binding);
+      if (request) {
+        sendCastSkill(request);
+      }
+    },
+    [bindings, inventory],
+  );
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -143,7 +157,7 @@ export function Hotbar() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [triggerSlot]);
 
   const dragged: HotbarBinding | null = draggedSkillId
     ? { kind: "skill", id: draggedSkillId }

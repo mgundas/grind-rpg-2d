@@ -38,7 +38,7 @@ export function DebugOverlay() {
         whiteSpace: "pre",
       }}
     >
-      <div style={{ color: "#5da88f", marginBottom: 4 }}>debug (F9)</div>
+      <div style={{ color: "#5da88f", marginBottom: 4 }}>debug (F3 / F9)</div>
       {rows.map(([label, value]) => (
         <div key={label}>
           <span style={{ color: "#7d8a84" }}>{label.padEnd(15, " ")}</span>
