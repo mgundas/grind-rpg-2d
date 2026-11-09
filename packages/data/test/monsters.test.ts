@@ -106,3 +106,13 @@ describe("class attack profiles", () => {
     });
   });
 });
+
+describe("boss spawn groups", () => {
+  it("puts exactly one boss monster in every boss group", () => {
+    for (const group of SPAWN_GROUPS.filter((entry) => entry.id.endsWith("_boss"))) {
+      expect(group.members).toHaveLength(1);
+      expect(getMonster(group.members[0]!.monsterId).isBoss).toBe(true);
+      expect(group.respawnMinMs).toBeGreaterThanOrEqual(15 * 60 * 1000);
+    }
+  });
+});

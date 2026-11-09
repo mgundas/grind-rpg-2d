@@ -26,7 +26,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "verify:phase7-e2e": "node --env-file-if-exists=.env scripts/verify-phase7-e2e.mjs",
-    "verify:phase8-e2e": "node --env-file-if-exists=.env scripts/verify-phase8-e2e.mjs"
+    "verify:phase8-e2e": "node --env-file-if-exists=.env scripts/verify-phase8-e2e.mjs",
+    "verify:phase9-grind": "node --import tsx scripts/verify-phase9-grind.mjs"
   },
   "devDependencies": {
     "@types/node": "catalog:",
